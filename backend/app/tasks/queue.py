@@ -19,10 +19,23 @@ app = App(
         conninfo=settings.DATABASE_URL.replace("postgresql+psycopg://", "postgresql://", 1),
         min_size=1,
         max_size=5,  # worker concurrency 4 + 1
-    )
+    ),
+    import_paths=["app.tasks.media"],  # the worker only imports this module: list every task module here
 )
 
 STALLED_MAX_ATTEMPTS = 3
+_CLIP_CRASHED = (
+    "UPDATE source_clips SET status = 'FAILED', error_code = 'WORKER_CRASHED', error_detail = NULL"
+    " WHERE id = %(clip_id)s AND status IN ('DOWNLOADING', 'PROBING')"
+)
+# When the sweeper gives up on a job, fail its row too, or it would sit in RENDERING/PROBING forever.
+# Keyed by task name; the SQL takes the job's kwargs.
+GIVE_UP_SQL = {
+    "render": "UPDATE renders SET status = 'FAILED', error_code = 'WORKER_CRASHED', completed_at = now(),"
+    " updated_at = now() WHERE id = %(render_id)s AND status IN ('PENDING', 'RENDERING')",
+    "probe_clip": _CLIP_CRASHED,
+    "download_clip": _CLIP_CRASHED,
+}
 
 
 @app.task(name="ping")
@@ -48,6 +61,8 @@ async def retry_stalled_jobs(timestamp: int) -> None:
         if job.attempts >= STALLED_MAX_ATTEMPTS:
             logger.error("stalled job %s (%s) hit %s attempts, marking failed", job.id, job.task_name, job.attempts)
             await app.job_manager.finish_job(job, status=Status.FAILED, delete_job=False)
+            if sql := GIVE_UP_SQL.get(job.task_name):
+                await app.connector.execute_query_async(sql, **job.task_kwargs)
             continue
         try:
             await app.job_manager.retry_job(job)

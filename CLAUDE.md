@@ -54,7 +54,8 @@ All backend commands run in containers (the host has no ffmpeg or psql). From th
 
 ```sh
 docker compose up -d --build                                          # whole stack; api on 127.0.0.1:8000
-docker compose run --rm api pytest                                    # full test suite (own clipper_test db)
+docker compose run --rm worker pytest                                 # full test suite (worker has ffmpeg; own clipper_test db)
+docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # probe if needed + render, no queue; prints the path
 docker compose run --rm migrate                                       # alembic upgrade + guarded procrastinate schema
 docker compose run --rm --no-deps api alembic revision --autogenerate -m "..."
 docker compose run --rm --no-deps api python scripts/dump_openapi.py  # refresh backend/openapi.json

@@ -23,11 +23,11 @@ curl http://127.0.0.1:8000/api/status # db, worker heartbeat, job counts
 ## Test
 
 ```sh
-docker compose run --rm api pytest
+docker compose run --rm worker pytest
 ```
 
-Runs in the api container against the compose postgres, in a separate `clipper_test` database that is
-dropped and recreated on every run.
+Runs in the worker container (it has ffmpeg; in the api container the ffmpeg tests are skipped) against
+the compose postgres, in a separate `clipper_test` database that is dropped and recreated on every run.
 
 ## Common tasks
 
@@ -36,6 +36,8 @@ docker compose run --rm migrate                                          # apply
 docker compose run --rm --no-deps api alembic revision --autogenerate -m "..."
 docker compose exec api procrastinate defer ping                          # no-op job, proves the worker runs
 docker compose run --rm --no-deps api python scripts/dump_openapi.py      # refresh backend/openapi.json
+docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # render without the queue (--x --y --w --opacity)
+(cd backend && uv lock --upgrade-package yt-dlp) && docker compose up -d --build worker  # yt-dlp breaks often: update it
 docker compose down -v                                                    # stop and delete the database
 ```
 
