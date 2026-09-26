@@ -134,7 +134,7 @@ class RenderCreate(BaseModel):
     brand_id: int | None = None  # None: no logo
     overlay_config: OverlayConfig | None = None  # None: the brand's default
     crop_config: CropConfig | None = None  # None: fill + centre crop of the whole frame
-    caption: str | None = None
+    caption: str | None = Field(None, max_length=2200)  # Instagram's caption limit; a render's caption is fixed
 
 
 class RenderOut(BaseModel):

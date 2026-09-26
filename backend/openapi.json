@@ -1387,7 +1387,8 @@
           "caption": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 2200
               },
               {
                 "type": "null"

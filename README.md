@@ -14,6 +14,12 @@ curl http://127.0.0.1:8000/api/health # {"status":"ok"}
 curl http://127.0.0.1:8000/api/status # db, worker heartbeat, job counts
 ```
 
+Then the UI (needs Node 22 on the host):
+
+```sh
+cd frontend && npm install && npm run dev   # http://localhost:5173 (proxies /api and /media to :8000)
+```
+
 - API: http://127.0.0.1:8000 (docs at `/docs`), reloads on code changes in `backend/`.
 - Files under `./data` are served at `/media/...`.
 - Postgres: `127.0.0.1:5432`, user/password/db `clipper`.
@@ -29,6 +35,17 @@ docker compose run --rm worker pytest
 Runs in the worker container (it has ffmpeg; in the api container the ffmpeg tests are skipped) against
 the compose postgres, in a separate `clipper_test` database that is dropped and recreated on every run.
 
+Frontend (from `frontend/`):
+
+```sh
+npm test                 # vitest: the preview-vs-render geometry (src/lib/geometry.test.ts)
+npm run typecheck        # tsc -b
+npm run build            # typecheck + production bundle in dist/
+npm run lint
+node e2e/accept.mjs      # stack + `npm run dev` up: drives the real UI in Google Chrome, renders,
+                         # and checks the rendered frame against the preview (docs/phase-3.md)
+```
+
 ## Common tasks
 
 ```sh
@@ -39,6 +56,7 @@ docker compose run --rm --no-deps api python scripts/dump_openapi.py      # refr
 docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # render without the queue (--x --y --w --opacity)
 (cd backend && uv lock --upgrade-package yt-dlp) && docker compose up -d --build worker  # yt-dlp breaks often: update it
 docker compose down -v                                                    # stop and delete the database
+(cd frontend && npm run gen:api)                                          # regenerate src/api after dump_openapi.py
 ```
 
 Procrastinate upgrades that ship SQL migrations (`procrastinate schema --migrations-path`) need that SQL
