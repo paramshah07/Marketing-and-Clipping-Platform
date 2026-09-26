@@ -1,0 +1,9 @@
+{
+  "status": 200,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "message": "Post deleted successfully"
+  }
+}

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — Editor (Crop) · IMG_4821.MOV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+  /* screen-local helpers */
+  .ic-14 [data-lucide], [data-lucide].ic-14 { width: 14px; height: 14px; }
+  .ic-12 [data-lucide], [data-lucide].ic-12 { width: 12px; height: 12px; }
+  .ig [data-lucide] { width: 22px; height: 22px; stroke-width: 2; }
+  .handle { position: absolute; width: 7px; height: 7px; background: #EDEDEF; border: 1px solid #4F8CFF; border-radius: 1px; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <nav class="flex items-center gap-1.5 text-lg min-w-0">
+          <a class="text-muted hover:text-fg">Library</a>
+          <span class="text-subtle">/</span>
+          <h1 class="font-semibold truncate">IMG_4821.MOV</h1>
+        </nav>
+        <span class="text-sm text-muted tabular-nums whitespace-nowrap">00:31 · 1920x1080 · 29.97fps · has audio</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="font-mono text-sm text-subtle">clp_7f3a9c</span>
+        <span class="h-5 px-1.5 inline-flex items-center rounded border border-line text-xs text-muted">own content</span>
+        <button class="h-7 w-7 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="ellipsis"></i></button>
+      </div>
+    </header>
+    <section class="flex-1 min-h-0 flex">
+
+      <!-- (1) STAGE -->
+      <div class="flex-1 min-w-0 flex flex-col items-center justify-center gap-3 px-6">
+        <!-- Crop mode: full 16:9 source, contained in the same 592x576 viewport (letterboxed).
+             Image box 592x333 (1920x1080 at 0.308). Crop rect x .34 w .32 h 1.00 -> left 202px, width 187px.
+             Logo + IG overlay hidden in this mode. -->
+        <div class="relative w-[592px] h-[576px] rounded bg-black ring-1 ring-line flex items-center">
+          <span class="absolute top-2.5 left-3 text-xs uppercase tracking-wider text-subtle">Source <span class="tabular-nums normal-case tracking-normal">1920x1080</span></span>
+          <span class="absolute bottom-2.5 left-3 text-sm text-subtle">Drag to move · ratio locked to 9:16</span>
+          <div class="relative w-[592px] h-[333px] overflow-hidden">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="absolute inset-0 w-full h-full object-cover" alt="">
+            <!-- crop rect: everything outside dimmed 60% via spread mask -->
+            <div class="absolute top-0 left-[202px] w-[187px] h-[333px] outline outline-1 outline-accent shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]">
+              <!-- rule of thirds -->
+              <div class="absolute inset-y-0 left-1/3 border-l border-white/30"></div>
+              <div class="absolute inset-y-0 left-2/3 border-l border-white/30"></div>
+              <div class="absolute inset-x-0 top-1/3 border-t border-white/30"></div>
+              <div class="absolute inset-x-0 top-2/3 border-t border-white/30"></div>
+            </div>
+          </div>
+          <!-- 8 handles, positioned on the viewport so the ones on the image edge are not clipped -->
+          <div class="absolute top-[121px] left-[202px] w-[187px] h-[333px] pointer-events-none">
+            <span class="handle -left-1 -top-1"></span><span class="handle left-1/2 -ml-1 -top-1"></span><span class="handle -right-1 -top-1"></span>
+            <span class="handle -left-1 top-1/2 -mt-1"></span><span class="handle -right-1 top-1/2 -mt-1"></span>
+            <span class="handle -left-1 -bottom-1"></span><span class="handle left-1/2 -ml-1 -bottom-1"></span><span class="handle -right-1 -bottom-1"></span>
+            <span class="absolute left-1/2 -translate-x-1/2 -bottom-6 text-xs text-muted tabular-nums whitespace-nowrap">614 x 1080</span>
+          </div>
+        </div>
+
+        <!-- transport -->
+        <div class="w-[324px] h-7 flex items-center gap-2">
+          <button class="h-7 w-7 -ml-1.5 inline-flex items-center justify-center rounded text-fg hover:bg-hover"><i data-lucide="play" class="ic-14"></i></button>
+          <div class="relative flex-1 h-1 rounded-full bg-line-strong">
+            <div class="absolute inset-y-0 left-0 w-[22.6%] rounded-full bg-muted"></div>
+            <div class="absolute top-1/2 left-[22.6%] w-2.5 h-2.5 -mt-[5px] -ml-[5px] rounded-full bg-fg"></div>
+          </div>
+          <span class="text-sm tabular-nums text-muted whitespace-nowrap"><span class="text-fg">00:07</span> / 00:31</span>
+          <button class="h-7 w-7 -mr-1.5 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="volume-2" class="ic-14"></i></button>
+        </div>
+        <!-- mode + overlay toggle -->
+        <div class="w-[324px] flex items-center justify-between">
+          <div class="inline-flex h-7 p-0.5 rounded border border-line bg-panel text-sm">
+            <button class="px-3 rounded-sm text-muted hover:text-fg">Output</button>
+            <button class="px-3 rounded-sm bg-raised text-fg font-medium">Crop</button>
+          </div>
+          <!-- overlay stays "on" but is not drawn in Crop mode -->
+          <button class="h-7 px-2 inline-flex items-center gap-1.5 rounded border border-line bg-raised text-sm text-fg opacity-40 pointer-events-none" aria-pressed="true" disabled title="Hidden in Crop mode">
+            <i data-lucide="eye" class="ic-14"></i>IG overlay
+          </button>
+        </div>
+      </div>
+
+      <!-- (2) CONTROLS -->
+      <aside class="w-[320px] shrink-0 border-l border-line bg-panel flex flex-col">
+        <div class="flex-1 min-h-0 overflow-auto divide-y divide-line">
+          <!-- BRAND -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Brand</span>
+              <a class="text-sm text-muted hover:text-fg underline underline-offset-2 decoration-line-strong">Save as brand default</a>
+            </div>
+            <button class="w-full h-7 px-2 flex items-center gap-2 rounded border border-line bg-bg hover:border-line-strong">
+              <svg viewBox="0 0 100 100" class="w-4 h-4 shrink-0"><circle cx="50" cy="50" r="50" fill="#F3E9DC"/><text x="50" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="52" font-weight="700" fill="#3B2416">N</text></svg>
+              <span class="flex-1 text-left">Northwind Coffee</span>
+              <span class="text-sm text-subtle">edited</span>
+              <i data-lucide="chevrons-up-down" class="ic-14 text-subtle"></i>
+            </button>
+          </div>
+
+          <!-- LOGO -->
+          <div class="px-4 py-3 space-y-3">
+            <span class="block text-xs uppercase tracking-wider text-subtle">Logo</span>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-sm"><span class="text-muted">Scale</span><span class="tabular-nums">18% <span class="text-subtle">of width</span></span></div>
+              <div class="relative h-4 flex items-center">
+                <div class="w-full h-1 rounded-full bg-line-strong"></div>
+                <div class="absolute left-0 w-[36%] h-1 rounded-full bg-muted"></div>
+                <div class="absolute left-[36%] w-3 h-3 -ml-1.5 rounded-full bg-fg ring-2 ring-panel"></div>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-sm"><span class="text-muted">Opacity</span><span class="tabular-nums">85%</span></div>
+              <div class="relative h-4 flex items-center">
+                <div class="w-full h-1 rounded-full bg-line-strong"></div>
+                <div class="absolute left-0 w-[85%] h-1 rounded-full bg-muted"></div>
+                <div class="absolute left-[85%] w-3 h-3 -ml-1.5 rounded-full bg-fg ring-2 ring-panel"></div>
+              </div>
+            </div>
+            <div class="flex items-start gap-4 pt-0.5">
+              <div class="space-y-1.5">
+                <span class="block text-sm text-muted">Position</span>
+                <!-- 3x3 snap grid, top-right active -->
+                <div class="grid grid-cols-3 gap-1 p-1 w-[76px] rounded border border-line bg-bg">
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-fg"></span>
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span>
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span>
+                </div>
+              </div>
+              <div class="flex-1 space-y-1.5">
+                <span class="block text-sm text-muted">Margin</span>
+                <div class="h-7 w-[84px] px-2 flex items-center justify-between rounded border border-line bg-bg tabular-nums">4<span class="text-subtle">%</span></div>
+                <p class="text-sm text-subtle leading-4">Snaps inside the IG safe zone (dashed).</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- CROP -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Crop</span>
+              <!-- switch: on (neutral, not accent) -->
+              <span class="w-7 h-4 p-0.5 rounded-full bg-fg flex items-center justify-end"><span class="w-3 h-3 rounded-full bg-bg"></span></span>
+            </div>
+            <div class="grid grid-cols-2 h-7 p-0.5 rounded border border-line bg-bg text-sm">
+              <button class="rounded-sm bg-hover text-fg font-medium">9:16 region</button>
+              <button class="rounded-sm text-muted hover:text-fg">Full frame</button>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="tabular-nums text-fg">x 0.34 · y 0.00 · w 0.32 · h 1.00</span>
+              <a class="text-muted hover:text-fg">Centre</a>
+            </div>
+            <p class="text-sm text-subtle tabular-nums">Region 614x1080, upscaled 1.76x to 1080x1920.</p>
+          </div>
+
+          <!-- CAPTION -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Caption</span>
+              <a class="text-sm text-muted hover:text-fg">Reset to template</a>
+            </div>
+            <textarea rows="9" class="w-full px-2 py-1.5 rounded border border-line bg-bg text-base leading-[18px] resize-none focus:outline-none">Found the calmest cove in Mallorca, then the best flat white in town.
+Order ahead: nwc.link/bajjo
+#northwindcoffee #mallorca #slowmorning</textarea>
+            <div class="flex justify-between text-sm text-subtle tabular-nums">
+              <span>3 / 30 hashtags</span>
+              <span>137 / 2200</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- sticky footer -->
+        <div class="shrink-0 border-t border-line p-4 space-y-2">
+          <div class="flex justify-between text-sm text-subtle tabular-nums">
+            <span>1080x1920 · H.264 · 00:31</span>
+            <span>Northwind Coffee</span>
+          </div>
+          <button class="w-full h-7 rounded bg-accent hover:bg-accent-hover text-white font-medium inline-flex items-center justify-center gap-2">
+            Render
+            <kbd class="font-sans text-sm text-white/70">⌘↵</kbd>
+          </button>
+        </div>
+      </aside>
+
+      <!-- (3) RENDER QUEUE -->
+      <aside class="w-[280px] shrink-0 border-l border-line flex flex-col">
+        <div class="h-9 shrink-0 px-3 flex items-center justify-between border-b border-line">
+          <span class="font-medium">Renders for this clip</span>
+          <span class="text-sm text-subtle tabular-nums">5</span>
+        </div>
+        <ul class="flex-1 min-h-0 overflow-auto divide-y divide-line">
+          <!-- RENDERING -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover opacity-50" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Northwind Coffee</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">20s ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-accent/10 text-accent"><i data-lucide="loader-circle" class="ic-12"></i>Rendering</span>
+                <span class="text-sm text-muted tabular-nums">00:14 elapsed</span>
+              </div>
+              <!-- indeterminate bar: animates (segment slides left→right, 1.2s loop) -->
+              <div class="relative h-1 rounded-full bg-line-strong overflow-hidden mt-2.5">
+                <div class="absolute inset-y-0 left-[28%] w-[34%] rounded-full bg-accent"></div>
+              </div>
+            </div>
+          </li>
+          <!-- READY -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Northwind Coffee</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">14m ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                <span class="text-sm text-muted tabular-nums">00:31 · 12.4 MB</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="calendar-plus" class="ic-12"></i>Schedule…</button>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+          <!-- READY + already scheduled -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Flux Energy</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">1h ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-accent/10 text-accent">Scheduled</span>
+                <span class="text-sm text-muted tabular-nums whitespace-nowrap">Tue 29 Sep, 19:00</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <span class="h-6 px-1.5 inline-flex items-center gap-1 text-sm text-muted"><img src="https://i.pravatar.cc/64?img=32" class="w-4 h-4 rounded-full" alt="">@bajjo.daily</span>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+          <!-- FAILED -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover opacity-40 grayscale" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Flux Energy</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">1h ago</span>
+              </div>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-bad/10 text-bad">Failed</span>
+                <span class="font-mono text-sm text-muted truncate">ffmpeg exited 1</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="file-text" class="ic-12"></i>View log</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="rotate-cw" class="ic-12"></i>Retry</button>
+                <span class="ml-auto font-mono text-xs text-subtle">rnd_19b2e0</span>
+              </div>
+            </div>
+          </li>
+          <!-- READY (older) -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Kite VPN</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">Yesterday</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                <span class="text-sm text-muted tabular-nums">00:31 · 11.9 MB</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="calendar-plus" class="ic-12"></i>Schedule…</button>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </aside>
+    </section>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

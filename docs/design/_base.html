@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — SCREEN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <h1 class="text-lg font-semibold">Page title</h1>
+      <div class="flex items-center gap-2">
+        <button class="h-7 px-3 rounded bg-accent text-white text-base font-medium hover:bg-accent-hover">Primary action</button>
+      </div>
+    </header>
+    <section class="flex-1 min-h-0 overflow-auto">
+      <!-- screen content -->
+    </section>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

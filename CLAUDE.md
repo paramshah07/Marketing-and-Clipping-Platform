@@ -1,0 +1,103 @@
+# Clipper
+
+An internal tool for one operator. It takes video files, overlays an advertiser logo, and publishes
+them as Instagram Reels to the operator's own Instagram accounts on a schedule.
+
+Single user. No multi-tenancy, no billing, no org model, no login. **This version runs on localhost
+only** (not production-grade): no Cloudflare Access, no tunnel, no VPS, no R2. Publishing goes through
+**Zernio** (a third-party publishing API with its own approved Meta app), not the Meta API directly.
+
+Source of truth: `docs/PLAN.md` (implementation plan, rev 2). Original spec: `docs/spec.md`.
+UI design contract: `docs/design/BRIEF.md` + mockups `docs/design/*.png` / `*.html`.
+Zernio API reference: https://docs.zernio.com (append `.mdx` to a page URL for plain text;
+`https://docs.zernio.com/llms.txt` is the index).
+
+## Stack
+
+Backend: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2.0 (async, psycopg3), Alembic, uv
+Queue: Procrastinate (Postgres-backed, no Redis anywhere in this project)
+Database: PostgreSQL 16
+Storage: local `./data` directory (bind-mounted into api + worker), served at `/media/*`
+Video: ffmpeg and ffprobe invoked with subprocess, no Python wrapper libraries
+Publishing: Zernio REST API (`https://zernio.com/api/v1`) via httpx
+Frontend: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, react-router
+Tables: TanStack Table v9. Data fetching: TanStack Query
+API client: generated from the FastAPI OpenAPI schema with @hey-api/openapi-ts
+Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /frontend
+
+## Repo layout
+
+/backend
+  /app
+    /api          FastAPI routers
+    /models       SQLAlchemy models
+    /schemas      Pydantic schemas
+    /tasks        Procrastinate tasks
+    /services     business logic (zernio.py, render.py, storage.py)
+    /core         config, db session
+  /alembic
+  /scripts        spike_zernio.py (Phase 0)
+  /tests          fixtures/zernio/ holds real recorded Zernio responses
+/frontend
+  /src
+    /components
+    /routes
+    /api          generated client (never edit by hand)
+    /lib
+/docs             PLAN.md, spec.md, phase-N.md, design/
+compose.yml
+
+## Hard constraints the code must respect
+
+1. Every rendered MP4 is 1080x1920 H.264 High yuv420p, 30 fps closed GOP, AAC 48 kHz stereo (silent
+   track if the source has none), and `-movflags +faststart`.
+2. Publishing is: upload the render to Zernio (`POST /v1/media/presign`, PUT the bytes), persist
+   `zernio_media_url`, then `POST /v1/posts` with `publishNow: true` and an `Idempotency-Key` header.
+3. The `Idempotency-Key` is the post's `idempotency_key`, persisted before the first call. Every retry
+   reuses the same key and the same media URL. Never re-POST without the key, and never re-POST more
+   than 20 hours after the first attempt (Zernio's replay window is 24 h). This is what prevents a
+   duplicate live Reel; Instagram posts cannot be deleted through Zernio.
+4. HTTP 207 is not success: branch on `post.status` (`published` | `partial` | `failed` | `scheduled`).
+   Classify failures on `platforms[].errorCategory`, never on message strings.
+5. Every post state change is a compare-and-set (`UPDATE ... WHERE id = :id AND status IN (...)`).
+6. Overlay geometry is stored as fractions of the 1080x1920 output frame; crop geometry as fractions
+   of the source frame (after autorotate). Never absolute pixels.
+7. Reels posted via Zernio must be 3–90 s (`ZERNIO_MAX_REEL_SECONDS`).
+8. Blocking work (ffmpeg, ffprobe, yt-dlp, file I/O) runs in sync `def` tasks; `async def` tasks never
+   block the event loop (a blocked loop stops Procrastinate heartbeats and the job runs twice).
+
+## Do not
+
+- Do not call the Meta / Instagram Graph API directly in this version.
+- Do not fake Zernio anywhere except `httpx.MockTransport` in publish state-machine tests, and then
+  only with response bodies from `backend/tests/fixtures/zernio/`. Never use a fake to claim the
+  integration works.
+- Do not publish to a real Instagram account from automated tests or scripts without the operator's
+  explicit go-ahead for that specific run.
+- Do not invent Zernio endpoint names or parameters. Check the docs; if unsure, stop and ask.
+- Do not use ffmpeg.wasm or any browser-side video encoding.
+- Do not build a timeline editor, trimming UI, or multi-clip sequencing.
+- Do not add Redis, Celery, or any broker other than Postgres.
+- Do not run ffmpeg anywhere except the worker container.
+- Do not use localStorage or sessionStorage for anything that matters.
+- Do not add user accounts, login pages, roles or permissions.
+- Do not commit `.env` or anything under `data/`.
+
+## Design direction
+
+Dark-first. This is a tool used at night to queue tomorrow's posts, and video thumbnails read better
+on dark surfaces.
+
+Dense, not airy. This is a working surface, not a marketing page. Table rows are 56 px with a 28x50
+9:16 thumbnail so fifteen fit on screen; cards (upload rows, render queue, calendar) use 36x64
+thumbnails. Resist the default shadcn spacing.
+
+One accent colour (#4F8CFF), used only for primary actions and in-progress/scheduled state. ok / warn /
+bad colours only where state demands it. No gradients, no glassmorphism, no rounded-3xl cards, no hero
+sections, no illustrations.
+
+Typography: Geist for UI, tabular numerals for anything showing times, counts or durations. Geist Mono
+only for IDs and error codes.
+
+Motion is limited to state transitions that communicate something, such as a row moving from
+rendering to ready. No decorative animation.

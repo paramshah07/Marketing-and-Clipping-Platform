@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — Brands</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+
+<!-- Brand logo "PNGs" (transparent, so the checker shows through). Old Brand Co ships an opaque white box. -->
+<svg width="0" height="0" class="absolute">
+  <symbol id="logo-northwind" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="30" fill="#F3E9DC"/>
+    <circle cx="32" cy="32" r="26" fill="none" stroke="#3B2416" stroke-width="1.5"/>
+    <text x="32" y="37" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="19" fill="#3B2416">NW</text>
+    <text x="32" y="47" text-anchor="middle" font-family="Geist, sans-serif" font-weight="600" font-size="5.5" letter-spacing="1.2" fill="#3B2416">COFFEE</text>
+  </symbol>
+  <symbol id="logo-flux" viewBox="0 0 80 60">
+    <polygon points="43,1 27,21 38,21 33,37 53,14 42,14 49,1" fill="#C8FF2E"/>
+    <text x="40" y="56" text-anchor="middle" font-family="Geist, sans-serif" font-weight="600" font-size="22" letter-spacing="-0.3" fill="#FFFFFF">FLUX</text>
+  </symbol>
+  <symbol id="logo-kite" viewBox="0 0 80 60">
+    <polygon points="40,2 53,17 40,34 27,17" fill="#8B6CFF"/>
+    <path d="M40 2 L40 34 M27 17 L53 17" stroke="#0A0A0B" stroke-width="1.5"/>
+    <text x="40" y="56" text-anchor="middle" font-family="Geist, sans-serif" font-weight="600" font-size="20" fill="#FFFFFF">kite<tspan font-size="10" font-weight="500" letter-spacing="0.8" fill="#8B6CFF" dx="3">VPN</tspan></text>
+  </symbol>
+  <symbol id="logo-oldbrand" viewBox="0 0 64 64">
+    <rect x="2" y="14" width="60" height="36" fill="#FFFFFF"/>
+    <text x="32" y="30" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="11" fill="#111">OLD</text>
+    <text x="32" y="42" text-anchor="middle" font-family="Georgia, serif" font-size="8" letter-spacing="0.6" fill="#111">BRAND CO.</text>
+  </symbol>
+</svg>
+
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <div class="flex items-baseline gap-2">
+        <h1 class="text-lg font-semibold">Brands</h1>
+        <span class="text-sm text-subtle tabular-nums">3 active · 1 archived</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- Show archived: ON so the archived row style is visible -->
+        <label class="flex items-center gap-2 text-sm text-muted">
+          <span class="w-7 h-4 rounded-full bg-fg relative"><span class="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-bg"></span></span>
+          Show archived
+        </label>
+        <div class="w-px h-4 bg-line"></div>
+        <button class="h-7 pl-2 pr-3 rounded bg-accent text-white text-base font-medium hover:bg-accent-hover flex items-center gap-1.5"><i data-lucide="plus" class="!w-3.5 !h-3.5"></i>New brand</button>
+      </div>
+    </header>
+
+    <section class="flex-1 min-h-0 flex">
+      <!-- TABLE (reflows beside the docked drawer; drawer is non-modal so the list stays usable) -->
+      <div class="flex-1 min-w-0 overflow-auto">
+        <table class="w-full table-fixed border-collapse">
+          <colgroup>
+            <col class="w-[68px]"><col class="w-[124px]"><col><col class="w-[100px]"><col class="w-[86px]"><col class="w-[108px]"><col class="w-[86px]"><col class="w-[36px]">
+          </colgroup>
+          <thead class="sticky top-0 bg-bg z-10">
+            <tr class="h-8 border-b border-line text-xs uppercase tracking-wider text-subtle text-left whitespace-nowrap">
+              <th class="pl-4 font-medium">Logo</th>
+              <th class="px-2 font-medium">Name</th>
+              <th class="px-2 font-medium">Caption template</th>
+              <th class="px-2 font-medium">Link</th>
+              <th class="px-2 font-medium">Placement</th>
+              <th class="px-2 font-medium">Auto-approve</th>
+              <th class="px-2 font-medium text-right">Usage</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Northwind Coffee -->
+            <tr class="h-14 border-b border-line hover:bg-panel">
+              <td class="pl-4"><div class="w-12 h-12 rounded-sm checker border border-line p-1"><svg class="w-full h-full"><use href="#logo-northwind"/></svg></div></td>
+              <td class="px-2">
+                <div class="font-medium truncate">Northwind Coffee</div>
+                <div class="font-mono text-xs text-subtle">brd_2c81f4</div>
+              </td>
+              <td class="px-2"><div class="truncate text-muted">Night shift fuel → <span class="font-mono text-xs text-fg bg-raised border border-line rounded-sm px-1">{link}</span> · clip by <span class="font-mono text-xs text-fg bg-raised border border-line rounded-sm px-1">{creator}</span> #ad #northwindcoffee #latenight</div></td>
+              <td class="px-2 text-sm text-muted truncate">nwc.link/bajjo</td>
+              <td class="px-2">
+                <div class="w-[27px] h-12 rounded-sm border border-line-strong bg-raised relative"><span class="absolute bottom-[3px] right-[2px] w-[6px] h-[6px] rounded-full bg-muted"></span></div>
+              </td>
+              <td class="px-2"><span class="block w-7 h-4 rounded-full bg-fg relative"><span class="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-bg"></span></span></td>
+              <td class="px-2 tabular-nums text-sm leading-4"><div class="grid grid-cols-[auto_auto] justify-end gap-x-1"><span class="text-right">212</span><span class="text-subtle">renders</span><span class="text-right">64</span><span class="text-subtle">posts</span></div></td>
+              <td class="pr-2"><button class="w-7 h-7 grid place-items-center rounded text-muted hover:bg-hover"><i data-lucide="more-horizontal"></i></button></td>
+            </tr>
+            <!-- Flux Energy (selected: open in drawer) -->
+            <tr class="h-14 border-b border-line bg-raised">
+              <td class="pl-4"><div class="w-12 h-12 rounded-sm checker border border-line-strong p-1"><svg class="w-full h-full"><use href="#logo-flux"/></svg></div></td>
+              <td class="px-2">
+                <div class="font-medium truncate">Flux Energy</div>
+                <div class="font-mono text-xs text-subtle">brd_8e41b2</div>
+              </td>
+              <td class="px-2"><div class="truncate text-muted">Fuel up → <span class="font-mono text-xs text-fg bg-hover border border-line-strong rounded-sm px-1">{link}</span> 20% off with code NIGHT. Clip via <span class="font-mono text-xs text-fg bg-hover border border-line-strong rounded-sm px-1">{creator}</span> · Paid partnership #ad #fluxenergy #gymtok #latenight</div></td>
+              <td class="px-2 text-sm text-muted truncate">flux.gg/b20</td>
+              <td class="px-2">
+                <div class="w-[27px] h-12 rounded-sm border border-line-strong bg-hover relative"><span class="absolute top-[2px] right-[2px] w-[8px] h-[6px] rounded-[1px] bg-muted"></span></div>
+              </td>
+              <td class="px-2"><span class="block w-7 h-4 rounded-full bg-fg relative"><span class="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-bg"></span></span></td>
+              <td class="px-2 tabular-nums text-sm leading-4"><div class="grid grid-cols-[auto_auto] justify-end gap-x-1"><span class="text-right">148</span><span class="text-subtle">renders</span><span class="text-right">39</span><span class="text-subtle">posts</span></div></td>
+              <td class="pr-2"><button class="w-7 h-7 grid place-items-center rounded text-muted hover:bg-hover"><i data-lucide="more-horizontal"></i></button></td>
+            </tr>
+            <!-- Kite VPN -->
+            <tr class="h-14 border-b border-line hover:bg-panel">
+              <td class="pl-4"><div class="w-12 h-12 rounded-sm checker border border-line p-1"><svg class="w-full h-full"><use href="#logo-kite"/></svg></div></td>
+              <td class="px-2">
+                <div class="font-medium truncate">Kite VPN</div>
+                <div class="font-mono text-xs text-subtle">brd_c07d55</div>
+              </td>
+              <td class="px-2"><div class="truncate text-muted"><span class="font-mono text-xs text-fg bg-raised border border-line rounded-sm px-1">{creator}</span> watches from anywhere. Try Kite free → <span class="font-mono text-xs text-fg bg-raised border border-line rounded-sm px-1">{link}</span> #ad #kitevpn</div></td>
+              <td class="px-2 text-sm text-muted truncate">kitevpn.io/go</td>
+              <td class="px-2">
+                <div class="w-[27px] h-12 rounded-sm border border-line-strong bg-raised relative"><span class="absolute top-[2px] left-[2px] w-[7px] h-[5px] rounded-[1px] bg-muted"></span></div>
+              </td>
+              <td class="px-2"><span class="block w-7 h-4 rounded-full bg-line-strong relative"><span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-muted"></span></span></td>
+              <td class="px-2 tabular-nums text-sm leading-4"><div class="grid grid-cols-[auto_auto] justify-end gap-x-1"><span class="text-right">96</span><span class="text-subtle">renders</span><span class="text-right">31</span><span class="text-subtle">posts</span></div></td>
+              <td class="pr-2"><button class="w-7 h-7 grid place-items-center rounded text-muted hover:bg-hover"><i data-lucide="more-horizontal"></i></button></td>
+            </tr>
+            <!-- Old Brand Co (archived: dimmed, read-only switch) -->
+            <tr class="h-14 border-b border-line text-subtle">
+              <td class="pl-4"><div class="w-12 h-12 rounded-sm checker border border-line p-1 opacity-50 grayscale"><svg class="w-full h-full"><use href="#logo-oldbrand"/></svg></div></td>
+              <td class="px-2">
+                <div class="font-medium text-muted truncate">Old Brand Co</div>
+                <div class="flex items-center gap-1 text-sm tabular-nums"><i data-lucide="archive" style="width:12px;height:12px"></i>Archived 14 Aug</div>
+              </td>
+              <td class="px-2"><div class="truncate">Shop the drop → <span class="font-mono text-xs bg-raised border border-line rounded-sm px-1">{link}</span> #ad #oldbrandco</div></td>
+              <td class="px-2 text-sm truncate">oldbrand.co</td>
+              <td class="px-2">
+                <div class="w-[27px] h-12 rounded-sm border border-line bg-panel relative"><span class="absolute bottom-[2px] left-[2px] w-[7px] h-[4px] rounded-[1px] bg-subtle"></span></div>
+              </td>
+              <td class="px-2"><span class="block w-7 h-4 rounded-full bg-line relative opacity-60"><span class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-subtle"></span></span></td>
+              <td class="px-2 tabular-nums text-sm leading-4"><div class="grid grid-cols-[auto_auto] justify-end gap-x-1"><span class="text-right">34</span><span>renders</span><span class="text-right">12</span><span>posts</span></div></td>
+              <td class="pr-2"><button class="w-7 h-7 grid place-items-center rounded text-subtle hover:bg-hover"><i data-lucide="more-horizontal"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="px-4 py-3 flex items-center gap-1.5 text-sm text-subtle"><i data-lucide="info" style="width:14px;height:14px"></i>Archived brands keep their renders and post history, but can't be picked in the editor or in "Re-render for…".</p>
+      </div>
+
+      <!-- DRAWER: edit brand (440px, docked; slides in from right — animates) -->
+      <aside class="w-[440px] shrink-0 border-l border-line bg-panel flex flex-col shadow-[-12px_0_32px_rgba(0,0,0,0.45)]">
+        <div class="h-12 shrink-0 px-4 flex items-center justify-between border-b border-line">
+          <div class="flex items-baseline gap-2 min-w-0">
+            <h2 class="text-md font-semibold truncate">Flux Energy</h2>
+            <span class="font-mono text-xs text-subtle">brd_8e41b2</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="flex items-center gap-1.5 text-sm text-subtle"><span class="w-1.5 h-1.5 rounded-full bg-muted"></span>Unsaved changes</span>
+            <button class="w-7 h-7 grid place-items-center rounded text-muted hover:bg-hover"><i data-lucide="x"></i></button>
+          </div>
+        </div>
+
+        <div class="flex-1 min-h-0 overflow-auto px-4 py-3 space-y-4">
+          <!-- LOGO -->
+          <div>
+            <div class="text-xs uppercase tracking-wider text-subtle mb-1.5">Logo</div>
+            <div class="rounded border border-dashed border-line-strong p-2">
+              <div class="h-[84px] rounded-sm checker grid place-items-center">
+                <svg class="h-12 w-[150px]"><use href="#logo-flux"/></svg>
+              </div>
+              <div class="mt-2 flex items-center gap-2">
+                <i data-lucide="image" class="text-subtle shrink-0"></i>
+                <div class="min-w-0 flex-1">
+                  <div class="text-sm truncate">flux-energy-logo-white.png</div>
+                  <div class="text-xs text-subtle tabular-nums">PNG · 1200×900 · transparent · 42 KB</div>
+                </div>
+                <button class="h-7 px-2.5 rounded border border-line-strong bg-raised text-base hover:bg-hover flex items-center gap-1.5"><i data-lucide="upload" class="!w-3.5 !h-3.5"></i>Replace</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- NAME + LINK -->
+          <div class="grid grid-cols-[1fr_1.35fr] gap-3">
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-subtle mb-1.5">Name</label>
+              <input class="w-full h-7 px-2 rounded bg-bg border border-line-strong text-base text-fg outline-none" value="Flux Energy">
+            </div>
+            <div>
+              <label class="block text-xs uppercase tracking-wider text-subtle mb-1.5">Link</label>
+              <div class="h-7 px-2 rounded bg-bg border border-line-strong flex items-center gap-1.5">
+                <i data-lucide="link-2" class="text-subtle shrink-0" style="width:14px;height:14px"></i>
+                <input class="flex-1 min-w-0 bg-transparent text-base text-fg outline-none" value="https://flux.gg/b20">
+              </div>
+            </div>
+          </div>
+
+          <!-- CAPTION TEMPLATE -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="text-xs uppercase tracking-wider text-subtle">Caption template</label>
+              <span class="text-xs text-subtle tabular-nums">115 / 2200 · 4 / 30 hashtags</span>
+            </div>
+            <textarea rows="4" class="w-full px-2 py-1.5 rounded bg-bg border border-fg/40 text-base text-fg outline-none resize-none leading-[18px]">Fuel up → {link} 20% off with code NIGHT.
+Clip via {creator} · Paid partnership
+#ad #fluxenergy #gymtok #latenight</textarea>
+            <div class="mt-1.5 flex items-center gap-3 text-sm text-subtle">
+              <span class="flex items-center gap-1.5"><span class="font-mono text-xs text-fg bg-raised border border-line-strong rounded-sm px-1">{link}</span>the link above</span>
+              <span class="flex items-center gap-1.5"><span class="font-mono text-xs text-fg bg-raised border border-line-strong rounded-sm px-1">{creator}</span>@handle of the source creator</span>
+            </div>
+          </div>
+
+          <!-- AUTO-APPROVE -->
+          <div class="flex items-start justify-between gap-4 rounded border border-line px-3 py-2.5">
+            <div>
+              <div class="text-base font-medium">Auto-approve</div>
+              <div class="text-sm text-muted">Posts for this brand skip Draft and go straight to Scheduled</div>
+            </div>
+            <span class="mt-0.5 shrink-0 block w-7 h-4 rounded-full bg-fg relative"><span class="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-bg"></span></span>
+          </div>
+
+          <!-- DEFAULT PLACEMENT -->
+          <div>
+            <div class="text-xs uppercase tracking-wider text-subtle mb-1.5">Default placement</div>
+            <div class="flex gap-4">
+              <div class="w-[108px] h-[192px] shrink-0 rounded-sm border border-line-strong relative overflow-hidden bg-black">
+                <img src="https://picsum.photos/seed/gymnight/360/640" class="w-full h-full object-cover opacity-50" alt="">
+                <!-- logo box: top-right, 28% of width, 4% margin -->
+                <div class="absolute top-[4px] right-[4px] w-[30px] h-[23px] outline outline-1 outline-offset-1 outline-fg/70 opacity-90">
+                  <svg class="w-full h-full"><use href="#logo-flux"/></svg>
+                </div>
+              </div>
+              <div class="flex-1 min-w-0 flex flex-col">
+                <dl class="grid grid-cols-[72px_1fr] gap-y-1.5 text-sm">
+                  <dt class="text-subtle">Position</dt><dd>Top right</dd>
+                  <dt class="text-subtle">Scale</dt><dd class="tabular-nums">28% of width</dd>
+                  <dt class="text-subtle">Opacity</dt><dd class="tabular-nums">90%</dd>
+                  <dt class="text-subtle">Margin</dt><dd class="tabular-nums">4%</dd>
+                  <dt class="text-subtle">Crop</dt><dd>Off</dd>
+                </dl>
+                <p class="mt-3 text-sm text-subtle">Applied when this brand is picked in the editor. Tweaking one clip doesn't change the default.</p>
+                <a class="mt-auto self-start inline-flex items-center gap-1 text-base text-fg underline decoration-line-strong underline-offset-4 hover:decoration-fg">Edit in editor<i data-lucide="arrow-up-right" style="width:14px;height:14px"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="h-12 shrink-0 px-4 flex items-center justify-between border-t border-line">
+          <button class="h-7 px-2.5 rounded text-bad hover:bg-bad/10 flex items-center gap-1.5"><i data-lucide="archive" class="!w-3.5 !h-3.5"></i>Archive</button>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-subtle">⌘S</span>
+            <button class="h-7 px-4 rounded bg-accent text-white text-base font-medium hover:bg-accent-hover">Save</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>

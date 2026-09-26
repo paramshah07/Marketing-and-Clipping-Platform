@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — Library · Published</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <div class="flex items-center gap-4">
+        <h1 class="text-lg font-semibold">Library</h1>
+        <div class="flex items-center h-7 p-0.5 rounded bg-panel border border-line">
+          <a class="h-full px-2.5 flex items-center gap-1.5 rounded-sm text-muted hover:text-fg">Clips<span class="text-sm text-subtle tabular-nums">15</span></a>
+          <a class="h-full px-2.5 flex items-center gap-1.5 rounded-sm bg-raised text-fg font-medium">Published<span class="text-sm text-muted tabular-nums">38</span></a>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <label class="h-7 w-60 flex items-center gap-2 px-2 rounded border border-line bg-panel text-muted">
+          <i data-lucide="search" class="!w-3.5 !h-3.5 text-subtle"></i>
+          <input class="flex-1 min-w-0 bg-transparent outline-none text-base text-fg placeholder:text-subtle" placeholder="Search captions, clips">
+          <kbd class="h-4 min-w-4 px-1 grid place-items-center rounded-sm border border-line-strong text-xs text-subtle font-sans">/</kbd>
+        </label>
+        <button class="h-7 pl-2 pr-3 flex items-center gap-1.5 rounded bg-accent text-white text-base font-medium hover:bg-accent-hover"><i data-lucide="upload" class="!w-3.5 !h-3.5"></i>Upload</button>
+      </div>
+    </header>
+
+    <!-- FILTER BAR -->
+    <div class="h-11 shrink-0 px-4 border-b border-line flex items-center gap-2">
+      <button class="h-7 pl-2 pr-1.5 flex items-center gap-2 rounded border border-line bg-panel hover:bg-hover">
+        <span class="text-subtle">Account</span>
+        <span class="flex -space-x-1">
+          <img class="w-4 h-4 rounded-full ring-1 ring-panel" src="https://i.pravatar.cc/64?img=12">
+          <img class="w-4 h-4 rounded-full ring-1 ring-panel" src="https://i.pravatar.cc/64?img=32">
+          <img class="w-4 h-4 rounded-full ring-1 ring-panel" src="https://i.pravatar.cc/64?img=59">
+        </span>
+        <span>All</span><i data-lucide="chevron-down" class="!w-3.5 !h-3.5 text-subtle"></i>
+      </button>
+      <button class="h-7 pl-2 pr-1.5 flex items-center gap-2 rounded border border-line bg-panel hover:bg-hover">
+        <span class="text-subtle">Brand</span><span>All</span><i data-lucide="chevron-down" class="!w-3.5 !h-3.5 text-subtle"></i>
+      </button>
+      <button class="h-7 pl-2 pr-1.5 flex items-center gap-2 rounded border border-line bg-panel hover:bg-hover">
+        <i data-lucide="calendar-range" class="!w-3.5 !h-3.5 text-subtle"></i><span>Last 30 days</span><span class="text-subtle tabular-nums">27 Aug – 26 Sep</span><i data-lucide="chevron-down" class="!w-3.5 !h-3.5 text-subtle"></i>
+      </button>
+      <div class="ml-auto flex items-center gap-3 text-sm text-muted">
+        <span class="tabular-nums"><span class="text-fg">38</span> posts</span>
+        <span class="w-px h-3.5 bg-line"></span>
+        <span class="flex items-center gap-1.5"><i data-lucide="globe" class="!w-3 !h-3 text-subtle"></i>Times in Europe/London</span>
+      </div>
+    </div>
+
+    <section class="flex-1 min-h-0 overflow-auto">
+      <table class="w-full table-fixed border-collapse">
+        <colgroup>
+          <col class="w-[56px]"><col class="w-[172px]"><col class="w-[160px]"><col class="w-[160px]"><col><col class="w-[152px]"><col class="w-[180px]">
+        </colgroup>
+        <thead class="sticky top-0 z-10 bg-bg">
+          <tr class="h-8 text-left text-xs uppercase tracking-wider text-subtle [&>th]:font-medium [&>th]:px-3 shadow-[inset_0_-1px_0_#26262B]">
+            <th class="!pl-4 !pr-0"></th>
+            <th><span class="inline-flex items-center gap-1 text-muted">Published at<i data-lucide="arrow-down" class="!w-3 !h-3"></i></span></th>
+            <th>Account</th>
+            <th>Brand</th>
+            <th>Caption</th>
+            <th>Instagram</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="rows" class="[&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&_td]:px-3 [&_td]:align-middle"></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+<script>
+// Mock-only data. Times are Europe/London; @late.night.cuts (America/New_York) also shows its local time (EDT/EST).
+const ACC = {
+  clips: ['@bajjo.clips', 12], daily: ['@bajjo.daily', 32], late: ['@late.night.cuts', 59],
+};
+const BRAND = {
+  nw: ['Northwind Coffee', '<svg viewBox="0 0 100 100" class="w-4 h-4 shrink-0"><circle cx="50" cy="50" r="50" fill="#F3E9DC"/><text x="50" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="52" font-weight="700" fill="#3B2416">N</text></svg>'],
+  flux: ['Flux Energy', '<span class="w-4 h-4 shrink-0 rounded-sm bg-black border border-line-strong grid place-items-center"><svg viewBox="26 0 28 38" class="w-2.5 h-2.5"><polygon points="43,1 27,21 38,21 33,37 53,14 42,14 49,1" fill="#C8FF2E"/></svg></span>'],
+  kite: ['Kite VPN', '<span class="w-4 h-4 shrink-0 rounded-sm bg-black border border-line-strong grid place-items-center"><svg viewBox="26 1 28 34" class="w-2.5 h-2.5"><polygon points="40,2 53,17 40,34 27,17" fill="#8B6CFF"/><path d="M40 2 L40 34 M27 17 L53 17" stroke="#0A0A0B" stroke-width="2"/></svg></span>'],
+};
+const ROWS = [
+  ['mayaeats',  'Sat 26 Sep', '19:02', '4h ago',  null,        'daily', 'flux', '3am energy, zero crash. Grab a can on us → flux.gg/b20 #energydrink #nightshift #gymtok #fyp'],
+  ['podcast42', 'Sat 26 Sep', '19:00', '4h ago',  null,        'clips', 'nw',   'The foam art at 0:12 though. First bag 20% off → nwc.link/bajjo #coffee #latteart #barista #morningroutine'],
+  ['crowd',     'Sat 26 Sep', '18:01', '5h ago',  '13:01 EDT', 'late', 'kite', 'He really said that on a live mic. Stay private online → kitevpn.io/go #podcast #clips #privacy'],
+  ['streetint', 'Sat 26 Sep', '14:00', '9h ago',  '09:00 EDT', 'late', 'nw',   'Street interview: what is your go-to order? Ours is on the menu → nwc.link/bajjo #streetinterview #coffee #london'],
+  ['cyclist',   'Sat 26 Sep', '13:01', '10h ago', null,        'daily', 'kite', 'The travel hack nobody talks about. 7 days free → kitevpn.io/go #travel #traveltips #vpn #cycling'],
+  ['gymlena',   'Sat 26 Sep', '13:00', '10h ago', null,        'clips', 'flux', 'Leg day, round two. Fuelled by Flux → flux.gg/b20 #legday #gymmotivation #fitness #gymtok'],
+  ['streetfood','Sat 26 Sep', '09:01', '14h ago', null,        'clips', 'kite', 'Street food in Bangkok, streamed from London. Unlock any region → kitevpn.io/go #streetfood #bangkok'],
+  ['soundbooth','Sat 26 Sep', '09:00', '14h ago', null,        'daily', 'nw',   'Studio session fuel. First bag 20% off → nwc.link/bajjo #music #producer #studiolife #coffee'],
+  ['finalv2',   'Sat 26 Sep', '00:01', '23h ago', 'Fri 19:01 EDT', 'late', 'flux', 'Last call energy. The late shift runs on Flux → flux.gg/b20 #latenight #nightshift #energy'],
+  ['img4790',   'Fri 25 Sep', '19:04', '1d ago',  null,        'daily', 'nw',   'Saturday mornings, sorted. Tap for 20% off → nwc.link/bajjo #weekend #coffee #slowmorning'],
+  ['podcast41', 'Fri 25 Sep', '19:00', '1d ago',  null,        'clips', 'kite', 'Ep 41: why your data is worth more than your rent. Protect it → kitevpn.io/go #podcast #privacy #tech'],
+  ['skatepark', 'Fri 25 Sep', '18:00', '1d ago',  '13:00 EDT', 'late', 'nw',   'Kickflip, then coffee. In that order. → nwc.link/bajjo #skate #skateboarding #coffee'],
+  ['market',    'Fri 25 Sep', '13:02', '1d ago',  null,        'clips', 'nw',   'Borough Market at 7am hits different. First bag 20% off → nwc.link/bajjo #london #boroughmarket #coffee'],
+  ['rainrun',   'Fri 25 Sep', '13:00', '1d ago',  null,        'daily', 'flux', 'Rain run PB. Zero sugar, all the push → flux.gg/b20 #running #rainrun #fitness #energy'],
+  ['neonsign',  'Fri 25 Sep', '09:00', '1d ago',  null,        'daily', 'kite', 'Public Wi-Fi is not your friend. Stay private → kitevpn.io/go #cybersecurity #privacy #tips'],
+];
+const OPEN = 3; // row index with the "Re-render for…" menu open
+document.getElementById('rows').innerHTML = ROWS.map(([thumb, day, time, rel, local, acc, brand, cap], i) => `
+  <tr class="${i === OPEN ? 'bg-hover/40' : ''}">
+    <td class="!pl-4 !pr-0"><img class="w-7 h-[50px] rounded-sm object-cover bg-raised" src="https://picsum.photos/seed/${thumb}/360/640"></td>
+    <td class="tabular-nums whitespace-nowrap">
+      <div>${day} · ${time}</div>
+      <div class="text-sm text-muted">${rel}${local ? ` <span class="text-subtle">· ${local}</span>` : ''}</div>
+    </td>
+    <td><div class="flex items-center gap-2 min-w-0"><img class="w-4 h-4 rounded-full shrink-0" src="https://i.pravatar.cc/64?img=${ACC[acc][1]}"><span class="truncate">${ACC[acc][0]}</span></div></td>
+    <td><div class="flex items-center gap-2 min-w-0">${BRAND[brand][1]}<span class="truncate">${BRAND[brand][0]}</span></div></td>
+    <td><div class="truncate text-muted">${cap}</div></td>
+    <td><a class="flex items-center gap-1.5 text-muted hover:text-fg whitespace-nowrap">View on Instagram<i data-lucide="external-link" class="!w-3 !h-3 text-subtle"></i></a></td>
+    <td class="relative">
+      <div class="flex justify-end">
+        <button class="h-7 pl-2 pr-1.5 flex items-center gap-1.5 rounded border whitespace-nowrap ${i === OPEN ? 'border-line-strong bg-hover text-fg' : 'border-line bg-panel text-muted hover:bg-hover hover:text-fg'}"><i data-lucide="refresh-cw" class="!w-3.5 !h-3.5"></i>Re-render for…<i data-lucide="chevron-down" class="!w-3.5 !h-3.5 text-subtle"></i></button>
+      </div>
+      ${i === OPEN ? MENU(brand) : ''}
+    </td>
+  </tr>`).join('');
+
+function MENU(current) {
+  return `
+  <!-- Popover (shadow allowed). Picking a brand queues a render of the same clip with that brand's defaults. -->
+  <div class="absolute right-3 top-[46px] z-20 w-60 rounded-md border border-line-strong bg-raised shadow-[0_8px_24px_rgba(0,0,0,.5)] py-1">
+    <div class="px-2.5 pt-1 pb-1.5 text-xs uppercase tracking-wider text-subtle">Re-render for brand</div>
+    ${Object.entries(BRAND).map(([k, [name, logo]]) => `
+      <div class="mx-1 h-8 px-1.5 flex items-center gap-2 rounded ${k === 'kite' ? 'bg-hover' : ''}">
+        ${logo}<span class="flex-1 truncate">${name}</span>
+        ${k === current ? '<span class="text-xs text-subtle">original</span>' : ''}
+      </div>`).join('')}
+    <div class="mt-1 pt-1.5 pb-1 px-2.5 border-t border-line text-sm text-subtle">Uses the brand's default logo and caption. Opens in editor.</div>
+  </div>`;
+}
+lucide.createIcons();
+</script>
+</body>
+</html>
