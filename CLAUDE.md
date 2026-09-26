@@ -36,8 +36,9 @@ Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /fr
     /services     business logic (zernio.py, render.py, storage.py)
     /core         config, db session
   /alembic
-  /scripts        spike_zernio.py (Phase 0)
+  /scripts        spike_zernio.py (Phase 0), dump_openapi.py
   /tests          fixtures/zernio/ holds real recorded Zernio responses
+  openapi.json    committed; regenerate after any API change
 /frontend
   /src
     /components
@@ -46,6 +47,28 @@ Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /fr
     /lib
 /docs             PLAN.md, spec.md, phase-N.md, design/
 compose.yml
+
+## Commands
+
+All backend commands run in containers (the host has no ffmpeg or psql). From the repo root:
+
+```sh
+docker compose up -d --build                                          # whole stack; api on 127.0.0.1:8000
+docker compose run --rm api pytest                                    # full test suite (own clipper_test db)
+docker compose run --rm migrate                                       # alembic upgrade + guarded procrastinate schema
+docker compose run --rm --no-deps api alembic revision --autogenerate -m "..."
+docker compose run --rm --no-deps api python scripts/dump_openapi.py  # refresh backend/openapi.json
+docker compose exec api procrastinate defer ping                      # prove the worker consumes jobs
+docker compose exec postgres psql -U clipper                          # SQL shell
+docker compose kill worker && docker compose start worker             # reload worker code (no auto-reload)
+```
+
+Procrastinate tasks live in `app/tasks/`; add each new task module to `import_paths` in
+`app/tasks/queue.py` (the worker only imports that module, so a task defined elsewhere fails with
+TaskNotFound). Always pass an explicit `name=`. The `retry_stalled_jobs` periodic task re-queues jobs a
+killed worker left in `doing` (within about 30-90 s). `docker compose restart worker` blocks for the full
+90 s `stop_grace_period` when a sync job runs past the 60 s graceful timeout, then SIGKILLs it and the
+job re-runs from the start via the sweeper; kill + start gets the same result without the wait.
 
 ## Hard constraints the code must respect
 

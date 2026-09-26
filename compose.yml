@@ -1,0 +1,55 @@
+name: clipper
+
+x-backend: &backend
+  build: { context: ./backend, target: api }
+  env_file: [{ path: .env, required: false }]
+  environment:
+    DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
+    DATA_DIR: /data
+  volumes:
+    - ./backend:/app
+    - ./data:/data
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment: { POSTGRES_USER: clipper, POSTGRES_PASSWORD: clipper, POSTGRES_DB: clipper }
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clipper -d clipper"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # one-shot: app tables via Alembic, then Procrastinate's schema (its --apply is not idempotent, so guard it)
+  migrate:
+    <<: *backend
+    command:
+      - sh
+      - -c
+      - >-
+        alembic upgrade head &&
+        if procrastinate healthchecks >/dev/null 2>&1; then echo "procrastinate schema: already applied";
+        else procrastinate schema --apply; fi
+    depends_on: { postgres: { condition: service_healthy } }
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  worker:
+    <<: *backend
+    build: { context: ./backend, target: worker }
+    command: ["python", "-m", "app.worker", "--concurrency=4", "--shutdown-graceful-timeout=60"]
+    init: true  # PID 1 forwards signals and reaps ffmpeg children
+    stop_grace_period: 90s  # longer than --shutdown-graceful-timeout
+    restart: unless-stopped  # a crashed/OOM-killed worker comes back; the sweeper runs inside it
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+volumes:
+  pgdata:
