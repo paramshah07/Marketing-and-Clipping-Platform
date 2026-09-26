@@ -1,0 +1,65 @@
+import logging
+from contextlib import asynccontextmanager
+from datetime import datetime
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+
+from app.core.config import settings
+from app.core.db import SessionLocal
+from app.tasks.queue import app as queue_app
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    async with queue_app.open_async():  # lets the api defer jobs
+        yield
+
+
+# route.name as the operation id gives the generated TS client clean function names
+app = FastAPI(title="Clipper", lifespan=lifespan, generate_unique_id_function=lambda route: route.name)
+app.add_middleware(
+    CORSMiddleware, allow_origins=[settings.APP_BASE_URL], allow_methods=["*"], allow_headers=["*"]
+)
+app.mount("/media", StaticFiles(directory=settings.DATA_DIR), name="media")
+
+
+class Health(BaseModel):
+    status: str
+
+
+class SystemStatus(BaseModel):
+    db: bool
+    worker_alive: bool  # a worker heartbeat within the last 30 s
+    worker_last_heartbeat: datetime | None
+    jobs: dict[str, int]  # procrastinate job counts by status
+
+
+@app.get("/api/health")
+async def health() -> Health:
+    return Health(status="ok")
+
+
+@app.get("/api/status")
+async def status() -> SystemStatus:
+    try:
+        async with SessionLocal() as s:
+            last, alive = (
+                await s.execute(
+                    text(
+                        "SELECT max(last_heartbeat), coalesce(max(last_heartbeat) > now() - interval '30 seconds', false)"
+                        " FROM procrastinate_workers"
+                    )
+                )
+            ).one()
+            jobs = await s.execute(text("SELECT status::text, count(*) FROM procrastinate_jobs GROUP BY status"))
+            return SystemStatus(db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()))
+    except SQLAlchemyError:
+        logger.exception("status query failed")
+        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, jobs={})
