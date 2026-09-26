@@ -1,0 +1,87 @@
+@import "tailwindcss";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+/* The two variants the switch needs from shadcn/tailwind.css (Radix sets data-state). */
+@custom-variant data-checked (&:where([data-state="checked"]));
+@custom-variant data-unchecked (&:where([data-state="unchecked"]));
+
+/* Tokens from docs/design/_base.html (the approved mockups). Dark only: <html class="dark">. */
+@theme {
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --color-bg: #0a0a0b;
+  --color-panel: #111113;
+  --color-raised: #18181b;
+  --color-hover: #1f1f23;
+  --color-line: #26262b;
+  --color-line-strong: #34343a;
+  --color-fg: #ededef;
+  --color-muted: #a0a0a8;
+  --color-subtle: #6b6b73;
+  --color-accent: #4f8cff;
+  --color-accent-hover: #6a9dff;
+  --color-ok: #3fb950;
+  --color-warn: #d29922;
+  --color-bad: #f85149;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 12px;
+  --text-sm--line-height: 16px;
+  --text-base: 13px;
+  --text-base--line-height: 18px;
+  --text-md: 14px;
+  --text-md--line-height: 20px;
+  --text-lg: 15px;
+  --text-lg--line-height: 20px;
+  --text-xl: 18px;
+  --text-xl--line-height: 24px;
+
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-md: 6px;
+}
+
+/* shadcn's variables mapped onto the mockup tokens, so generated components match. */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-fg);
+  --popover: var(--color-raised);
+  --popover-foreground: var(--color-fg);
+  --primary: var(--color-accent);
+  --primary-foreground: #fff;
+  --muted-foreground: var(--color-muted);
+  --border: var(--color-line);
+  --input: var(--color-line-strong);
+  --ring: var(--color-muted);
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  /* Neutral, so accent stays for primary actions. Bare inputs inside bordered labels use focus-within instead. */
+  :focus-visible {
+    outline: 1px solid color-mix(in srgb, var(--color-fg) 60%, transparent);
+    outline-offset: 1px;
+  }
+  body {
+    @apply bg-bg font-sans text-base text-fg antialiased;
+    font-feature-settings: "ss01";
+  }
+}
+
+.checker {
+  background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0);
+  background-size: 12px 12px;
+}
+
+/* Indeterminate render bar: the only animation, it says "still working". */
+@keyframes indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+.indeterminate { animation: indeterminate 1.2s linear infinite; }

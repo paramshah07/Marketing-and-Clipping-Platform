@@ -1,0 +1,14 @@
+{
+  "status": 409,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "error": "This exact content is already scheduled, publishing, or was posted to this account within the last 24 hours.",
+    "details": {
+      "accountId": "66b2e19d8c3f5a7e9d0b1c2d",
+      "platform": "linkedin",
+      "existingPostId": "65f1c0a9e2b5af0012ab34cd"
+    }
+  }
+}

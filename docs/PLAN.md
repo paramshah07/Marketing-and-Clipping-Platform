@@ -51,7 +51,10 @@ refresh, Fernet, OAuth, `content_publishing_limit` calls, R2 presigning, Cloudfl
 - `errorCategory`: auth_expired, user_content, user_abuse, platform_rate_limit, quota_exhausted,
   account_issue, platform_rejected, platform_error, system_error, unknown.
 - Limits: ✔ Meta 100 posts / rolling 24 h per account (live `quotaTotal`); Zernio 25 posts/hour per account; Reels documented
-  as **3–90 s**, ≤ 300 MB (Meta allows 15 min — Phase 0 tests whether Zernio enforces 90 s).
+  as 3–90 s, but ✔ a 120 s Reel published live, so Clipper uses Meta's 3 s–15 min; ≤ 300 MB.
+- ✔ For an Instagram video, `publishNow` returns **201 while `post.status` is still `publishing`**; the
+  Reel goes live ~45 s later (poll `GET /v1/posts/{id}`). ✔ A same-key replay of a live post returns 200
+  "Post already exists (idempotent retry)". ✔ Reels are publicly visible logged out.
 - Webhooks exist (signed); **not used on localhost** (nothing public to receive them) → polling.
 - Instagram posts cannot be unpublished/deleted via Zernio. `isPaidPartnership` needs a Facebook-Login
   connection. `trialParams` (MANUAL) = Trial Reel for non-followers only.
@@ -156,7 +159,7 @@ to the row; files removed too.
 
 ## 6. Settings (`.env`)
 `ZERNIO_API_KEY` (required to publish), `ZERNIO_BASE_URL=https://zernio.com/api/v1`,
-`ZERNIO_MAX_REEL_SECONDS=90`, `APP_BASE_URL=http://localhost:5173`, `TELEGRAM_BOT_TOKEN` +
+`ZERNIO_MAX_REEL_SECONDS=900`, `APP_BASE_URL=http://localhost:5173`, `TELEGRAM_BOT_TOKEN` +
 `TELEGRAM_CHAT_ID` (optional), `PUBLISHING_ENABLED=false`, `PUBLISH_DEBUG_PAUSE`, `FFMPEG_THREADS`,
 `YTDLP_COOKIES_FILE` (optional), `MAX_UPLOAD_BYTES` (2 GB). `DATABASE_URL` / `DATA_DIR` set by compose.
 
@@ -189,6 +192,6 @@ to the row; files removed too.
 Mockups in `docs/design/*.png` stand, with these changes: **Accounts** — the 3-step Meta drawer
 becomes "Connect in Zernio (one profile per account) → Sync accounts"; token-expiry chips become
 connection-status chips (also in calendar lane headers). **Editor / render queue** — warning when the
-clip is longer than 90 s ("Zernio can't post Reels over 90 s"). **Recover** — remedy labels per §4.
+clip is longer than the 15 min Reel limit. **Recover** — remedy labels per §4.
 Routes: `/library` (Clips | Published), `/editor/:clipId`, `/calendar`, `/accounts`, `/brands`,
 `/recover/:postId`.

@@ -1,0 +1,18 @@
+{
+  "status": 207,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "post": {
+      "_id": "65f1c0a9e2b5af0012ab34cd",
+      "status": "scheduled",
+      "platforms": [
+        {
+          "platform": "instagram",
+          "status": "pending"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "status": 403,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "error": "Account 6a0f6d2e520992756d96bb6c (facebook \"My Page\") is disconnected and cannot be posted to. Facebook tokens expired. Please reconnect your Facebook account. After reconnecting, refresh your account IDs from GET /v1/accounts.",
+    "code": "ACCOUNT_DISCONNECTED"
+  }
+}

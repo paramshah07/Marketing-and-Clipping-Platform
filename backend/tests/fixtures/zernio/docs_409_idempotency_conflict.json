@@ -1,0 +1,9 @@
+{
+  "status": 409,
+  "headers": {
+    "Retry-After": "5"
+  },
+  "body": {
+    "code": "idempotency_conflict"
+  }
+}

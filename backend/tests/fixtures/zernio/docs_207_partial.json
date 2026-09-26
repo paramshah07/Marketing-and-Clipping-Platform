@@ -1,0 +1,27 @@
+{
+  "status": 207,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "post": {
+      "_id": "65f1c0a9e2b5af0012ab34cd",
+      "status": "partial",
+      "scheduledFor": "2027-01-01T17:00:00Z",
+      "platforms": [
+        {
+          "platform": "linkedin",
+          "status": "published",
+          "platformPostUrl": "https://www.linkedin.com/feed/update/urn:li:share:7123456789012345678"
+        },
+        {
+          "platform": "instagram",
+          "status": "failed",
+          "errorMessage": "Media processing failed: video too short for Reels",
+          "errorCategory": "user_content",
+          "errorSource": "user"
+        }
+      ]
+    }
+  }
+}
