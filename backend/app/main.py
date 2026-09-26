@@ -4,11 +4,13 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DataError, SQLAlchemyError
 
+from app.api import pipeline
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.tasks.queue import app as queue_app
@@ -28,6 +30,13 @@ app.add_middleware(
     CORSMiddleware, allow_origins=[settings.APP_BASE_URL], allow_methods=["*"], allow_headers=["*"]
 )
 app.mount("/media", StaticFiles(directory=settings.DATA_DIR), name="media")
+app.include_router(pipeline.router)
+
+
+@app.exception_handler(DataError)
+async def data_error(_, e: DataError) -> JSONResponse:
+    """A value Postgres can't hold, e.g. an id past int4 (/api/clips/2147483648): the input is bad, not the server."""
+    return JSONResponse({"detail": str(e.orig).split("\n")[0]}, status_code=422)
 
 
 class Health(BaseModel):

@@ -1,10 +1,11 @@
 """All tables (docs/PLAN.md section 3). Statuses are text + CHECK, FKs ON DELETE RESTRICT,
 timestamps are timestamptz, *_key columns are paths under DATA_DIR."""
 
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, MetaData, Text, func, text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, MetaData, Text, Update, func, text, update
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -24,6 +25,12 @@ class Base(DeclarativeBase):
 
 def one_of(column: str, *values: str) -> CheckConstraint:
     return CheckConstraint(f"{column} IN ({', '.join(repr(v) for v in values)})", name=column)
+
+
+def cas(model, id: int, from_statuses: Iterable[str], **values) -> Update:
+    """Compare-and-set: UPDATE model SET values WHERE id = :id AND status IN from_statuses.
+    Execute it and check rowcount == 1; 0 means another writer got there first (or the row is gone)."""
+    return update(model).where(model.id == id, model.status.in_(list(from_statuses))).values(**values)
 
 
 class SourceClip(Base):

@@ -16,4 +16,9 @@ COPY . .
 
 FROM base AS worker
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# yt-dlp (+ curl-cffi impersonation, deno for YouTube's JS challenges) only in the worker
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --group worker
 COPY . .
