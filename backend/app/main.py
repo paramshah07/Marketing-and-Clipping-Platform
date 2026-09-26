@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import DataError, SQLAlchemyError
 
-from app.api import pipeline
+from app.api import pipeline, recovery, scheduling
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.tasks.queue import app as queue_app
@@ -31,6 +31,8 @@ app.add_middleware(
 )
 app.mount("/media", StaticFiles(directory=settings.DATA_DIR), name="media")
 app.include_router(pipeline.router)
+app.include_router(scheduling.router)
+app.include_router(recovery.router)
 
 
 @app.exception_handler(DataError)
@@ -48,6 +50,7 @@ class SystemStatus(BaseModel):
     worker_alive: bool  # a worker heartbeat within the last 30 s
     worker_last_heartbeat: datetime | None
     jobs: dict[str, int]  # procrastinate job counts by status
+    failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
 
 
 @app.get("/api/health")
@@ -68,7 +71,10 @@ async def status() -> SystemStatus:
                 )
             ).one()
             jobs = await s.execute(text("SELECT status::text, count(*) FROM procrastinate_jobs GROUP BY status"))
-            return SystemStatus(db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()))
+            failed = await s.scalar(text("SELECT count(*) FROM posts WHERE status IN ('FAILED', 'DEAD_LETTER')"))
+            return SystemStatus(
+                db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed
+            )
     except SQLAlchemyError:
         logger.exception("status query failed")
         return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, jobs={})

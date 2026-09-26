@@ -5,9 +5,12 @@ import { NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-rou
 import { statusOptions } from "@/api/@tanstack/react-query.gen"
 import { Empty, Header } from "@/components/bits"
 import { cn } from "@/lib/utils"
+import { Accounts } from "@/routes/Accounts"
 import { Brands } from "@/routes/Brands"
+import { Calendar } from "@/routes/Calendar"
 import { Editor } from "@/routes/Editor"
 import { Library } from "@/routes/Library"
+import { Recover } from "@/routes/Recover"
 
 export function App() {
   return (
@@ -17,10 +20,11 @@ export function App() {
         <Route path="library" element={<Library />} />
         <Route path="editor/:clipId" element={<Editor />} />
         <Route path="brands" element={<Brands />} />
-        <Route path="calendar" element={<Soon title="Calendar" />} />
-        <Route path="accounts" element={<Soon title="Accounts" />} />
+        <Route path="calendar" element={<Calendar />} />
+        <Route path="accounts" element={<Accounts />} />
         <Route path="*" element={<Soon title="Not found" note="Nothing lives at this address." />} />
       </Route>
+      <Route path="recover/:postId" element={<Recover />} /> {/* mobile-first, no sidebar */}
     </Routes>
   )
 }
@@ -79,7 +83,7 @@ function Shell() {
   )
 }
 
-function Soon({ title, note = "Coming in Phase 4." }: { title: string; note?: string }) {
+function Soon({ title, note }: { title: string; note: string }) {
   return (
     <>
       <Header>

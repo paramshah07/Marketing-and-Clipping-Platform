@@ -20,7 +20,7 @@ app = App(
         min_size=1,
         max_size=5,  # worker concurrency 4 + 1
     ),
-    import_paths=["app.tasks.media"],  # the worker only imports this module: list every task module here
+    import_paths=["app.tasks.media", "app.tasks.accounts", "app.tasks.publish"],  # the worker only imports this module: list every task module here
 )
 
 STALLED_MAX_ATTEMPTS = 3
