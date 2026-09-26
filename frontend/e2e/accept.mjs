@@ -64,7 +64,7 @@ out.clipRow = (await page.locator(`tr[data-clip="${clip.id}"]`).innerText()).rep
 log("READY row:", out.clipRow)
 await shot("library")
 await page.getByRole("button", { name: /^Published/ }).click()
-await page.getByText("Published Reels show up here").waitFor() // react-router commits in a transition
+await page.getByText("Published at").waitFor() // react-router commits in a transition
 await shot("library-published")
 
 // 3. brand: an opaque logo is refused (alpha surfaced), then the transparent one is accepted

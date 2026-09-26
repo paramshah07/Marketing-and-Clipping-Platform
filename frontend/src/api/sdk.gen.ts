@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, GetClipData, GetClipErrors, GetClipResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, StatusData, StatusResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
+import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -160,6 +160,107 @@ export const getRender = <ThrowOnError extends boolean = false>(options: Options
  * Retry Render
  */
 export const retryRender = <ThrowOnError extends boolean = false>(options: Options<RetryRenderData, ThrowOnError>): RequestResult<RetryRenderResponses, RetryRenderErrors, ThrowOnError> => (options.client ?? client).post<RetryRenderResponses, RetryRenderErrors, ThrowOnError>({ url: '/api/renders/{render_id}/retry', ...options });
+
+/**
+ * List Accounts
+ */
+export const listAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListAccountsData, ThrowOnError>): RequestResult<ListAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListAccountsResponses, unknown, ThrowOnError>({ url: '/api/accounts', ...options });
+
+/**
+ * Sync Accounts
+ *
+ * Pull GET /v1/accounts from Zernio (read-only) and upsert Instagram accounts by zernio_account_id.
+ */
+export const syncAccounts = <ThrowOnError extends boolean = false>(options?: Options<SyncAccountsData, ThrowOnError>): RequestResult<SyncAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).post<SyncAccountsResponses, unknown, ThrowOnError>({ url: '/api/accounts/sync', ...options });
+
+/**
+ * Update Account
+ */
+export const updateAccount = <ThrowOnError extends boolean = false>(options: Options<UpdateAccountData, ThrowOnError>): RequestResult<UpdateAccountResponses, UpdateAccountErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAccountResponses, UpdateAccountErrors, ThrowOnError>({
+    url: '/api/accounts/{account_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Next Slot
+ */
+export const nextSlot = <ThrowOnError extends boolean = false>(options: Options<NextSlotData, ThrowOnError>): RequestResult<NextSlotResponses, NextSlotErrors, ThrowOnError> => (options.client ?? client).get<NextSlotResponses, NextSlotErrors, ThrowOnError>({ url: '/api/accounts/{account_id}/next-slot', ...options });
+
+/**
+ * List Posts
+ *
+ * Sorted by scheduled_for. from/to filter on coalesce(published_at, scheduled_for).
+ */
+export const listPosts = <ThrowOnError extends boolean = false>(options?: Options<ListPostsData, ThrowOnError>): RequestResult<ListPostsResponses, ListPostsErrors, ThrowOnError> => (options?.client ?? client).get<ListPostsResponses, ListPostsErrors, ThrowOnError>({ url: '/api/posts', ...options });
+
+/**
+ * Create Post
+ */
+export const createPost = <ThrowOnError extends boolean = false>(options: Options<CreatePostData, ThrowOnError>): RequestResult<CreatePostResponses, CreatePostErrors, ThrowOnError> => (options.client ?? client).post<CreatePostResponses, CreatePostErrors, ThrowOnError>({
+    url: '/api/posts',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Post
+ */
+export const getPost = <ThrowOnError extends boolean = false>(options: Options<GetPostData, ThrowOnError>): RequestResult<GetPostResponses, GetPostErrors, ThrowOnError> => (options.client ?? client).get<GetPostResponses, GetPostErrors, ThrowOnError>({ url: '/api/posts/{post_id}', ...options });
+
+/**
+ * Update Post
+ */
+export const updatePost = <ThrowOnError extends boolean = false>(options: Options<UpdatePostData, ThrowOnError>): RequestResult<UpdatePostResponses, UpdatePostErrors, ThrowOnError> => (options.client ?? client).patch<UpdatePostResponses, UpdatePostErrors, ThrowOnError>({
+    url: '/api/posts/{post_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Auto Schedule
+ */
+export const autoSchedule = <ThrowOnError extends boolean = false>(options: Options<AutoScheduleData, ThrowOnError>): RequestResult<AutoScheduleResponses, AutoScheduleErrors, ThrowOnError> => (options.client ?? client).post<AutoScheduleResponses, AutoScheduleErrors, ThrowOnError>({
+    url: '/api/posts/auto-schedule',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Approve Post
+ */
+export const approvePost = <ThrowOnError extends boolean = false>(options: Options<ApprovePostData, ThrowOnError>): RequestResult<ApprovePostResponses, ApprovePostErrors, ThrowOnError> => (options.client ?? client).post<ApprovePostResponses, ApprovePostErrors, ThrowOnError>({ url: '/api/posts/{post_id}/approve', ...options });
+
+/**
+ * Cancel Post
+ */
+export const cancelPost = <ThrowOnError extends boolean = false>(options: Options<CancelPostData, ThrowOnError>): RequestResult<CancelPostResponses, CancelPostErrors, ThrowOnError> => (options.client ?? client).post<CancelPostResponses, CancelPostErrors, ThrowOnError>({ url: '/api/posts/{post_id}/cancel', ...options });
+
+/**
+ * Remedy Post
+ *
+ * FAILED / DEAD_LETTER only (409 {"code": "STATE_CONFLICT"} otherwise). See docs/PLAN.md section 4.
+ */
+export const remedyPost = <ThrowOnError extends boolean = false>(options: Options<RemedyPostData, ThrowOnError>): RequestResult<RemedyPostResponses, RemedyPostErrors, ThrowOnError> => (options.client ?? client).post<RemedyPostResponses, RemedyPostErrors, ThrowOnError>({
+    url: '/api/posts/{post_id}/remedy',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Health

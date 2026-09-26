@@ -20,7 +20,7 @@ app = App(
         min_size=1,
         max_size=5,  # worker concurrency 4 + 1
     ),
-    import_paths=["app.tasks.media"],  # the worker only imports this module: list every task module here
+    import_paths=["app.tasks.media", "app.tasks.accounts", "app.tasks.publish"],  # the worker only imports this module: list every task module here
 )
 
 STALLED_MAX_ATTEMPTS = 3
@@ -50,7 +50,7 @@ def debug_sleep(seconds: int = 60) -> None:
 
 
 @app.periodic(cron="* * * * *", periodic_id="retry_stalled_jobs")
-@app.task(name="retry_stalled_jobs", queueing_lock="retry_stalled_jobs")
+@app.task(name="retry_stalled_jobs", queueing_lock="retry_stalled_jobs", priority=10)  # ahead of renders
 async def retry_stalled_jobs(timestamp: int) -> None:
     """A SIGKILLed worker leaves its jobs in 'doing' forever; put them back to 'todo' (same job id).
 

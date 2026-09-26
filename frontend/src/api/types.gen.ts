@@ -5,6 +5,125 @@ export type ClientOptions = {
 };
 
 /**
+ * AccountOut
+ */
+export type AccountOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Zernio Account Id
+     */
+    zernio_account_id: string;
+    /**
+     * Zernio Profile Id
+     */
+    zernio_profile_id: string;
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Avatar Url
+     */
+    avatar_url: string | null;
+    /**
+     * Connection Status
+     */
+    connection_status: 'connected' | 'disconnected';
+    posting_slots: PostingSlots;
+    /**
+     * Daily Cap
+     */
+    daily_cap: number;
+    /**
+     * Timezone
+     */
+    timezone: string;
+    /**
+     * Min Gap Minutes
+     */
+    min_gap_minutes: number;
+    /**
+     * Connected At
+     */
+    connected_at: string;
+    /**
+     * Last Publish At
+     */
+    last_publish_at: string | null;
+    /**
+     * Disabled At
+     */
+    disabled_at: string | null;
+    /**
+     * Today Count
+     */
+    today_count?: number;
+    quota?: Quota | null;
+    /**
+     * Next Post At
+     */
+    next_post_at?: string | null;
+};
+
+/**
+ * AccountPatch
+ */
+export type AccountPatch = {
+    posting_slots?: PostingSlots;
+    /**
+     * Daily Cap
+     */
+    daily_cap?: number;
+    /**
+     * Timezone
+     */
+    timezone?: string;
+    /**
+     * Min Gap Minutes
+     */
+    min_gap_minutes?: number;
+    /**
+     * Disabled
+     */
+    disabled?: boolean;
+};
+
+/**
+ * AutoScheduleIn
+ */
+export type AutoScheduleIn = {
+    /**
+     * Render Ids
+     */
+    render_ids: Array<number>;
+    /**
+     * Account Id
+     */
+    account_id: number;
+    /**
+     * Rights Override
+     */
+    rights_override?: boolean;
+};
+
+/**
+ * AutoScheduleOut
+ */
+export type AutoScheduleOut = {
+    /**
+     * Placed
+     */
+    placed: Array<Placed>;
+    /**
+     * Unplaced
+     */
+    unplaced: Array<Unplaced>;
+};
+
+/**
  * Body_upload_brand_logo
  */
 export type BodyUploadBrandLogo = {
@@ -286,6 +405,16 @@ export type Health = {
 };
 
 /**
+ * NextSlot
+ */
+export type NextSlot = {
+    /**
+     * Scheduled For
+     */
+    scheduled_for: string | null;
+};
+
+/**
  * OverlayConfig
  *
  * Logo box as fractions of the 1080x1920 output: top-left x, y and width (height follows the logo,
@@ -308,6 +437,221 @@ export type OverlayConfig = {
      * Opacity
      */
     opacity?: number;
+};
+
+/**
+ * Placed
+ */
+export type Placed = {
+    /**
+     * Render Id
+     */
+    render_id: number;
+    post: PostOut;
+};
+
+/**
+ * PostCreate
+ */
+export type PostCreate = {
+    /**
+     * Render Id
+     */
+    render_id: number;
+    /**
+     * Account Id
+     */
+    account_id: number;
+    /**
+     * Scheduled For
+     */
+    scheduled_for: string;
+    /**
+     * Caption
+     */
+    caption?: string | null;
+    /**
+     * Rights Override
+     */
+    rights_override?: boolean;
+};
+
+/**
+ * PostOut
+ */
+export type PostOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Render Id
+     */
+    render_id: number;
+    /**
+     * Account Id
+     */
+    account_id: number;
+    /**
+     * Account Username
+     */
+    account_username: string;
+    /**
+     * Caption
+     */
+    caption: string;
+    /**
+     * Scheduled For
+     */
+    scheduled_for: string;
+    /**
+     * Status
+     */
+    status: 'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED' | 'DEAD_LETTER' | 'CANCELLED';
+    /**
+     * Error Code
+     */
+    error_code: string | null;
+    /**
+     * Error Detail
+     */
+    error_detail: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Cause
+     */
+    cause: string | null;
+    remedy: Remedy | null;
+    /**
+     * Attempt Count
+     */
+    attempt_count: number;
+    /**
+     * Zernio Post Id
+     */
+    zernio_post_id: string | null;
+    /**
+     * Permalink
+     */
+    permalink: string | null;
+    /**
+     * Published At
+     */
+    published_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    render: PostRender;
+};
+
+/**
+ * PostPatch
+ */
+export type PostPatch = {
+    /**
+     * Scheduled For
+     */
+    scheduled_for?: string;
+    /**
+     * Caption
+     */
+    caption?: string;
+};
+
+/**
+ * PostRender
+ */
+export type PostRender = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Clip Id
+     */
+    clip_id: number;
+    /**
+     * Clip Name
+     */
+    clip_name: string | null;
+    /**
+     * Brand Id
+     */
+    brand_id: number | null;
+    /**
+     * Brand Name
+     */
+    brand_name: string | null;
+    /**
+     * Duration S
+     */
+    duration_s: number | null;
+    /**
+     * Thumbnail Url
+     */
+    thumbnail_url: string | null;
+    /**
+     * Output Url
+     */
+    output_url: string | null;
+};
+
+/**
+ * PostingSlots
+ */
+export type PostingSlots = {
+    /**
+     * Times
+     */
+    times?: Array<string>;
+};
+
+/**
+ * Quota
+ */
+export type Quota = {
+    /**
+     * Used
+     */
+    used: number;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Duration S
+     */
+    duration_s: number;
+};
+
+/**
+ * Remedy
+ */
+export type Remedy = {
+    /**
+     * Action
+     */
+    action: 'reconnect' | 'rerender' | 'retry' | 'auto';
+    /**
+     * Label
+     */
+    label: string;
+};
+
+/**
+ * RemedyIn
+ */
+export type RemedyIn = {
+    /**
+     * Action
+     */
+    action?: 'reconnect' | 'rerender' | 'retry' | null;
 };
 
 /**
@@ -476,6 +820,32 @@ export type SystemStatus = {
     jobs: {
         [key: string]: number;
     };
+    /**
+     * Failed Posts
+     */
+    failed_posts?: number;
+    /**
+     * Rendering Renders
+     */
+    rendering_renders?: number;
+    /**
+     * Scheduled Posts
+     */
+    scheduled_posts?: number;
+};
+
+/**
+ * Unplaced
+ */
+export type Unplaced = {
+    /**
+     * Render Id
+     */
+    render_id: number;
+    /**
+     * Reason
+     */
+    reason: string;
 };
 
 /**
@@ -1200,6 +1570,350 @@ export type RetryRenderResponses = {
 };
 
 export type RetryRenderResponse = RetryRenderResponses[keyof RetryRenderResponses];
+
+export type ListAccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/accounts';
+};
+
+export type ListAccountsResponses = {
+    /**
+     * Response List Accounts
+     *
+     * Successful Response
+     */
+    200: Array<AccountOut>;
+};
+
+export type ListAccountsResponse = ListAccountsResponses[keyof ListAccountsResponses];
+
+export type SyncAccountsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/accounts/sync';
+};
+
+export type SyncAccountsResponses = {
+    /**
+     * Response Sync Accounts
+     *
+     * Successful Response
+     */
+    200: Array<AccountOut>;
+};
+
+export type SyncAccountsResponse = SyncAccountsResponses[keyof SyncAccountsResponses];
+
+export type UpdateAccountData = {
+    body: AccountPatch;
+    path: {
+        /**
+         * Account Id
+         */
+        account_id: number;
+    };
+    query?: never;
+    url: '/api/accounts/{account_id}';
+};
+
+export type UpdateAccountErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateAccountError = UpdateAccountErrors[keyof UpdateAccountErrors];
+
+export type UpdateAccountResponses = {
+    /**
+     * Successful Response
+     */
+    200: AccountOut;
+};
+
+export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
+
+export type NextSlotData = {
+    body?: never;
+    path: {
+        /**
+         * Account Id
+         */
+        account_id: number;
+    };
+    query?: never;
+    url: '/api/accounts/{account_id}/next-slot';
+};
+
+export type NextSlotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type NextSlotError = NextSlotErrors[keyof NextSlotErrors];
+
+export type NextSlotResponses = {
+    /**
+     * Successful Response
+     */
+    200: NextSlot;
+};
+
+export type NextSlotResponse = NextSlotResponses[keyof NextSlotResponses];
+
+export type ListPostsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * From
+         */
+        from?: string | null;
+        /**
+         * To
+         */
+        to?: string | null;
+        /**
+         * Account Id
+         */
+        account_id?: number | null;
+        /**
+         * Brand Id
+         */
+        brand_id?: number | null;
+        /**
+         * Status
+         */
+        status?: Array<'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED' | 'DEAD_LETTER' | 'CANCELLED'> | null;
+    };
+    url: '/api/posts';
+};
+
+export type ListPostsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListPostsError = ListPostsErrors[keyof ListPostsErrors];
+
+export type ListPostsResponses = {
+    /**
+     * Response List Posts
+     *
+     * Successful Response
+     */
+    200: Array<PostOut>;
+};
+
+export type ListPostsResponse = ListPostsResponses[keyof ListPostsResponses];
+
+export type CreatePostData = {
+    body: PostCreate;
+    path?: never;
+    query?: never;
+    url: '/api/posts';
+};
+
+export type CreatePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreatePostError = CreatePostErrors[keyof CreatePostErrors];
+
+export type CreatePostResponses = {
+    /**
+     * Successful Response
+     */
+    201: PostOut;
+};
+
+export type CreatePostResponse = CreatePostResponses[keyof CreatePostResponses];
+
+export type GetPostData = {
+    body?: never;
+    path: {
+        /**
+         * Post Id
+         */
+        post_id: number;
+    };
+    query?: never;
+    url: '/api/posts/{post_id}';
+};
+
+export type GetPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetPostError = GetPostErrors[keyof GetPostErrors];
+
+export type GetPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostOut;
+};
+
+export type GetPostResponse = GetPostResponses[keyof GetPostResponses];
+
+export type UpdatePostData = {
+    body: PostPatch;
+    path: {
+        /**
+         * Post Id
+         */
+        post_id: number;
+    };
+    query?: never;
+    url: '/api/posts/{post_id}';
+};
+
+export type UpdatePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdatePostError = UpdatePostErrors[keyof UpdatePostErrors];
+
+export type UpdatePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostOut;
+};
+
+export type UpdatePostResponse = UpdatePostResponses[keyof UpdatePostResponses];
+
+export type AutoScheduleData = {
+    body: AutoScheduleIn;
+    path?: never;
+    query?: never;
+    url: '/api/posts/auto-schedule';
+};
+
+export type AutoScheduleErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AutoScheduleError = AutoScheduleErrors[keyof AutoScheduleErrors];
+
+export type AutoScheduleResponses = {
+    /**
+     * Successful Response
+     */
+    200: AutoScheduleOut;
+};
+
+export type AutoScheduleResponse = AutoScheduleResponses[keyof AutoScheduleResponses];
+
+export type ApprovePostData = {
+    body?: never;
+    path: {
+        /**
+         * Post Id
+         */
+        post_id: number;
+    };
+    query?: never;
+    url: '/api/posts/{post_id}/approve';
+};
+
+export type ApprovePostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApprovePostError = ApprovePostErrors[keyof ApprovePostErrors];
+
+export type ApprovePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostOut;
+};
+
+export type ApprovePostResponse = ApprovePostResponses[keyof ApprovePostResponses];
+
+export type CancelPostData = {
+    body?: never;
+    path: {
+        /**
+         * Post Id
+         */
+        post_id: number;
+    };
+    query?: never;
+    url: '/api/posts/{post_id}/cancel';
+};
+
+export type CancelPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CancelPostError = CancelPostErrors[keyof CancelPostErrors];
+
+export type CancelPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostOut;
+};
+
+export type CancelPostResponse = CancelPostResponses[keyof CancelPostResponses];
+
+export type RemedyPostData = {
+    body: RemedyIn;
+    path: {
+        /**
+         * Post Id
+         */
+        post_id: number;
+    };
+    query?: never;
+    url: '/api/posts/{post_id}/remedy';
+};
+
+export type RemedyPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RemedyPostError = RemedyPostErrors[keyof RemedyPostErrors];
+
+export type RemedyPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: PostOut;
+};
+
+export type RemedyPostResponse = RemedyPostResponses[keyof RemedyPostResponses];
 
 export type HealthData = {
     body?: never;

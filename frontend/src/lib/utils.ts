@@ -16,7 +16,7 @@ export const RIGHTS = { own_content: "own content", permission_granted: "permiss
 export type Rights = keyof typeof RIGHTS
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3 // backend MAX_UPLOAD_BYTES default
-export const MAX_REEL_SECONDS = 90 // backend ZERNIO_MAX_REEL_SECONDS: Zernio can't post longer Reels
+export const MAX_REEL_SECONDS = 900 // backend ZERNIO_MAX_REEL_SECONDS: Instagram's 15 min API Reel limit (Zernio's documented 90 s is not enforced)
 export const CAPTION_MAX = 2200
 export const HASHTAG_MAX = 30
 
@@ -38,17 +38,19 @@ export const hashtagCount = (s: string) => (s.match(/#[\p{L}\p{N}_]+/gu) ?? []).
 export const fillCaption = (template: string | null, link: string | null, creator: string | null) =>
   (template ?? "").replaceAll("{link}", link ?? "").replaceAll("{creator}", creator ?? "")
 
-/** Filename for uploads, host + path for URL imports. */
-export function clipName(c: ClipOut) {
-  if (c.original_filename) return c.original_filename
-  if (!c.source_url) return `Clip ${c.id}`
+/** "youtube.com/watch?v=…" for an http(s) URL (no scheme, no www); anything else as is. */
+export function shortUrl(s: string) {
+  if (!/^https?:\/\//i.test(s)) return s
   try {
-    const u = new URL(c.source_url)
+    const u = new URL(s)
     return u.host.replace(/^www\./, "") + u.pathname + u.search
   } catch {
-    return c.source_url
+    return s
   }
 }
+
+/** Filename for uploads, host + path for URL imports. */
+export const clipName = (c: ClipOut) => c.original_filename || (c.source_url ? shortUrl(c.source_url) : `Clip ${c.id}`)
 
 /** FastAPI error body ({detail: string | [{loc, msg}]}) or anything else -> one line. */
 export function errorText(e: unknown): string {

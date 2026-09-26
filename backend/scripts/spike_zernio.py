@@ -21,6 +21,7 @@ import json
 import mimetypes
 import re
 import sys
+import time
 import uuid
 from pathlib import Path
 
@@ -143,14 +144,22 @@ def cmd_publish(a) -> None:
         if a.trial:
             psd["trialParams"] = {"graduationStrategy": "MANUAL"}
         key = f"spike-publish-{uuid.uuid4()}"
+        print(f"Idempotency-Key: {key}")
         body = post_body(a.account_id, a.media_url, a.caption, publishNow=True, psd=psd)
         r1 = c.post("/posts", json=body, headers={"Idempotency-Key": key})
         d1 = log_response(r1, f"publish_{a.label}")
         post = d1.get("post", {})
         if r1.status_code != 201:
             expect(False, f"publishNow returned {r1.status_code}, post.status={post.get('status')}")
+        # Live finding: for Instagram video a 201 comes back while post.status is still "publishing"
+        for _ in range(60):
+            if post.get("status") not in ("publishing", "scheduled", "pending", "processing"):
+                break
+            time.sleep(10)
+            post = c.get(f"/posts/{post['_id']}").json()["post"]
         urls = [p.get("platformPostUrl") for p in post.get("platforms", [])]
-        expect(post.get("status") == "published", f"published: {urls}")
+        FIXTURES.joinpath(f"get_after_publish_{a.label}.json").write_text(redact(json.dumps({"status": 200, "body": {"post": post}}, indent=2)))
+        expect(post.get("status") == "published", f"published: {urls} (status {post.get('status')}, {[p.get('errorCategory') for p in post.get('platforms', [])]})")
         r2 = c.post("/posts", json=body, headers={"Idempotency-Key": key})
         d2 = log_response(r2, f"publish_{a.label}_replay")
         expect(r2.status_code == 200 and d2["post"]["_id"] == post["_id"], "replay with same key returns the original post, no second Reel")

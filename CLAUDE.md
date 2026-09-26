@@ -103,7 +103,8 @@ job re-runs from the start via the sweeper; kill + start gets the same result wi
 5. Every post state change is a compare-and-set (`UPDATE ... WHERE id = :id AND status IN (...)`).
 6. Overlay geometry is stored as fractions of the 1080x1920 output frame; crop geometry as fractions
    of the source frame (after autorotate). Never absolute pixels.
-7. Reels posted via Zernio must be 3–90 s (`ZERNIO_MAX_REEL_SECONDS`).
+7. Reels are 3 s–15 min (`ZERNIO_MAX_REEL_SECONDS` = 900). Zernio's docs say 90 s; a 120 s Reel
+   published fine in the live run (2026-09-26), so the real limit is Meta's.
 8. Blocking work (ffmpeg, ffprobe, yt-dlp, file I/O) runs in sync `def` tasks; `async def` tasks never
    block the event loop (a blocked loop stops Procrastinate heartbeats and the job runs twice).
 

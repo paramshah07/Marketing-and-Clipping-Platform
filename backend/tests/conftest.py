@@ -8,7 +8,8 @@ ffmpeg tests are skipped):
 import os
 
 ADMIN_URL = os.environ["DATABASE_URL"]
-TEST_URL = ADMIN_URL.rsplit("/", 1)[0] + "/clipper_test"
+TEST_DB = os.environ.get("CLIPPER_TEST_DB", "clipper_test")  # parallel runs: give each its own db
+TEST_URL = ADMIN_URL.rsplit("/", 1)[0] + "/" + TEST_DB
 os.environ["DATABASE_URL"] = TEST_URL  # before any app import: settings, engine and queue all use the test db
 
 import shutil  # noqa: E402
@@ -33,8 +34,8 @@ def libpq(url: str) -> str:
 def db():
     """Fresh clipper_test with the Alembic migration and Procrastinate's schema; yields a sync engine."""
     with psycopg.connect(libpq(ADMIN_URL), autocommit=True) as conn:
-        conn.execute("DROP DATABASE IF EXISTS clipper_test WITH (FORCE)")
-        conn.execute("CREATE DATABASE clipper_test")
+        conn.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
+        conn.execute(f"CREATE DATABASE {TEST_DB}")
     command.upgrade(ALEMBIC, "head")
     with psycopg.connect(libpq(TEST_URL), autocommit=True) as conn:
         conn.execute(SchemaManager.get_schema())

@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { createBrand, createClipFromUrl, createRender, deleteClip, deleteRender, getClip, getRender, health, listBrands, listClips, listRenders, type Options, retryClip, retryRender, status, updateBrand, updateClip, uploadBrandLogo, uploadClip } from '../sdk.gen';
-import type { CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, GetClipData, GetClipError, GetClipResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListRendersData, ListRendersError, ListRendersResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, StatusData, StatusResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
+import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createPost, createRender, deleteClip, deleteRender, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
+import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -318,6 +318,220 @@ export const retryRenderMutation = (options?: Partial<Options<RetryRenderData>>)
     const mutationOptions: UseMutationOptions<RetryRenderResponse, RetryRenderError, Options<RetryRenderData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await retryRender({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listAccountsQueryKey = (options?: Options<ListAccountsData>) => createQueryKey('listAccounts', options);
+
+/**
+ * List Accounts
+ */
+export const listAccountsOptions = (options?: Options<ListAccountsData>) => queryOptions<ListAccountsResponse, DefaultError, ListAccountsResponse, ReturnType<typeof listAccountsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listAccounts({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listAccountsQueryKey(options)
+});
+
+/**
+ * Sync Accounts
+ *
+ * Pull GET /v1/accounts from Zernio (read-only) and upsert Instagram accounts by zernio_account_id.
+ */
+export const syncAccountsMutation = (options?: Partial<Options<SyncAccountsData>>): UseMutationOptions<SyncAccountsResponse, DefaultError, Options<SyncAccountsData>> => {
+    const mutationOptions: UseMutationOptions<SyncAccountsResponse, DefaultError, Options<SyncAccountsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await syncAccounts({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Account
+ */
+export const updateAccountMutation = (options?: Partial<Options<UpdateAccountData>>): UseMutationOptions<UpdateAccountResponse, UpdateAccountError, Options<UpdateAccountData>> => {
+    const mutationOptions: UseMutationOptions<UpdateAccountResponse, UpdateAccountError, Options<UpdateAccountData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateAccount({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const nextSlotQueryKey = (options: Options<NextSlotData>) => createQueryKey('nextSlot', options);
+
+/**
+ * Next Slot
+ */
+export const nextSlotOptions = (options: Options<NextSlotData>) => queryOptions<NextSlotResponse, NextSlotError, NextSlotResponse, ReturnType<typeof nextSlotQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await nextSlot({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: nextSlotQueryKey(options)
+});
+
+export const listPostsQueryKey = (options?: Options<ListPostsData>) => createQueryKey('listPosts', options);
+
+/**
+ * List Posts
+ *
+ * Sorted by scheduled_for. from/to filter on coalesce(published_at, scheduled_for).
+ */
+export const listPostsOptions = (options?: Options<ListPostsData>) => queryOptions<ListPostsResponse, ListPostsError, ListPostsResponse, ReturnType<typeof listPostsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listPosts({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listPostsQueryKey(options)
+});
+
+/**
+ * Create Post
+ */
+export const createPostMutation = (options?: Partial<Options<CreatePostData>>): UseMutationOptions<CreatePostResponse, CreatePostError, Options<CreatePostData>> => {
+    const mutationOptions: UseMutationOptions<CreatePostResponse, CreatePostError, Options<CreatePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createPost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getPostQueryKey = (options: Options<GetPostData>) => createQueryKey('getPost', options);
+
+/**
+ * Get Post
+ */
+export const getPostOptions = (options: Options<GetPostData>) => queryOptions<GetPostResponse, GetPostError, GetPostResponse, ReturnType<typeof getPostQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getPost({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getPostQueryKey(options)
+});
+
+/**
+ * Update Post
+ */
+export const updatePostMutation = (options?: Partial<Options<UpdatePostData>>): UseMutationOptions<UpdatePostResponse, UpdatePostError, Options<UpdatePostData>> => {
+    const mutationOptions: UseMutationOptions<UpdatePostResponse, UpdatePostError, Options<UpdatePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updatePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Auto Schedule
+ */
+export const autoScheduleMutation = (options?: Partial<Options<AutoScheduleData>>): UseMutationOptions<AutoScheduleResponse, AutoScheduleError, Options<AutoScheduleData>> => {
+    const mutationOptions: UseMutationOptions<AutoScheduleResponse, AutoScheduleError, Options<AutoScheduleData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await autoSchedule({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Approve Post
+ */
+export const approvePostMutation = (options?: Partial<Options<ApprovePostData>>): UseMutationOptions<ApprovePostResponse, ApprovePostError, Options<ApprovePostData>> => {
+    const mutationOptions: UseMutationOptions<ApprovePostResponse, ApprovePostError, Options<ApprovePostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await approvePost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Cancel Post
+ */
+export const cancelPostMutation = (options?: Partial<Options<CancelPostData>>): UseMutationOptions<CancelPostResponse, CancelPostError, Options<CancelPostData>> => {
+    const mutationOptions: UseMutationOptions<CancelPostResponse, CancelPostError, Options<CancelPostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await cancelPost({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remedy Post
+ *
+ * FAILED / DEAD_LETTER only (409 {"code": "STATE_CONFLICT"} otherwise). See docs/PLAN.md section 4.
+ */
+export const remedyPostMutation = (options?: Partial<Options<RemedyPostData>>): UseMutationOptions<RemedyPostResponse, RemedyPostError, Options<RemedyPostData>> => {
+    const mutationOptions: UseMutationOptions<RemedyPostResponse, RemedyPostError, Options<RemedyPostData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await remedyPost({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

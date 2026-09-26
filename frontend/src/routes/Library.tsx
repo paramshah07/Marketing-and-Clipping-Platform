@@ -1,20 +1,27 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CloudUpload, FileVideo, Globe, HardDriveUpload, Link2, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
+import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo, Globe, HardDriveUpload, Link2, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from "react"
-import { Link, useSearchParams } from "react-router"
+import { Link, useNavigate, useSearchParams } from "react-router"
 
-import type { ClipOut } from "@/api"
+import { createRender, type AccountOut, type BrandOut, type ClipOut, type PostOut } from "@/api"
 import {
   createClipFromUrlMutation,
   deleteClipMutation,
+  getClipOptions,
+  getRenderOptions,
+  listAccountsOptions,
+  listBrandsOptions,
   listClipsOptions,
   listClipsQueryKey,
+  listPostsOptions,
   listRendersOptions,
+  listRendersQueryKey,
   retryClipMutation,
   updateClipMutation,
 } from "@/api/@tanstack/react-query.gen"
-import { Chip, Empty, Header } from "@/components/bits"
-import { MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, mb, mmss, RIGHTS, btn, field, type Rights } from "@/lib/utils"
+import { Chip, Header } from "@/components/bits"
+import { dayLabel, localParts } from "@/lib/schedule"
+import { MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -128,19 +135,19 @@ export function Library() {
               Clips<span className="text-sm tabular-nums text-muted">{clips.data?.length ?? ""}</span>
             </button>
             <button className={tab(published)} aria-pressed={published} onClick={() => setParams({ tab: "published" })}>
-              Published<span className="text-sm tabular-nums text-subtle">0</span>
+              Published
             </button>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <label hidden={published} className="flex h-7 w-60 items-center gap-2 rounded border border-line bg-panel px-2 text-muted focus-within:border-muted">
+          <label className="flex h-7 w-60 items-center gap-2 rounded border border-line bg-panel px-2 text-muted focus-within:border-muted">
             <Search className="size-3.5 text-subtle" />
             <input
               ref={searchRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-subtle"
-              placeholder="Search clips, creators, URLs"
+              placeholder={published ? "Search captions, clips" : "Search clips, creators, URLs"}
             />
             <kbd className="grid h-4 min-w-4 place-items-center rounded-sm border border-line-strong px-1 font-sans text-xs text-subtle">/</kbd>
           </label>
@@ -150,7 +157,7 @@ export function Library() {
           </button>
         </div>
       </Header>
-      {published && <Empty>Published Reels show up here once publishing lands (Phase 5).</Empty>}
+      {published && <Published search={search} />}
       {/* stays mounted on Published: the header's Upload button uses its file input */}
       <div hidden={published} className="contents">
         <Clips clips={clips.data} loading={clips.isPending} error={clips.isError ? errorText(clips.error) : ""} search={search} pickRef={pickRef} />
@@ -523,5 +530,221 @@ function RightsChip({ value, onChange }: { value: Rights; onChange?: (v: Rights)
         </option>
       ))}
     </select>
+  )
+}
+
+const RANGES = { 7: "Last 7 days", 30: "Last 30 days", 90: "Last 90 days", 365: "Last 12 months" }
+const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+const day = (d: Date, weekday = false) => dayLabel(localParts(d, TZ).date, { weekday })
+// Filter selects: sized to the chosen option, compact chevron instead of the native one
+const filter = cn(field, "flex items-center gap-2 text-muted focus-within:border-muted")
+const bare = "appearance-none bg-transparent outline-none [field-sizing:content]"
+const chevron = <ChevronDown className="pointer-events-none size-3.5 shrink-0 text-subtle" />
+
+function Published({ search }: { search: string }) {
+  const [accountId, setAccountId] = useState<number>()
+  const [brandId, setBrandId] = useState<number>()
+  const [days, setDays] = useState(30)
+  const [notice, setNotice] = useState("")
+  const from = new Date()
+  from.setHours(0, 0, 0, 0) // midnight keeps the query key stable all day
+  from.setDate(from.getDate() - days)
+  const posts = useQuery(listPostsOptions({ query: { status: ["PUBLISHED"], from: from.toISOString(), account_id: accountId, brand_id: brandId } }))
+  const accounts = useQuery(listAccountsOptions()).data ?? []
+  const brands = useQuery(listBrandsOptions()).data ?? []
+  const archived = useQuery(listBrandsOptions({ query: { archived: true } })).data ?? []
+  const logoOf = (id: number | null) => [...brands, ...archived].find((b) => b.id === id)?.logo_url
+  const q = search.trim().toLowerCase()
+  const at = (p: PostOut) => Date.parse(p.published_at ?? p.scheduled_for)
+  const rows = (posts.data ?? []).filter((p) => !q || [p.caption, p.render.clip_name].some((s) => s?.toLowerCase().includes(q))).sort((a, b) => at(b) - at(a))
+
+  return (
+    <>
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
+        <label className={filter}>
+          Account
+          <select value={accountId ?? ""} onChange={(e) => setAccountId(Number(e.target.value) || undefined)} className={cn(bare, "text-fg")}>
+            <option value="">All</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                @{a.username}
+              </option>
+            ))}
+          </select>
+          {chevron}
+        </label>
+        <label className={filter}>
+          Brand
+          <select value={brandId ?? ""} onChange={(e) => setBrandId(Number(e.target.value) || undefined)} className={cn(bare, "text-fg")}>
+            <option value="">All</option>
+            {brands.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          {chevron}
+        </label>
+        <label className={filter}>
+          <CalendarDays className="size-3.5 text-subtle" />
+          <select value={days} onChange={(e) => setDays(+e.target.value)} className={cn(bare, "text-fg")}>
+            {Object.entries(RANGES).map(([d, l]) => (
+              <option key={d} value={d}>
+                {l}
+              </option>
+            ))}
+          </select>
+          {chevron}
+          <span className="tabular-nums text-muted">
+            {day(from)} – {day(new Date())}
+          </span>
+        </label>
+        <div className="ml-auto flex items-center gap-4 text-sm text-muted">
+          <span className="tabular-nums">
+            <span className="text-fg">{rows.length}</span> posts
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Globe className="size-3.5 text-subtle" />
+            Times in {TZ}
+          </span>
+        </div>
+      </div>
+      {notice && (
+        <p className="flex h-9 shrink-0 items-center justify-between border-b border-line bg-bad/5 px-4 text-bad">
+          {notice}
+          <button className={btn.ghost} onClick={() => setNotice("")}>
+            Dismiss
+          </button>
+        </p>
+      )}
+      <section className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full table-fixed border-collapse">
+          <colgroup>
+            <col className="w-[52px]" />
+            <col className="w-[172px]" />
+            <col className="w-[160px]" />
+            <col className="w-[160px]" />
+            <col />
+            <col className="w-[164px]" />
+            <col className="w-[180px]" />
+          </colgroup>
+          <thead className="sticky top-0 z-10 bg-bg">
+            <tr className="h-8 text-left text-xs uppercase tracking-wider text-subtle shadow-[inset_0_-1px_0_var(--color-line)] [&>th]:px-3 [&>th]:font-medium">
+              <th className="!pl-4 !pr-0" />
+              <th>Published at ↓</th>
+              <th>Account</th>
+              <th>Brand</th>
+              <th>Caption</th>
+              <th>Instagram</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-panel">
+            {rows.map((p) => (
+              <PublishedRow key={p.id} p={p} account={accounts.find((a) => a.id === p.account_id)} brands={brands} logo={logoOf(p.render.brand_id)} onError={setNotice} />
+            ))}
+          </tbody>
+        </table>
+        {posts.isError ? (
+          <p className="p-8 text-center text-bad">Couldn't load published posts: {errorText(posts.error)}</p>
+        ) : (
+          !posts.isPending && !rows.length && <p className="p-8 text-center text-muted">{q ? "No posts match." : `Nothing published in the ${RANGES[days as keyof typeof RANGES].toLowerCase()}.`}</p>
+        )}
+      </section>
+    </>
+  )
+}
+
+function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; account?: AccountOut; brands: BrandOut[]; logo?: string | null; onError: (s: string) => void }) {
+  const qc = useQueryClient()
+  const navigate = useNavigate()
+  const clipId = p.render.clip_id
+  const iso = p.published_at ?? p.scheduled_for
+  const d = new Date(iso)
+  // Same clip and crop as the original, the new brand's default overlay (overlay_config omitted) and caption.
+  const rerender = useMutation({
+    mutationFn: async (b: BrandOut) => {
+      const [orig, clip] = await Promise.all([
+        qc.fetchQuery(getRenderOptions({ path: { render_id: p.render_id } })),
+        qc.fetchQuery(getClipOptions({ path: { clip_id: clipId } })),
+      ])
+      const caption = fillCaption(b.caption_template, b.link, clip.source_creator_handle).trim() || null
+      return (await createRender({ body: { clip_id: clipId, brand_id: b.id, crop_config: orig.crop_config, caption }, throwOnError: true })).data
+    },
+    onSuccess: () => (qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clipId } }) }), navigate(`/editor/${clipId}`)),
+    onError: (e) => onError(`Re-render failed: ${errorText(e)}`),
+  })
+  return (
+    <tr data-post={p.id}>
+      <td className="!pl-4 !pr-0">
+        {p.render.thumbnail_url ? <img src={p.render.thumbnail_url} alt="" className="h-[50px] w-7 rounded-sm bg-raised object-cover" /> : <div className="h-[50px] w-7 rounded-sm bg-raised" />}
+      </td>
+      <td className="whitespace-nowrap tabular-nums">
+        <div className="font-medium">
+          {day(d, true)} · {d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+        </div>
+        <div className="text-sm text-muted">
+          {ago(iso)}
+          {account && account.timezone !== TZ && (
+            <span className="text-subtle"> · {d.toLocaleTimeString("en-US", { timeZone: account.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" })}</span>
+          )}
+        </div>
+      </td>
+      <td>
+        <div className="flex items-center gap-2">
+          {account?.avatar_url ? <img src={account.avatar_url} alt="" className="size-4 shrink-0 rounded-full" /> : <AtSign className="size-4 shrink-0 text-subtle" />}
+          <span className="min-w-0 truncate" title={`@${p.account_username}`}>
+            @{p.account_username}
+          </span>
+        </div>
+      </td>
+      <td>
+        <div className="flex items-center gap-2">
+          {logo ? <img src={logo} alt="" className="size-4 shrink-0 rounded-sm bg-raised object-contain" /> : <span className="size-4 shrink-0" />}
+          <span className={cn("min-w-0 truncate", !p.render.brand_name && "text-subtle")} title={p.render.brand_name ?? undefined}>
+            {p.render.brand_name ?? "No logo"}
+          </span>
+        </div>
+      </td>
+      <td className="truncate text-muted" title={p.caption}>
+        {p.caption}
+      </td>
+      <td>
+        {p.permalink ? (
+          <a href={p.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-muted hover:text-fg">
+            View on Instagram
+            <ExternalLink className="size-3.5 text-subtle" />
+          </a>
+        ) : (
+          <span className="text-subtle">—</span>
+        )}
+      </td>
+      <td className="!pr-4">
+        <label title="Uses the brand's default logo and caption. Opens in editor." className={cn(btn.secondary, "relative w-full justify-start px-2 font-normal has-[:focus-visible]:border-muted", rerender.isPending && "opacity-50")}>
+          <RotateCw className={cn("size-3.5 shrink-0", rerender.isPending && "animate-spin")} />
+          <span className="truncate">Re-render for…</span>
+          <ChevronDown className="ml-auto size-3.5 shrink-0 text-subtle" />
+          <select
+            aria-label={`Re-render post ${p.id} for a brand`}
+            value=""
+            disabled={rerender.isPending}
+            onChange={(e) => rerender.mutate(brands.find((b) => b.id === +e.target.value)!)}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            <option value="" disabled>
+              Re-render for…
+            </option>
+            <optgroup label="Re-render for brand">
+              {brands.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                  {b.id === p.render.brand_id ? " (original)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+      </td>
+    </tr>
   )
 }

@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "post": {
+      "_id": "65f1c0a9e2b5af0012ab34cd",
+      "status": "published",
+      "platforms": [
+        {
+          "platform": "instagram",
+          "status": "published",
+          "platformPostUrl": "https://www.instagram.com/p/DGx7Yk2ScAb/"
+        }
+      ]
+    },
+    "message": "Post already exists (idempotent retry)"
+  }
+}

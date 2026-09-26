@@ -1,0 +1,149 @@
+"""Zernio publish calls (docs.zernio.com: media/get-media-presigned-url, posts/create-post, posts/get-post,
+posts/retry-post). HTTP only, no database: the state machine is app/tasks/publish.py. Every call returns a
+Zernio post dict or raises NetworkError / Later / Rejected. Never log request headers (API key)."""
+
+from collections.abc import AsyncIterator
+from pathlib import Path
+
+import anyio
+import httpx
+
+from app.services import zernio
+from app.services.errors import classify
+
+IN_FLIGHT = {"scheduled", "publishing", "pending", "processing", "uploading"}
+
+
+class NetworkError(Exception):
+    """Timeout, transport error or 5xx: retry with the same Idempotency-Key (Zernio replays, no second post)."""
+
+
+class Later(Exception):
+    """409 idempotency_conflict (first request still running), 409 retry-in-progress or 429: again in `seconds`."""
+
+    def __init__(self, seconds: int, body: dict):
+        super().__init__(f"retry in {seconds} s")
+        self.seconds, self.body = seconds, body
+
+
+class Rejected(Exception):
+    """Zernio answered and nothing was published; `code` is our error_code."""
+
+    def __init__(self, code: str, status: int, body: dict):
+        super().__init__(f"{code} (HTTP {status})")
+        self.code, self.status, self.body = code, status, body
+
+
+def client(timeout: httpx.Timeout | float = httpx.Timeout(30, read=300), **kw) -> httpx.AsyncClient:  # noqa: B008
+    """Zernio client, by default with a 300 s read timeout (publishNow waits for Instagram); pass a short
+    one for a quick GET inside an API request. Raises zernio.ZernioError when ZERNIO_API_KEY is unset."""
+    return zernio.client(timeout=timeout, **kw)
+
+
+def _seconds(retry_after: str | None) -> int:
+    try:
+        return max(1, int(retry_after or 60))
+    except ValueError:  # an HTTP-date: not worth parsing
+        return 60
+
+
+async def _send(c: httpx.AsyncClient, req: httpx.Request) -> httpx.Response:
+    try:
+        return await c.send(req)
+    except httpx.TransportError as e:  # connect/read/write timeouts included
+        raise NetworkError(f"{req.method} {req.url.path}: {type(e).__name__}") from e
+
+
+async def _call(c: httpx.AsyncClient, method: str, url: str, **kw) -> dict:
+    r = await _send(c, c.build_request(method, url, **kw))
+    if r.status_code >= 500:
+        raise NetworkError(f"{method} {url}: HTTP {r.status_code}")
+    try:
+        body = r.json() if r.content else {}
+    except ValueError:
+        if r.is_success:  # a 2xx we can't read: replaying with the same key is safe
+            raise NetworkError(f"{method} {url}: HTTP {r.status_code}, body is not JSON") from None
+        body = {"text": r.text[:500]}
+    if r.status_code == 429 or (r.status_code == 409 and body.get("code") == "idempotency_conflict"):
+        raise Later(_seconds(r.headers.get("Retry-After")), body)
+    if r.status_code == 403 and body.get("code") == "ACCOUNT_DISCONNECTED":
+        raise Rejected("ACCOUNT_DISCONNECTED", 403, body)
+    if r.status_code >= 400:
+        raise Rejected("UNKNOWN", r.status_code, body)
+    return body
+
+
+async def _chunks(path: Path) -> AsyncIterator[bytes]:
+    async with await anyio.open_file(path, "rb") as f:  # reads run in a thread: the event loop never blocks
+        while chunk := await f.read(1 << 20):
+            yield chunk
+
+
+async def upload(c: httpx.AsyncClient, path: Path) -> str:
+    """Presign, PUT the file (streamed, never read into memory), return the publicUrl for mediaItems."""
+    size = (await anyio.Path(path).stat()).st_size
+    pre = await _call(
+        c, "POST", "/media/presign", json={"filename": path.name, "contentType": "video/mp4", "size": size}
+    )
+    req = c.build_request(
+        "PUT",
+        pre["uploadUrl"],
+        content=_chunks(path),
+        headers={"Content-Type": "video/mp4", "Content-Length": str(size)},
+    )
+    req.headers.pop("Authorization", None)  # a presigned URL is its own credential: never hand our key to the bucket
+    r = await _send(c, req)
+    if not r.is_success:  # e.g. an expired signature: the URL was never committed, so the retry presigns again
+        raise NetworkError(f"PUT upload: HTTP {r.status_code}")
+    return pre["publicUrl"]
+
+
+async def create_post(c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str) -> dict:
+    """POST /v1/posts with publishNow and the post's Idempotency-Key. A 409 duplicate resolves to the
+    existing post (GET details.existingPostId)."""
+    body = {
+        "content": caption,
+        "mediaItems": [{"type": "video", "url": media_url}],
+        "platforms": [
+            {"platform": "instagram", "accountId": zernio_account_id, "platformSpecificData": {"shareToFeed": True}}
+        ],
+        "publishNow": True,
+    }
+    try:
+        return (await _call(c, "POST", "/posts", json=body, headers={"Idempotency-Key": key}))["post"]
+    except Rejected as e:
+        existing = e.status == 409 and (e.body.get("details") or {}).get("existingPostId")
+        if not existing:
+            raise
+        return await get_post(c, existing)
+
+
+async def get_post(c: httpx.AsyncClient, zernio_post_id: str) -> dict:
+    return (await _call(c, "GET", f"/posts/{zernio_post_id}"))["post"]
+
+
+async def retry_post(c: httpx.AsyncClient, zernio_post_id: str) -> dict:
+    """POST /v1/posts/{id}/retry: Zernio re-publishes the failed platforms of the same post (no new post)."""
+    try:
+        return (await _call(c, "POST", f"/posts/{zernio_post_id}/retry"))["post"]
+    except Rejected as e:
+        if e.status == 409:  # "Post is currently publishing"
+            raise Later(60, e.body) from e
+        raise
+
+
+def instagram(zpost: dict) -> dict:
+    return next((p for p in zpost.get("platforms") or [] if p.get("platform") == "instagram"), {})
+
+
+def outcome(zpost: dict) -> str:
+    """PUBLISHED, PROCESSING (Zernio is still on it, poll) or an error_code. Branches on post.status
+    (a 207 is not success); on `partial`, on our single platform's status."""
+    status = zpost.get("status")
+    if status == "partial":
+        status = instagram(zpost).get("status")
+    if status == "published":
+        return "PUBLISHED"
+    if status in IN_FLIGHT:
+        return "PROCESSING"
+    return classify(instagram(zpost).get("errorCategory"))
