@@ -1,0 +1,11 @@
+{
+  "status": 200,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "quotaUsage": 0,
+    "quotaTotal": 100,
+    "quotaDurationSeconds": 86400
+  }
+}

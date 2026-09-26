@@ -1,0 +1,74 @@
+{
+  "status": 200,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "accounts": [
+      {
+        "_id": "6ab77f6a7d5baf4adc07a655",
+        "userId": "6ab77e2e53aff902195a118c",
+        "profileId": {
+          "_id": "6ab77e2e53aff902195a118e",
+          "name": "Default"
+        },
+        "platform": "instagram",
+        "platformUserId": "28279901781653020",
+        "username": "i.cant.de",
+        "displayName": "i.cant.de",
+        "profilePicture": "https://scontent-lhr11-1.cdninstagram.com/v/t51.82787-19/661557668_18073962983308258_6423305465728655833_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=100&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy41NjguQzMifQ%3D%3D&_nc_ohc=d8uAFkHkCgEQ7kNvwFu50-1&_nc_oc=Adri2cdjnKoe81fKJArME54VTtcFwQDByupOzegn4z50EpLbl3HiDetgxC91YASADGA&_nc_zt=24&_nc_ht=scontent-lhr11-1.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_gid=S6Fv4-tDajMbTi5evyG05w&_nc_tpa=Q5bMBQI9LsFx5CMOKxoeb0C21DqheSXqLudZ8N1elRUng_5aIwoVXmXAPo-MzA5MlkhyjIKmTBTA2avJrw&oh=00_AQKy7j84HAU_KTj8d6TLhXoLKurNP8dEQdBz0EVm_dD4nQ&oe=6ABD4B9D",
+        "profileUrl": "https://instagram.com/i.cant.de",
+        "tokenExpiresAt": "2026-11-25T08:16:42.261Z",
+        "isActive": true,
+        "permissions": [
+          "instagram_business_basic",
+          "instagram_business_content_publish",
+          "instagram_business_manage_insights",
+          "instagram_business_manage_comments",
+          "instagram_business_manage_messages"
+        ],
+        "metadata": {
+          "expires_in": 5184000,
+          "connectedAt": "2026-09-26T08:16:42.261Z",
+          "profileData": {
+            "id": "28279901781653020",
+            "bio": "[redacted]",
+            "website": null,
+            "username": "i.cant.de",
+            "extraData": {
+              "mediaCount": 516,
+              "accountType": "MEDIA_CREATOR",
+              "followsCount": 16,
+              "instagramScopedId": "17841439247736883"
+            },
+            "profileUrl": "https://instagram.com/i.cant.de",
+            "displayName": "i.cant.de",
+            "followersCount": 1112,
+            "profilePicture": "https://scontent-lhr11-1.cdninstagram.com/v/t51.82787-19/661557668_18073962983308258_6423305465728655833_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=100&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy41NjguQzMifQ%3D%3D&_nc_ohc=d8uAFkHkCgEQ7kNvwFu50-1&_nc_oc=Adri2cdjnKoe81fKJArME54VTtcFwQDByupOzegn4z50EpLbl3HiDetgxC91YASADGA&_nc_zt=24&_nc_ht=scontent-lhr11-1.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_gid=S6Fv4-tDajMbTi5evyG05w&_nc_tpa=Q5bMBQI9LsFx5CMOKxoeb0C21DqheSXqLudZ8N1elRUng_5aIwoVXmXAPo-MzA5MlkhyjIKmTBTA2avJrw&oh=00_AQKy7j84HAU_KTj8d6TLhXoLKurNP8dEQdBz0EVm_dD4nQ&oe=6ABD4B9D"
+          },
+          "instagramScopedId": "17841439247736883"
+        },
+        "platformStatus": "active",
+        "platformStatusReason": null,
+        "platformStatusAt": null,
+        "byokCredentials": null,
+        "followersCount": 1112,
+        "followersLastUpdated": "2026-09-26T08:16:42.261Z",
+        "rateLimitedUntil": null,
+        "lastRateLimitAt": null,
+        "lastRateLimitError": null,
+        "rateLimitCount": 0,
+        "rateLimitCountResetAt": null,
+        "lastSuccessfulPublishAt": null,
+        "intentionalDisconnectAt": null,
+        "needsReconnection": false,
+        "enabled": true,
+        "createdAt": "2026-09-26T08:16:42.301Z",
+        "updatedAt": "2026-09-26T08:17:06.740Z",
+        "messagingRestriction": null,
+        "adsStatus": "connected"
+      }
+    ],
+    "hasAnalyticsAccess": true
+  }
+}

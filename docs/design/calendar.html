@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — Calendar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <div class="flex items-center gap-4">
+        <h1 class="text-lg font-semibold">Calendar</h1>
+        <div class="flex items-center gap-1">
+          <button class="h-7 w-7 grid place-items-center rounded border border-line text-muted hover:bg-hover" title="Previous week"><i data-lucide="chevron-left"></i></button>
+          <button class="h-7 px-2.5 rounded border border-line hover:bg-hover">Today</button>
+          <button class="h-7 w-7 grid place-items-center rounded border border-line text-muted hover:bg-hover" title="Next week"><i data-lucide="chevron-right"></i></button>
+        </div>
+        <span class="font-medium tabular-nums">28 Sep – 4 Oct 2026</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="flex items-center gap-1.5 text-sm text-muted"><i data-lucide="globe" class="!w-3.5 !h-3.5"></i>Times in each account's zone</span>
+        <button class="h-7 px-3 rounded bg-accent text-white text-base font-medium hover:bg-accent-hover">Auto-schedule…</button>
+      </div>
+    </header>
+
+    <section class="flex-1 min-h-0 flex">
+      <!-- LEFT TRAY: READY renders not yet scheduled. Cards are draggable onto any slot. -->
+      <aside class="w-[240px] shrink-0 border-r border-line bg-panel flex flex-col">
+        <div class="h-9 shrink-0 px-3 flex items-center justify-between border-b border-line">
+          <span class="font-medium">Ready to schedule <span class="text-subtle tabular-nums">(6)</span></span>
+          <button class="text-sm text-muted hover:text-fg">Select all</button>
+        </div>
+        <div id="tray" class="flex-1 min-h-0 overflow-auto p-2 space-y-1.5"></div>
+        <div class="shrink-0 border-t border-line p-2 space-y-1.5">
+          <button class="h-7 w-full pl-2 pr-1.5 rounded border border-line bg-raised flex items-center gap-1.5 hover:bg-hover">
+            <span class="text-sm text-subtle">To</span>
+            <img src="https://i.pravatar.cc/64?img=12" class="w-4 h-4 rounded-full shrink-0" alt="">
+            <span class="truncate">@bajjo.clips</span>
+            <span class="ml-auto text-sm text-subtle tabular-nums">8 free</span>
+            <i data-lucide="chevron-down" class="!w-3.5 !h-3.5 text-muted shrink-0"></i>
+          </button>
+          <button class="h-7 w-full rounded bg-accent text-white font-medium hover:bg-accent-hover tabular-nums">Auto-schedule 2</button>
+          <div class="text-sm text-subtle tabular-nums">Next free slots: Thu 19:00, Fri 13:00</div>
+        </div>
+      </aside>
+
+      <!-- WEEK GRID: sticky lane-header column + 7 day columns, one swimlane per account.
+           Shown mid-drag: @late.night.cuts Thu 1 Oct 13:00 card lifted (2px accent outline, shadow) over the Fri 2 Oct 09:00 slot (accent dashed drop target); origin keeps a faded dashed ghost. Conflict: @bajjo.daily Wed 19:00 / 19:18. -->
+      <div class="flex-1 min-w-0 overflow-auto">
+        <div id="grid" class="grid h-full" style="grid-template-columns:160px repeat(7,minmax(0,1fr)); grid-template-rows:36px repeat(3,minmax(min-content,1fr));"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// Brands: Kite VPN has auto-approve OFF, so its posts land as Draft; the others go straight to Scheduled.
+const BRAND = { nw: 'Northwind Coffee', fx: 'Flux Energy', kv: 'Kite VPN' };
+const DAYS = ['Mon 28 Sep', 'Tue 29', 'Wed 30', 'Thu 1 Oct', 'Fri 2', 'Sat 3', 'Sun 4'];
+
+// Per lane, per day: [time, brand, flag?] for a post, [time] for an open slot.
+// flags: warn = conflict, ghost = drag origin, target = drop target under the dragged card, gap = conflict note row.
+const LANES = [
+  { h: '@bajjo.clips', av: 12, tz: 'Europe/London', tok: [43, 'ok'], days: [
+    [['09:00','nw'], ['13:00','fx'], ['19:00','kv']],
+    [['09:00','fx'], ['13:00','nw'], ['19:00','nw']],
+    [['09:00','kv'], ['13:00','fx'], ['19:00','nw']],
+    [['09:00','nw'], ['13:00','fx'], ['19:00']],
+    [['09:00','fx'], ['13:00'], ['19:00','kv']],
+    [['09:00'], ['13:00'], ['19:00']],
+    [['09:00'], ['13:00'], ['19:00']],
+  ]},
+  { h: '@bajjo.daily', av: 32, tz: 'Europe/London', tok: [11, 'warn'], days: [
+    [['09:00','fx'], ['13:00','nw'], ['19:00','fx']],
+    [['09:00','nw'], ['13:00','kv'], ['19:00','fx']],
+    [['09:00','nw'], ['13:00','fx'], ['19:00','nw','warn'], 'gap', ['19:18','fx','warn']],
+    [['09:00','fx'], ['13:00','nw'], ['19:00']],
+    [['09:00','kv'], ['13:00'], ['19:00']],
+    [['09:00'], ['13:00','nw'], ['19:00']],
+    [['09:00'], ['13:00'], ['19:00']],
+  ]},
+  { h: '@late.night.cuts', av: 59, tz: 'America/New_York', tok: [5, 'bad'], days: [
+    [['09:00','nw'], ['13:00','fx'], ['19:00','kv']],
+    [['09:00','fx'], ['13:00','nw'], ['19:00','fx']],
+    [['09:00','nw'], ['13:00'], ['19:00','nw']],
+    [['09:00','fx'], ['13:00','nw','ghost'], ['19:00','fx']],
+    [['09:00',null,'target'], ['13:00','kv'], ['19:00']],
+    [['09:00'], ['13:00'], ['19:00']],
+    [['09:00'], ['13:00'], ['19:00']],
+  ]},
+];
+
+const thumb = seed => `<img src="https://picsum.photos/seed/${seed}/360/640" class="w-9 h-16 object-cover shrink-0" alt="">`;
+
+// Post card: 36x64 thumb flush-left, time (tabular) + status dot, brand. Draft = dashed outline + label.
+function card(time, b, seed, flag, extra = '') {
+  const draft = b === 'kv';
+  const border = flag === 'warn' ? 'border-warn' : draft ? 'border-dashed border-line-strong' : 'border-line';
+  const dot = draft ? 'border border-muted' : 'bg-accent';
+  return `<div class="relative flex h-[66px] rounded border ${border} ${draft ? 'bg-panel' : 'bg-raised'} overflow-hidden ${extra}">
+    ${thumb(seed)}
+    <div class="min-w-0 flex-1 pl-1.5 pr-1 py-1 flex flex-col">
+      <div class="flex items-center justify-between"><span class="font-medium tabular-nums">${time}</span><span class="w-1.5 h-1.5 rounded-full ${dot}"></span></div>
+      <div class="text-sm leading-[14px] text-muted line-clamp-2">${BRAND[b]}</div>
+      ${draft ? '<div class="mt-auto text-xs text-muted">Draft</div>' : ''}
+    </div>
+  </div>`;
+}
+
+// Open slot: dashed placeholder, time aligned with where post-card times sit.
+const slot = (time, cls = 'border-line text-subtle') =>
+  `<div class="h-[66px] rounded border border-dashed ${cls} pl-[43px] pt-1 tabular-nums text-sm">${time}</div>`;
+
+let html = `<div class="sticky top-0 left-0 z-30 bg-bg border-r border-b border-line px-3 grid grid-cols-2 content-center gap-x-2 text-xs text-subtle">
+  <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-accent"></span>Scheduled</span>
+  <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full border border-muted"></span>Draft</span>
+  <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Published</span>
+  <span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-bad"></span>Failed</span>
+</div>`;
+html += DAYS.map(d => `<div class="sticky top-0 z-20 bg-bg border-r border-b border-line px-2 flex items-center font-medium tabular-nums">${d}</div>`).join('');
+
+const chip = { ok: 'bg-ok/10 text-ok', warn: 'bg-warn/10 text-warn', bad: 'bg-bad/10 text-bad' };
+LANES.forEach((l, li) => {
+  const week = l.days.flat().filter(x => Array.isArray(x) && x[1] && x[2] !== 'target').length;
+  html += `<div class="sticky left-0 z-10 bg-panel border-r border-b border-line pt-3 px-3 pb-1 flex flex-col gap-2">
+    <div class="flex items-center gap-2 min-w-0">
+      <img src="https://i.pravatar.cc/64?img=${l.av}" class="w-6 h-6 rounded-full shrink-0" alt="">
+      <div class="min-w-0"><div class="font-medium truncate">${l.h}</div><div class="text-sm text-muted tabular-nums">3 slots · cap 10</div></div>
+    </div>
+    <div class="text-xs text-subtle">${l.tz}</div>
+    <div class="flex items-center gap-2"><span class="h-5 px-1.5 inline-flex items-center rounded text-xs font-medium tabular-nums ${chip[l.tok[1]]}">Token ${l.tok[0]}d</span>${l.tok[1] === 'bad' ? '<a class="text-xs text-muted underline underline-offset-2">Refresh now</a>' : ''}</div>
+    <div class="mt-auto text-sm text-subtle tabular-nums">${week} posts this week</div>
+  </div>`;
+  l.days.forEach((items, di) => {
+    const n = items.filter(x => Array.isArray(x) && x[1]).length;
+    const cells = items.map(x => {
+      if (x === 'gap') return `<div class="h-3.5 -my-0.5 flex items-center justify-center gap-1 text-xs leading-none text-warn tabular-nums"><i data-lucide="triangle-alert" class="!w-3 !h-3"></i>18 min apart</div>`;
+      const [t, b, f] = x, seed = `${l.h.slice(1,6)}${li}${di}${t.replace(':','')}`;
+      if (f === 'ghost') // drag origin: ghost placeholder of the lifted card
+        return `<div class="rounded border border-dashed border-line-strong">${card(t, b, seed, null, 'opacity-25 !border-transparent !bg-transparent -m-px')}</div>`;
+      if (f === 'target') // MID-DRAG: card from Thu 1 Oct 13:00 lifted over the Fri 2 Oct 09:00 slot (drop target in accent). Animates in the real build.
+        return `<div class="relative">${slot(t, 'border-accent bg-accent/10 text-accent')}
+          <div class="absolute -left-5 top-2 w-full z-20 shadow-[0_12px_28px_rgba(0,0,0,.6)] rounded">${card('09:00', 'nw', `${l.h.slice(1,6)}${li}31300`, null, 'outline outline-2 outline-accent')}</div></div>`;
+      return b ? card(t, b, seed, f) : slot(t);
+    }).join('');
+    html += `<div class="min-w-0 border-r border-b border-line p-1 flex flex-col gap-1">${cells}
+      <div class="mt-auto pt-1 flex items-center gap-1.5">
+        <div class="flex-1 h-[3px] rounded-full bg-line overflow-hidden"><div class="h-full bg-muted" style="width:${n * 10}%"></div></div>
+        <span class="text-xs text-subtle tabular-nums">${n}/10</span>
+      </div></div>`;
+  });
+});
+document.getElementById('grid').innerHTML = html;
+
+// Tray: READY renders not yet scheduled
+const TRAY = [
+  ['IMG_4821.MOV', 'Northwind Coffee', '00:31', '14m ago', 'crowd', true],
+  ['podcast_ep42_cut3.mp4', 'Flux Energy', '00:47', '38m ago', 'podcast42', true],
+  ['street_interview.webm', 'Kite VPN', '01:12', '1h ago', 'streetint'],
+  ['tiktok.com/@maya.eats/video/7412…', 'Northwind Coffee', '00:22', '2h ago', 'mayaeats'],
+  ['youtube.com/shorts/dQ8xKf2LmA4', 'Flux Energy', '00:58', '3h ago', 'streetfood'],
+  ['instagram.com/reel/C9xK2mPqL4z', 'Northwind Coffee', '00:15', '5h ago', 'soundbooth'],
+];
+document.getElementById('tray').innerHTML = TRAY.map(([name, brand, dur, ago, seed, on]) => `
+  <label class="flex gap-2 p-1.5 rounded border ${on ? 'border-line-strong bg-raised' : 'border-line'} hover:bg-hover cursor-grab">
+    <span class="mt-0.5 w-3.5 h-3.5 shrink-0 rounded-sm grid place-items-center ${on ? 'bg-fg' : 'border border-line-strong'}">${on ? '<i data-lucide="check" class="!w-2.5 !h-2.5 text-bg" style="stroke-width:3"></i>' : ''}</span>
+    <img src="https://picsum.photos/seed/${seed}/360/640" class="w-9 h-16 rounded-sm object-cover shrink-0" alt="">
+    <div class="min-w-0 flex-1 flex flex-col">
+      <div class="truncate">${name}</div>
+      <div class="text-sm text-muted truncate">${brand}</div>
+      <div class="mt-auto flex justify-between text-sm text-subtle tabular-nums"><span>${dur}</span><span>${ago}</span></div>
+    </div>
+  </label>`).join('');
+</script>
+<script>lucide.createIcons();</script>
+</body>
+</html>

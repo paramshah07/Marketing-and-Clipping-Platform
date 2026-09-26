@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper — Editor · IMG_4821.MOV</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  colors: {
+    bg: '#0A0A0B', panel: '#111113', raised: '#18181B', hover: '#1F1F23',
+    line: '#26262B', 'line-strong': '#34343A',
+    fg: '#EDEDEF', muted: '#A0A0A8', subtle: '#6B6B73',
+    accent: '#4F8CFF', 'accent-hover': '#6A9DFF',
+    ok: '#3FB950', warn: '#D29922', bad: '#F85149',
+  },
+  fontFamily: { sans: ['Geist', 'system-ui', 'sans-serif'], mono: ['"Geist Mono"', 'ui-monospace', 'monospace'] },
+  fontSize: { xs: ['11px', '16px'], sm: ['12px', '16px'], base: ['13px', '18px'], md: ['14px', '20px'], lg: ['15px', '20px'], xl: ['18px', '24px'] },
+  borderRadius: { DEFAULT: '4px', md: '6px' },
+}}}
+</script>
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.min.js"></script>
+<style>
+  body { font-feature-settings: "ss01"; }
+  .checker { background-image: conic-gradient(#1f1f23 25%, #151518 0 50%, #1f1f23 0 75%, #151518 0); background-size: 12px 12px; }
+  [data-lucide] { width: 16px; height: 16px; stroke-width: 1.75; }
+  /* screen-local helpers */
+  .ic-14 [data-lucide], [data-lucide].ic-14 { width: 14px; height: 14px; }
+  .ic-12 [data-lucide], [data-lucide].ic-12 { width: 12px; height: 12px; }
+  .ig [data-lucide] { width: 22px; height: 22px; stroke-width: 2; }
+  .handle { position: absolute; width: 7px; height: 7px; background: #EDEDEF; border: 1px solid #4F8CFF; border-radius: 1px; }
+</style>
+</head>
+<body class="bg-bg text-fg font-sans text-base antialiased">
+<div class="flex h-screen overflow-hidden">
+  <!-- SIDEBAR (identical on every desktop screen; set the active item) -->
+  <aside class="w-[200px] shrink-0 border-r border-line bg-panel flex flex-col">
+    <div class="h-12 px-4 flex items-center gap-2 border-b border-line">
+      <div class="w-4 h-4 rounded-sm bg-fg"></div><span class="font-semibold text-md tracking-tight">Clipper</span>
+    </div>
+    <nav class="p-2 space-y-0.5">
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded bg-raised text-fg"><i data-lucide="film"></i>Library</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="calendar-days"></i>Calendar</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="at-sign"></i>Accounts</a>
+      <a class="flex items-center gap-2.5 h-8 px-2.5 rounded text-muted hover:bg-hover"><i data-lucide="stamp"></i>Brands</a>
+    </nav>
+    <div class="mt-auto p-3 border-t border-line space-y-1.5 text-sm text-muted">
+      <div class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Worker online</div>
+      <div class="tabular-nums">2 rendering · 14 scheduled</div>
+    </div>
+  </aside>
+  <!-- MAIN -->
+  <main class="flex-1 min-w-0 flex flex-col">
+    <header class="h-12 shrink-0 border-b border-line flex items-center justify-between px-4">
+      <div class="flex items-center gap-3 min-w-0">
+        <nav class="flex items-center gap-1.5 text-lg min-w-0">
+          <a class="text-muted hover:text-fg">Library</a>
+          <span class="text-subtle">/</span>
+          <h1 class="font-semibold truncate">IMG_4821.MOV</h1>
+        </nav>
+        <span class="text-sm text-muted tabular-nums whitespace-nowrap">00:31 · 1920x1080 · 29.97fps · has audio</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="font-mono text-sm text-subtle">clp_7f3a9c</span>
+        <span class="h-5 px-1.5 inline-flex items-center rounded border border-line text-xs text-muted">own content</span>
+        <button class="h-7 w-7 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="ellipsis"></i></button>
+      </div>
+    </header>
+    <section class="flex-1 min-h-0 flex">
+
+      <!-- (1) STAGE -->
+      <div class="flex-1 min-w-0 flex flex-col items-center justify-center gap-3 px-6">
+        <!-- 9:16 frame, 324x576 (= 1080x1920 at 0.3) -->
+        <div class="relative w-[324px] h-[576px] rounded overflow-hidden bg-black ring-1 ring-line">
+          <!-- crop off: source centre-fills the 9:16 frame -->
+          <img src="https://picsum.photos/seed/crowd/1280/720" class="absolute inset-0 w-full h-full object-cover" alt="">
+
+          <!-- IG safe-zone guides (faint, dashed): below Reels bar / above caption block -->
+          <div class="absolute left-0 right-0 top-[46px] border-t border-dashed border-white/20"></div>
+          <div class="absolute left-0 right-[56px] bottom-[132px] border-t border-dashed border-white/20"></div>
+
+          <!-- Instagram Reels chrome, non-interactive, 40% opacity -->
+          <div class="ig absolute inset-0 pointer-events-none text-white opacity-40">
+            <div class="absolute top-0 inset-x-0 h-[46px] px-3.5 flex items-center justify-between">
+              <span class="text-[17px] font-semibold tracking-tight">Reels</span>
+              <i data-lucide="camera"></i>
+            </div>
+            <!-- action rail -->
+            <div class="absolute right-2 bottom-[18px] w-10 flex flex-col items-center gap-3.5 text-[10px] font-medium tabular-nums">
+              <div class="flex flex-col items-center gap-0.5"><i data-lucide="heart"></i>24.1K</div>
+              <div class="flex flex-col items-center gap-0.5"><i data-lucide="message-circle"></i>312</div>
+              <div class="flex flex-col items-center gap-0.5"><i data-lucide="send"></i>1,204</div>
+              <i data-lucide="ellipsis"></i>
+              <img src="https://i.pravatar.cc/64?img=12" class="w-[22px] h-[22px] rounded-sm ring-2 ring-white object-cover" alt="">
+            </div>
+            <!-- caption block -->
+            <div class="absolute left-3 right-[60px] bottom-[18px] space-y-1.5">
+              <div class="flex items-center gap-2">
+                <img src="https://i.pravatar.cc/64?img=12" class="w-6 h-6 rounded-full object-cover" alt="">
+                <span class="text-[12px] font-semibold">bajjo.clips</span>
+                <span class="h-[22px] px-2 inline-flex items-center rounded-md border border-white text-[11px] font-semibold">Follow</span>
+              </div>
+              <p class="text-[12px] leading-[16px]">Found the calmest cove in Mallorca, then the best flat white in town. <span class="opacity-70">… more</span></p>
+              <div class="flex items-center gap-1.5 text-[11px]"><i data-lucide="music-2" class="!w-3 !h-3"></i>bajjo.clips · Original audio</div>
+            </div>
+          </div>
+
+          <!-- Logo box (selected): top-right snap, 18% width = 58px, 4% margin, 85% opacity -->
+          <div class="absolute top-[59px] right-[13px] w-[58px] h-[58px] outline outline-1 outline-accent">
+            <svg viewBox="0 0 64 64" class="w-full h-full opacity-[.85]">
+              <circle cx="32" cy="32" r="30" fill="#F3E9DC"/>
+              <circle cx="32" cy="32" r="26" fill="none" stroke="#3B2416" stroke-width="1.5"/>
+              <text x="32" y="37" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="19" fill="#3B2416">NW</text>
+              <text x="32" y="47" text-anchor="middle" font-family="Geist, sans-serif" font-weight="600" font-size="5.5" letter-spacing="1.2" fill="#3B2416">COFFEE</text>
+            </svg>
+            <span class="handle -left-1 -top-1"></span><span class="handle -right-1 -top-1"></span>
+            <span class="handle -left-1 -bottom-1"></span><span class="handle -right-1 -bottom-1"></span>
+          </div>
+        </div>
+
+        <!-- transport -->
+        <div class="w-[324px] h-7 flex items-center gap-2">
+          <button class="h-7 w-7 -ml-1.5 inline-flex items-center justify-center rounded text-fg hover:bg-hover"><i data-lucide="play" class="ic-14"></i></button>
+          <div class="relative flex-1 h-1 rounded-full bg-line-strong">
+            <div class="absolute inset-y-0 left-0 w-[22.6%] rounded-full bg-muted"></div>
+            <div class="absolute top-1/2 left-[22.6%] w-2.5 h-2.5 -mt-[5px] -ml-[5px] rounded-full bg-fg"></div>
+          </div>
+          <span class="text-sm tabular-nums text-muted whitespace-nowrap"><span class="text-fg">00:07</span> / 00:31</span>
+          <button class="h-7 w-7 -mr-1.5 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="volume-2" class="ic-14"></i></button>
+        </div>
+        <!-- mode + overlay toggle -->
+        <div class="w-[324px] flex items-center justify-between">
+          <div class="inline-flex h-7 p-0.5 rounded border border-line bg-panel text-sm">
+            <button class="px-3 rounded-sm bg-raised text-fg font-medium">Output</button>
+            <button class="px-3 rounded-sm text-muted hover:text-fg">Crop</button>
+          </div>
+          <button class="h-7 px-2 inline-flex items-center gap-1.5 rounded border border-line bg-raised text-sm text-fg hover:bg-hover" aria-pressed="true">
+            <i data-lucide="eye" class="ic-14"></i>IG overlay
+          </button>
+        </div>
+      </div>
+
+      <!-- (2) CONTROLS -->
+      <aside class="w-[320px] shrink-0 border-l border-line bg-panel flex flex-col">
+        <div class="flex-1 min-h-0 overflow-auto divide-y divide-line">
+          <!-- BRAND -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Brand</span>
+              <a class="text-sm text-muted hover:text-fg underline underline-offset-2 decoration-line-strong">Save as brand default</a>
+            </div>
+            <button class="w-full h-7 px-2 flex items-center gap-2 rounded border border-line bg-bg hover:border-line-strong">
+              <svg viewBox="0 0 100 100" class="w-4 h-4 shrink-0"><circle cx="50" cy="50" r="50" fill="#F3E9DC"/><text x="50" y="68" text-anchor="middle" font-family="Georgia, serif" font-size="52" font-weight="700" fill="#3B2416">N</text></svg>
+              <span class="flex-1 text-left">Northwind Coffee</span>
+              <span class="text-sm text-subtle">edited</span>
+              <i data-lucide="chevrons-up-down" class="ic-14 text-subtle"></i>
+            </button>
+          </div>
+
+          <!-- LOGO -->
+          <div class="px-4 py-3 space-y-3">
+            <span class="block text-xs uppercase tracking-wider text-subtle">Logo</span>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-sm"><span class="text-muted">Scale</span><span class="tabular-nums">18% <span class="text-subtle">of width</span></span></div>
+              <div class="relative h-4 flex items-center">
+                <div class="w-full h-1 rounded-full bg-line-strong"></div>
+                <div class="absolute left-0 w-[36%] h-1 rounded-full bg-muted"></div>
+                <div class="absolute left-[36%] w-3 h-3 -ml-1.5 rounded-full bg-fg ring-2 ring-panel"></div>
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex justify-between text-sm"><span class="text-muted">Opacity</span><span class="tabular-nums">85%</span></div>
+              <div class="relative h-4 flex items-center">
+                <div class="w-full h-1 rounded-full bg-line-strong"></div>
+                <div class="absolute left-0 w-[85%] h-1 rounded-full bg-muted"></div>
+                <div class="absolute left-[85%] w-3 h-3 -ml-1.5 rounded-full bg-fg ring-2 ring-panel"></div>
+              </div>
+            </div>
+            <div class="flex items-start gap-4 pt-0.5">
+              <div class="space-y-1.5">
+                <span class="block text-sm text-muted">Position</span>
+                <!-- 3x3 snap grid, top-right active -->
+                <div class="grid grid-cols-3 gap-1 p-1 w-[76px] rounded border border-line bg-bg">
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-fg"></span>
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span>
+                  <span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span><span class="h-5 rounded-sm bg-raised"></span>
+                </div>
+              </div>
+              <div class="flex-1 space-y-1.5">
+                <span class="block text-sm text-muted">Margin</span>
+                <div class="h-7 w-[84px] px-2 flex items-center justify-between rounded border border-line bg-bg tabular-nums">4<span class="text-subtle">%</span></div>
+                <p class="text-sm text-subtle leading-4">Snaps inside the IG safe zone (dashed).</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- CROP -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Crop</span>
+              <!-- switch: off -->
+              <span class="w-7 h-4 p-0.5 rounded-full bg-line-strong flex items-center"><span class="w-3 h-3 rounded-full bg-muted"></span></span>
+            </div>
+            <div class="grid grid-cols-2 h-7 p-0.5 rounded border border-line bg-bg text-sm opacity-40 pointer-events-none">
+              <button class="rounded-sm text-muted">9:16 region</button>
+              <button class="rounded-sm text-muted">Full frame</button>
+            </div>
+            <p class="text-sm text-subtle">Off: source centre-fills the 9:16 frame.</p>
+          </div>
+
+          <!-- CAPTION -->
+          <div class="px-4 py-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs uppercase tracking-wider text-subtle">Caption</span>
+              <a class="text-sm text-muted hover:text-fg">Reset to template</a>
+            </div>
+            <textarea rows="9" class="w-full px-2 py-1.5 rounded border border-line bg-bg text-base leading-[18px] resize-none focus:outline-none">Found the calmest cove in Mallorca, then the best flat white in town.
+Order ahead: nwc.link/bajjo
+#northwindcoffee #mallorca #slowmorning</textarea>
+            <div class="flex justify-between text-sm text-subtle tabular-nums">
+              <span>3 / 30 hashtags</span>
+              <span>137 / 2200</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- sticky footer -->
+        <div class="shrink-0 border-t border-line p-4 space-y-2">
+          <div class="flex justify-between text-sm text-subtle tabular-nums">
+            <span>1080x1920 · H.264 · 00:31</span>
+            <span>Northwind Coffee</span>
+          </div>
+          <button class="w-full h-7 rounded bg-accent hover:bg-accent-hover text-white font-medium inline-flex items-center justify-center gap-2">
+            Render
+            <kbd class="font-sans text-sm text-white/70">⌘↵</kbd>
+          </button>
+        </div>
+      </aside>
+
+      <!-- (3) RENDER QUEUE -->
+      <aside class="w-[280px] shrink-0 border-l border-line flex flex-col">
+        <div class="h-9 shrink-0 px-3 flex items-center justify-between border-b border-line">
+          <span class="font-medium">Renders for this clip</span>
+          <span class="text-sm text-subtle tabular-nums">5</span>
+        </div>
+        <ul class="flex-1 min-h-0 overflow-auto divide-y divide-line">
+          <!-- RENDERING -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover opacity-50" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Northwind Coffee</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">20s ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-accent/10 text-accent"><i data-lucide="loader-circle" class="ic-12"></i>Rendering</span>
+                <span class="text-sm text-muted tabular-nums">00:14 elapsed</span>
+              </div>
+              <!-- indeterminate bar: animates (segment slides left→right, 1.2s loop) -->
+              <div class="relative h-1 rounded-full bg-line-strong overflow-hidden mt-2.5">
+                <div class="absolute inset-y-0 left-[28%] w-[34%] rounded-full bg-accent"></div>
+              </div>
+            </div>
+          </li>
+          <!-- READY -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Northwind Coffee</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">14m ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                <span class="text-sm text-muted tabular-nums">00:31 · 12.4 MB</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="calendar-plus" class="ic-12"></i>Schedule…</button>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+          <!-- READY + already scheduled -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Flux Energy</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">1h ago</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-accent/10 text-accent">Scheduled</span>
+                <span class="text-sm text-muted tabular-nums whitespace-nowrap">Tue 29 Sep, 19:00</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <span class="h-6 px-1.5 inline-flex items-center gap-1 text-sm text-muted"><img src="https://i.pravatar.cc/64?img=32" class="w-4 h-4 rounded-full" alt="">@bajjo.daily</span>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+          <!-- FAILED -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover opacity-40 grayscale" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Flux Energy</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">1h ago</span>
+              </div>
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-bad/10 text-bad">Failed</span>
+                <span class="font-mono text-sm text-muted truncate">ffmpeg exited 1</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="file-text" class="ic-12"></i>View log</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="rotate-cw" class="ic-12"></i>Retry</button>
+                <span class="ml-auto font-mono text-xs text-subtle">rnd_19b2e0</span>
+              </div>
+            </div>
+          </li>
+          <!-- READY (older) -->
+          <li class="p-3 flex gap-2.5">
+            <img src="https://picsum.photos/seed/crowd/1280/720" class="w-9 h-16 shrink-0 rounded-sm object-cover" alt="">
+            <div class="flex-1 min-w-0 space-y-1.5">
+              <div class="flex items-baseline justify-between gap-2">
+                <span class="font-medium truncate">Kite VPN</span>
+                <span class="text-sm text-subtle tabular-nums whitespace-nowrap">Yesterday</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded text-xs font-medium bg-ok/10 text-ok"><span class="w-1.5 h-1.5 rounded-full bg-ok"></span>Ready</span>
+                <span class="text-sm text-muted tabular-nums">00:31 · 11.9 MB</span>
+              </div>
+              <div class="flex items-center gap-1 -ml-1.5">
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="play" class="ic-12"></i>Preview</button>
+                <button class="h-6 px-1.5 inline-flex items-center gap-1 rounded text-sm text-fg hover:bg-hover"><i data-lucide="calendar-plus" class="ic-12"></i>Schedule…</button>
+                <button class="ml-auto h-6 w-6 inline-flex items-center justify-center rounded text-muted hover:bg-hover"><i data-lucide="download" class="ic-14"></i></button>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </aside>
+    </section>
+  </main>
+</div>
+<script>lucide.createIcons();</script>
+</body>
+</html>
