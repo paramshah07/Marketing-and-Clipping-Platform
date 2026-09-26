@@ -21,7 +21,7 @@ Storage: local `./data` directory (bind-mounted into api + worker), served at `/
 Video: ffmpeg and ffprobe invoked with subprocess, no Python wrapper libraries
 Publishing: Zernio REST API (`https://zernio.com/api/v1`) via httpx
 Frontend: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, react-router
-Tables: TanStack Table v9. Data fetching: TanStack Query
+Tables: plain <table> + map() (add TanStack Table v9 when sorting/selection is needed). Data fetching: TanStack Query
 API client: generated from the FastAPI OpenAPI schema with @hey-api/openapi-ts
 Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /frontend
 
@@ -41,10 +41,11 @@ Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /fr
   openapi.json    committed; regenerate after any API change
 /frontend
   /src
-    /components
-    /routes
+    /components   FracBox (drag/resize in fractions), bits, ui/ (shadcn slider, switch)
+    /routes       Library, Editor, Brands
     /api          generated client (never edit by hand)
-    /lib
+    /lib          geometry.ts (+ test), utils.ts
+  /e2e            accept.mjs (Playwright acceptance, Google Chrome)
 /docs             PLAN.md, spec.md, phase-N.md, design/
 compose.yml
 
@@ -63,6 +64,22 @@ docker compose exec api procrastinate defer ping                      # prove th
 docker compose exec postgres psql -U clipper                          # SQL shell
 docker compose kill worker && docker compose start worker             # reload worker code (no auto-reload)
 ```
+
+Frontend, from `frontend/` on the host (Node 22):
+
+```sh
+npm run dev          # Vite on :5173, proxies /api and /media to 127.0.0.1:8000
+npm test             # vitest (src/lib/geometry.test.ts is the preview-vs-render contract)
+npm run typecheck    # tsc -b
+npm run build        # tsc -b && vite build
+npm run lint
+npm run gen:api      # regenerate src/api from ../backend/openapi.json (never edit src/api by hand)
+node e2e/accept.mjs  # stack + dev server up: Phase 3 acceptance in Google Chrome (docs/phase-3.md)
+```
+
+Geometry lives in `frontend/src/lib/geometry.ts` and must keep matching `backend/app/services/render.py`
+(overlay = fractions of the 1080x1920 output, crop = fractions of the source, cover-fit). Change both or
+neither, and keep `geometry.test.ts` and `e2e/accept.mjs` passing.
 
 Procrastinate tasks live in `app/tasks/`; add each new task module to `import_paths` in
 `app/tasks/queue.py` (the worker only imports that module, so a task defined elsewhere fails with
