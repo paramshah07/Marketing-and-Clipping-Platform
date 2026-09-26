@@ -1,0 +1,21 @@
+{
+  "status": 207,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "post": {
+      "_id": "65f1c0a9e2b5af0012ab34cd",
+      "status": "failed",
+      "platforms": [
+        {
+          "platform": "instagram",
+          "status": "failed",
+          "errorMessage": "Media processing failed: video too short for Reels",
+          "errorCategory": "user_content",
+          "errorSource": "user"
+        }
+      ]
+    }
+  }
+}

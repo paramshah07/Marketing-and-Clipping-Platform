@@ -150,6 +150,9 @@ class Post(Base):
     idempotency_key: Mapped[str]
     zernio_media_url: Mapped[str | None]  # exact URL reused on every retry
     zernio_post_id: Mapped[str | None]
+    # committed just before the first POST /v1/posts with this key: set means a post may be live. The 20 h
+    # no-re-POST guard counts from it (never from scheduled_for, which reslots move). Cleared only with a new key.
+    first_post_at: Mapped[datetime | None]
     ig_media_id: Mapped[str | None]
     permalink: Mapped[str | None]
     attempt_count: Mapped[int] = mapped_column(server_default="0")

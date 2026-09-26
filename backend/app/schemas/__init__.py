@@ -246,6 +246,7 @@ class PostOut(BaseModel):
     cause: str | None  # plain-language cause derived from error_code (Phase 5)
     remedy: Remedy | None  # the one primary action for FAILED / DEAD_LETTER (Phase 5)
     attempt_count: int
+    zernio_post_id: str | None  # Zernio's post id, for the recovery screen's technical details
     permalink: str | None
     published_at: datetime | None
     created_at: datetime

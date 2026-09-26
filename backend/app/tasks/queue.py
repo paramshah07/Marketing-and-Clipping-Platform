@@ -50,7 +50,7 @@ def debug_sleep(seconds: int = 60) -> None:
 
 
 @app.periodic(cron="* * * * *", periodic_id="retry_stalled_jobs")
-@app.task(name="retry_stalled_jobs", queueing_lock="retry_stalled_jobs")
+@app.task(name="retry_stalled_jobs", queueing_lock="retry_stalled_jobs", priority=10)  # ahead of renders
 async def retry_stalled_jobs(timestamp: int) -> None:
     """A SIGKILLed worker leaves its jobs in 'doing' forever; put them back to 'todo' (same job id).
 

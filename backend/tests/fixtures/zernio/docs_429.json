@@ -1,0 +1,14 @@
+{
+  "status": 429,
+  "headers": {
+    "Retry-After": "12"
+  },
+  "body": {
+    "error": "Rate limit exceeded. Please retry after 12 seconds.",
+    "details": {
+      "currentCount": 601,
+      "limit": 600,
+      "retryAfterSeconds": 12
+    }
+  }
+}

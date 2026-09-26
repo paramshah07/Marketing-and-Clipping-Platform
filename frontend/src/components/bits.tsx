@@ -1,5 +1,5 @@
 import { LoaderCircle } from "lucide-react"
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -20,5 +20,22 @@ export function Chip({ tone, spin, dot, children }: { tone: keyof typeof TONES; 
       {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>
+  )
+}
+
+/** Full-height right drawer over a dimmed page; the backdrop or Escape closes it. */
+export function Drawer({ label, onClose, className, children }: { label: string; onClose: () => void; className?: string; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    addEventListener("keydown", onKey)
+    return () => removeEventListener("keydown", onKey)
+  }, [onClose])
+  return (
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <aside role="dialog" aria-label={label} className={cn("fixed inset-y-0 right-0 z-40 flex w-[400px] flex-col border-l border-line bg-panel shadow-[-12px_0_32px_rgba(0,0,0,0.45)]", className)}>
+        {children}
+      </aside>
+    </>
   )
 }

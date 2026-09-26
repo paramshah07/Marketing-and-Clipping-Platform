@@ -528,6 +528,10 @@ export type PostOut = {
      */
     attempt_count: number;
     /**
+     * Zernio Post Id
+     */
+    zernio_post_id: string | null;
+    /**
      * Permalink
      */
     permalink: string | null;
@@ -820,6 +824,14 @@ export type SystemStatus = {
      * Failed Posts
      */
     failed_posts?: number;
+    /**
+     * Rendering Renders
+     */
+    rendering_renders?: number;
+    /**
+     * Scheduled Posts
+     */
+    scheduled_posts?: number;
 };
 
 /**

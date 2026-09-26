@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     ZERNIO_API_KEY: str = ""  # required to publish
     ZERNIO_BASE_URL: str = "https://zernio.com/api/v1"
     ZERNIO_MAX_REEL_SECONDS: int = 90
+    ZERNIO_MIN_REEL_SECONDS: int = 3
     APP_BASE_URL: str = "http://localhost:5173"
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_CHAT_ID: str = ""

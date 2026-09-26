@@ -38,17 +38,19 @@ export const hashtagCount = (s: string) => (s.match(/#[\p{L}\p{N}_]+/gu) ?? []).
 export const fillCaption = (template: string | null, link: string | null, creator: string | null) =>
   (template ?? "").replaceAll("{link}", link ?? "").replaceAll("{creator}", creator ?? "")
 
-/** Filename for uploads, host + path for URL imports. */
-export function clipName(c: ClipOut) {
-  if (c.original_filename) return c.original_filename
-  if (!c.source_url) return `Clip ${c.id}`
+/** "youtube.com/watch?v=…" for an http(s) URL (no scheme, no www); anything else as is. */
+export function shortUrl(s: string) {
+  if (!/^https?:\/\//i.test(s)) return s
   try {
-    const u = new URL(c.source_url)
+    const u = new URL(s)
     return u.host.replace(/^www\./, "") + u.pathname + u.search
   } catch {
-    return c.source_url
+    return s
   }
 }
+
+/** Filename for uploads, host + path for URL imports. */
+export const clipName = (c: ClipOut) => c.original_filename || (c.source_url ? shortUrl(c.source_url) : `Clip ${c.id}`)
 
 /** FastAPI error body ({detail: string | [{loc, msg}]}) or anything else -> one line. */
 export function errorText(e: unknown): string {

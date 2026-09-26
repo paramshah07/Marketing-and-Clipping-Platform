@@ -51,6 +51,8 @@ class SystemStatus(BaseModel):
     worker_last_heartbeat: datetime | None
     jobs: dict[str, int]  # procrastinate job counts by status
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
+    rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
+    scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
 
 
 @app.get("/api/health")
@@ -71,10 +73,19 @@ async def status() -> SystemStatus:
                 )
             ).one()
             jobs = await s.execute(text("SELECT status::text, count(*) FROM procrastinate_jobs GROUP BY status"))
-            failed = await s.scalar(text("SELECT count(*) FROM posts WHERE status IN ('FAILED', 'DEAD_LETTER')"))
+            failed, scheduled = (
+                await s.execute(
+                    text(
+                        "SELECT count(*) FILTER (WHERE status IN ('FAILED', 'DEAD_LETTER')),"
+                        " count(*) FILTER (WHERE status = 'SCHEDULED') FROM posts"
+                    )
+                )
+            ).one()
+            rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
-                db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed
-            )
+                db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed,
+                rendering_renders=rendering, scheduled_posts=scheduled,
+            )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
         return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, jobs={})

@@ -16,6 +16,7 @@ import {
   updateBrandMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { FracBox } from "@/components/FracBox"
+import { SchedulePopover } from "@/components/SchedulePopover"
 import { Chip, Empty, Header } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
@@ -670,12 +671,12 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
                 <Play className="size-3" />
                 Preview
               </button>
-              <span title="Phase 4">
-                <button className={action} disabled>
+              <SchedulePopover r={r}>
+                <button className={action}>
                   <CalendarPlus className="size-3" />
                   Schedule…
                 </button>
-              </span>
+              </SchedulePopover>
               <a href={r.output_url ?? ""} download className="ml-auto inline-grid size-6 place-items-center rounded text-muted hover:bg-hover" title="Download MP4">
                 <Download className="size-3.5" />
               </a>
