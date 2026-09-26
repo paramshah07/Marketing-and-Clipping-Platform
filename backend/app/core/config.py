@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     DATA_DIR: Path  # set by compose
     ZERNIO_API_KEY: str = ""  # required to publish
     ZERNIO_BASE_URL: str = "https://zernio.com/api/v1"
-    ZERNIO_MAX_REEL_SECONDS: int = 90
+    # Meta's API Reel limit (15 min). Zernio's docs say 90 s, but a 120 s Reel published live on 2026-09-26.
+    ZERNIO_MAX_REEL_SECONDS: int = 900
     ZERNIO_MIN_REEL_SECONDS: int = 3
     APP_BASE_URL: str = "http://localhost:5173"
     TELEGRAM_BOT_TOKEN: str = ""

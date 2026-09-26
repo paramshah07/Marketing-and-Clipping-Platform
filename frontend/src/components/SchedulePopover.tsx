@@ -82,7 +82,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   return (
     <div className="space-y-2.5">
       <div className="font-medium">Schedule render {r.id}</div>
-      {long && <p className="text-sm text-warn">Zernio can't post Reels over 90 s.</p>}
+      {long && <p className="text-sm text-warn">Instagram Reels can be at most {MAX_REEL_SECONDS / 60} min.</p>}
       {accounts.data && !targets.length && (
         <p className="text-sm text-muted">
           No connected account.{" "}

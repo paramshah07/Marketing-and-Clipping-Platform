@@ -25,8 +25,13 @@ Recorded responses (key, upload signatures and bio redacted): `backend/tests/fix
   403 codes `ACCOUNT_DISCONNECTED` / `ACCOUNT_NOT_ENABLED_FOR_POSTING` / `PROFILE_OVER_LIMIT`;
   429 covers the 25 posts/hour/account velocity limit.
 
-## Not yet verified (needs the operator's go-ahead to post publicly)
-- A real `publishNow` Reel appearing on Instagram, its `platformPostUrl`, and the replay of a
-  *published* post with the same key.
-- Whether Zernio actually rejects a 120 s Reel.
-- Telegram alert delivery (bot is valid; the operator has not messaged it yet, so there is no chat id).
+## Live publish (2026-09-26, operator approved normal Reels on @i.cant.de)
+| Check | Result |
+|---|---|
+| `publishNow` 8 s Reel | **201 "Post published successfully" but `post.status` = `publishing`** (platform `processing`); `GET /v1/posts/{id}` showed `published` ~45 s later: https://www.instagram.com/reel/DdwzLx_jozA/ |
+| 120 s Reel (Zernio docs say 90 s max) | **Published** the same way: https://www.instagram.com/reel/DdwzdejjhjW/, so Zernio does not enforce 90 s; Clipper now uses Meta's 15 min |
+| Same `Idempotency-Key` resent after the Reel was live | **200 "Post already exists (idempotent retry)"**, same `_id`, no second Reel |
+| Visible logged out | Yes: the Reel page opens in a fresh logged-out browser with the caption |
+| Telegram | Real alerts delivered (Phase 1); Telegram rejects `localhost` button URLs, so local links go in the text |
+
+Recordings: `backend/tests/fixtures/zernio/live_*.json`.

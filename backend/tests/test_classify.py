@@ -43,6 +43,9 @@ def test_describe():
 
 
 def test_outcome_branches_on_post_status_not_http_status():
+    assert outcome(body("live_create_publishing")["post"]) == "PROCESSING"  # real 201 for an IG video
+    assert outcome(body("live_get_published")["post"]) == "PUBLISHED"
+    assert outcome(body("live_replay_published")["post"]) == "PUBLISHED"
     assert outcome(body("docs_create_published")["post"]) == "PUBLISHED"
     assert outcome(body("docs_replay_published")["post"]) == "PUBLISHED"
     assert outcome(body("docs_207_failed")["post"]) == "CONTENT_REJECTED"

@@ -1,10 +1,9 @@
 # Phase 5: publish + recovery
 
-**Status: built and tested, but live acceptance is PENDING.** Nothing has been published. The plan's
-acceptance needs a real Reel on a real account: a post 5 min out publishes unattended, then three
-kill-resume runs each end with exactly one Reel. That waits for the operator to pick the test account
-(Instagram posts can't be deleted through Zernio). `PUBLISHING_ENABLED` is false in both the api and
-worker containers.
+**Status: live acceptance PASSED (2026-09-26, operator approved normal Reels on @i.cant.de).** A post
+5 min out published unattended, and three kill-resume runs each ended with exactly one Reel. Zernio's
+own post list for the day shows exactly 6 posts, one per test (2 from the Phase 0 spike, 4 from the app),
+each with its own Reel URL. `PUBLISHING_ENABLED=true` is now set in `.env`.
 
 ## What was built
 
@@ -126,21 +125,28 @@ Phase 5 items from the 29 backend and 28 frontend issues, all fixed:
 
 Integration fixes in the final acceptance: none were needed.
 
-## Could not verify (PENDING the operator's choice of test account)
-- **Unattended publish**: a post 5 min out goes from SCHEDULED to PUBLISHED with no one touching it,
-  with a permalink and `published_at`, and exactly one Reel on Instagram.
-- **Three kill-resume runs** (`PUBLISH_DEBUG_PAUSE` = `after_upload`, `before_post`, `after_post`, killing
-  the worker in the pause): each must end with exactly one Reel and the same Idempotency-Key and media
-  URL throughout.
-- **Real Zernio bodies**: the error, 207 and 409 responses are copied from the docs (`docs_*.json`) and
-  have not been confirmed against live responses. Only the account list and publishing-limit bodies are
-  live recordings. `docs_5xx.json` is empty because the docs give no 5xx body.
-- **Live remedy calls**: reconnect, retry and rerender against Zernio were not run, since each can lead to
-  a publish.
-- **Telegram alerts**: not sent from a real failure.
+## Live acceptance (2026-09-26)
+Each run: `POST /api/posts` about 5.5 min out, approve, hands off. For the kill runs,
+`PUBLISH_DEBUG_PAUSE` was set, the worker restarted, then `docker compose kill -s KILL worker` during the
+60 s pause and `docker compose start worker`.
 
-To run the live acceptance once an account is chosen: set `PUBLISHING_ENABLED=true` in `.env`, then
-recreate the api and worker containers. Schedule one short render about 5 min out on the chosen account
-and watch `/api/posts/{id}`. For each pause point, set `PUBLISH_DEBUG_PAUSE`, restart the worker,
-`docker compose kill worker` during the 60 s pause, `start worker`, and check Instagram for exactly one
-Reel.
+| Run | Pause / kill point | State at the kill | What happened | Result |
+|---|---|---|---|---|
+| A (post 119) | none (unattended) | n/a | dispatcher 19:47 (1 min after due) → 201 `publishing` → polled → PUBLISHED 19:49 | https://www.instagram.com/reel/Ddw0kmDkQJ5/ |
+| B (post 120) | `after_upload` | PUBLISHING, media URL **not yet saved**, job `doing` | sweeper re-queued the same job id (751) ~40 s later; re-uploaded (orphan temp upload is harmless), one POST, polled | https://www.instagram.com/reel/Ddw1uVlEurU/ |
+| C (post 121) | `before_post` | PUBLISHING, media URL saved, no POST yet | same job re-queued; saved URL reused unchanged; one POST | https://www.instagram.com/reel/Ddw233qggQy/ |
+| D (post 122) | `after_post` | **Zernio had accepted the POST**, `first_post_at` set, no `zernio_post_id` | re-sent POST with the **same Idempotency-Key and media URL** → Zernio returned the original post → PUBLISHED | https://www.instagram.com/reel/Ddw3yQmjL6l/ |
+
+Proof of no duplicates: `GET /v1/posts?accountId=…&fromDate=2026-09-26` returned exactly 6 posts,
+all `published`, 6 distinct Reel URLs, one per test caption (tests 1–6).
+
+Live finding folded in: for an Instagram video, Zernio's `publishNow` returns 201 while `post.status` is
+still `publishing`. `publish_post` already treated that as in flight (keeps the Zernio id, re-defers,
+polls `GET /v1/posts/{id}`); `test_publish_live_flow_201_publishing_then_polls_to_published` now pins it
+with the live recordings.
+
+## Still not verified
+- 207 `failed` / `partial`, 409, 429, 403 and 5xx bodies are still the docs copies (`docs_*.json`);
+  no live run produced them.
+- Remedy calls (reconnect / retry / re-render) against live Zernio.
+- A Telegram alert from a real publish failure (delivery itself is verified).

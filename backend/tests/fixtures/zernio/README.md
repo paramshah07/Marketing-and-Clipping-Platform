@@ -14,12 +14,17 @@ integration works).
 | `draft_create.json` | `POST /v1/posts` (draft, 201) |
 | `draft_replay_same_body.json`, `draft_replay_diff_body.json` | `POST /v1/posts` replay with the same `Idempotency-Key` (200) |
 | `draft_delete.json` | `DELETE /v1/posts/{id}` |
+| `live_create_publishing.json` | `POST /v1/posts` publishNow, a real Instagram Reel (Phase 5 live run, 2026-09-26): **201 "Post published successfully" while `post.status` is still `publishing`** (platform `processing`) |
+| `live_get_published.json` | `GET /v1/posts/{id}` for that same post ~45 s later: `published`, `platformPostUrl` https://www.instagram.com/reel/DdwzLx_jozA/ |
+| `live_replay_published.json` | `POST /v1/posts` again with the same `Idempotency-Key` after the post was live: **200 "Post already exists (idempotent retry)"**, same `_id`, no second Reel |
 
 ## Docs examples, pending live confirmation (`docs_*.json`)
 
 Copied from docs.zernio.com (local copies in `.context/zernio-docs/`). Where the docs describe a
 response without a full example, the body holds only the documented fields, with no invented message text.
-Replace each one with a live recording when a real publish produces that response.
+Replace each one with a live recording when a real publish produces that response. The live run
+confirmed the create/replay/GET shapes (above); note that a real Instagram video create returns 201
+with `status: publishing`, not `published` as `docs_create_published.json` shows.
 
 | File | Source |
 |---|---|

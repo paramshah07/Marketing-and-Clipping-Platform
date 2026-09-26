@@ -98,7 +98,7 @@ export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
                 <div className="truncate">{clip ? clipName(clip) : `clip ${r.source_clip_id}`}</div>
                 <div className="truncate text-sm text-muted">{brandOf(r.brand_id)}</div>
                 <div className="mt-auto flex justify-between text-sm tabular-nums text-subtle">
-                  <span className={cn(long && "text-warn")} title={long ? "Zernio can't post Reels over 90 s" : undefined}>
+                  <span className={cn(long && "text-warn")} title={long ? `Instagram Reels can be at most ${MAX_REEL_SECONDS / 60} min` : undefined}>
                     {mmss(r.duration_s)}
                   </span>
                   <span>{ago(r.completed_at ?? r.created_at)}</span>

@@ -123,9 +123,10 @@ def test_create_guards(client):
     aid, rid = account(), render()
     ok = NOW + D
     assert code(create(client, render(status="RENDERING"), aid, ok)) == "RENDER_NOT_READY"
-    r = create(client, render(duration_s=90.5), aid, ok)
+    limit = settings.ZERNIO_MAX_REEL_SECONDS
+    r = create(client, render(duration_s=limit + 0.5), aid, ok)
     assert (r.status_code, code(r)) == (422, "TOO_LONG")
-    assert create(client, render(duration_s=90.0), aid, ok).status_code == 201  # 90 s is allowed
+    assert create(client, render(duration_s=float(limit)), aid, ok).status_code == 201  # the limit itself is allowed
     r = create(client, rid, account(disabled_at=NOW), ok)
     assert (r.status_code, code(r)) == (422, "ACCOUNT_UNAVAILABLE")
     assert code(create(client, rid, account(connection_status="disconnected"), ok)) == "ACCOUNT_UNAVAILABLE"
@@ -246,13 +247,13 @@ def test_auto_schedule_order_lead_and_reasons(client, env):
     env["now"] = NOW + 52 * M  # 08:52: the 09:00 slot is 8 min away, too close
     aid = account(posting_slots={"times": ["09:00", "09:05", "13:00"]}, min_gap_minutes=0, daily_cap=2)
     r1, r2, r3 = render(), render(auto_approve=True), render()
-    bad = [render(status="FAILED"), render(duration_s=120.0), 10**6]
+    bad = [render(status="FAILED"), render(duration_s=settings.ZERNIO_MAX_REEL_SECONDS + 30.0), 10**6]
     r = auto(client, aid, [r3, bad[0], r1, bad[1], r2, bad[2]])
     assert r.status_code == 200, r.text
     assert placed_times(r) == {r3: NOW + 65 * M, r1: NOW + 5 * H, r2: NOW + D + 60 * M}  # input order, cap 2/day
     assert [p["post"]["status"] for p in r.json()["placed"]] == ["DRAFT", "DRAFT", "SCHEDULED"]
     assert [(u["render_id"], u["reason"]) for u in r.json()["unplaced"]] == [
-        (bad[0], "render is failed, not ready"), (bad[1], "render longer than 90 s"), (bad[2], "render not found")]  # fmt: skip
+        (bad[0], "render is failed, not ready"), (bad[1], f"render longer than {settings.ZERNIO_MAX_REEL_SECONDS} s"), (bad[2], "render not found")]  # fmt: skip
 
 
 def test_auto_schedule_skips_taken_and_reuses_cancelled(client):

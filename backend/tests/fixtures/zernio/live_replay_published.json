@@ -1,0 +1,72 @@
+{
+  "status": 200,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "post": {
+      "recycling": {
+        "enabled": false,
+        "gapFreq": "month",
+        "recycleCount": 0,
+        "contentVariations": [],
+        "contentVariationIndex": 0
+      },
+      "_id": "6ab81efcee289cb3608e71c8",
+      "userId": "6ab77e2e53aff902195a118c",
+      "title": "",
+      "content": "Clipper publishing test 2: 120 s length check (automated test post, will be deleted)",
+      "mediaItems": [
+        {
+          "type": "video",
+          "url": "https://media.zernio.com/media/1790451436133_tcqqpi37_test_120s.mp4",
+          "_id": "6ab81f02ee289cb3608e72f5"
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "accountId": {
+            "_id": "6ab77f6a7d5baf4adc07a655",
+            "platform": "instagram",
+            "username": "i.cant.de",
+            "displayName": "i.cant.de",
+            "profilePicture": "https://scontent-lhr11-1.cdninstagram.com/v/t51.82787-19/661557668_18073962983308258_6423305465728655833_n.jpg?stp=dst-jpg_s206x206_tt6&_nc_cat=100&ccb=7-5&_nc_sid=bf7eb4&efg=eyJ2ZW5jb2RlX3RhZyI6InByb2ZpbGVfcGljLnd3dy41NjguQzMifQ%3D%3D&_nc_ohc=d8uAFkHkCgEQ7kNvwFu50-1&_nc_oc=Adri2cdjnKoe81fKJArME54VTtcFwQDByupOzegn4z50EpLbl3HiDetgxC91YASADGA&_nc_zt=24&_nc_ht=scontent-lhr11-1.cdninstagram.com&edm=AP4hL3IEAAAA&_nc_gid=S6Fv4-tDajMbTi5evyG05w&_nc_tpa=Q5bMBQI9LsFx5CMOKxoeb0C21DqheSXqLudZ8N1elRUng_5aIwoVXmXAPo-MzA5MlkhyjIKmTBTA2avJrw&oh=00_AQKy7j84HAU_KTj8d6TLhXoLKurNP8dEQdBz0EVm_dD4nQ&oe=6ABD4B9D",
+            "isActive": true,
+            "profileId": "6ab77e2e53aff902195a118e"
+          },
+          "profileId": "6ab77e2e53aff902195a118e",
+          "customMedia": [],
+          "scheduledFor": "2026-09-26T19:37:32.587Z",
+          "platformSpecificData": {
+            "shareToFeed": true
+          },
+          "status": "published",
+          "publishAttempts": 0,
+          "contentHash": "6660a1cca30d71ed1beac4a5f6a33944",
+          "_id": "6ab81f02ee289cb3608e72f6",
+          "platformPostId": "17890259577447318",
+          "platformPostUrl": "https://www.instagram.com/reel/DdwzdejjhjW/",
+          "publishedAt": "2026-09-26T19:39:12.420Z"
+        }
+      ],
+      "scheduledFor": "2026-09-26T19:37:32.587Z",
+      "timezone": "UTC",
+      "status": "published",
+      "tags": [],
+      "hashtags": [],
+      "mentions": [],
+      "visibility": "public",
+      "crosspostingEnabled": true,
+      "metadata": {
+        "usageCounted": true
+      },
+      "publishAttempts": 0,
+      "__v": 0,
+      "createdAt": "2026-09-26T19:37:38.485Z",
+      "updatedAt": "2026-09-26T19:39:12.489Z",
+      "publishingClaimedAt": "2026-09-26T19:37:38.557Z"
+    },
+    "message": "Post already exists (idempotent retry)"
+  }
+}

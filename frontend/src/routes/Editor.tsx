@@ -387,7 +387,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
           <div className="shrink-0 space-y-2 border-t border-line p-4">
             {long && (
               <p className="text-sm text-warn">
-                Clip is {mmss(clip.duration_s)} long: Zernio can't post Reels over {MAX_REEL_SECONDS} s. It still renders.
+                Clip is {mmss(clip.duration_s)} long: Instagram Reels can be at most {MAX_REEL_SECONDS / 60} min. It still renders.
               </p>
             )}
             {error && <p className="text-sm text-bad">{error}</p>}

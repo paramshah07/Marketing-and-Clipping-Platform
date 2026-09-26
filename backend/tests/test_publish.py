@@ -217,6 +217,24 @@ def test_publish_happy_path(db, env, monkeypatch):
     assert env.alerts == []
 
 
+LIVE_ZPOST = "6ab81e960931bc4d7225a320"  # the live Phase 5 recording's post id
+
+
+def test_publish_live_flow_201_publishing_then_polls_to_published(db, env, monkeypatch):
+    """What a real Instagram video does (live_*.json): the create returns 201 while the post is still
+    `publishing`; the job keeps the Zernio id, re-defers, and a later GET finds it published."""
+    pid = make_post(db, env)
+    z = use(monkeypatch, Zernio(routes("live_create_publishing") | {f"GET /posts/{LIVE_ZPOST}": ["live_get_published"]}))
+    go(pid)
+    p = row(db, pid)
+    assert (p.status, p.zernio_post_id, p.permalink) == ("PUBLISHING", LIVE_ZPOST, None)
+    assert [j["status"] for j in jobs(db, pid)] == ["todo"]  # polled again later, never re-POSTed
+    go(pid)
+    p = row(db, pid)
+    assert (p.status, p.permalink) == ("PUBLISHED", "https://www.instagram.com/reel/DdwzLx_jozA/")
+    assert len(z.sent(POST_)) == 1 and len(z.sent(f"GET /posts/{LIVE_ZPOST}")) == 1
+
+
 def presign_name(db, post_id: int) -> str:
     with Session(db) as s:
         return Path(s.get(Render, s.get(Post, post_id).render_id).output_key).name

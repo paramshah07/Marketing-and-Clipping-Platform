@@ -280,7 +280,7 @@ class Placed(BaseModel):
 
 class Unplaced(BaseModel):
     render_id: int
-    reason: str  # e.g. "no free slot within 30 days", "render longer than 90 s"
+    reason: str  # e.g. "no free slot within 30 days", "render longer than the Reel limit"
 
 
 class AutoScheduleOut(BaseModel):

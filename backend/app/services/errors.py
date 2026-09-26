@@ -37,7 +37,7 @@ CAUSES: dict[str, tuple[str, Remedy]] = {
     "NETWORK_ERROR": ("Zernio or Instagram kept failing with a temporary error, three retries in a row.", RETRY),
     "UNKNOWN": ("Publishing failed for a reason Clipper could not classify. The details below have the message.",
                 RETRY),
-    "TOO_LONG": (f"The render is longer than {settings.ZERNIO_MAX_REEL_SECONDS} s, the Reel limit.", RETRY),
+    "TOO_LONG": (f"The render is longer than {settings.ZERNIO_MAX_REEL_SECONDS // 60} min, the Reel limit.", RETRY),
     "TOO_SHORT": (f"The render is shorter than {settings.ZERNIO_MIN_REEL_SECONDS} s, the Reel minimum.", RETRY),
     "RENDER_FAILED": ("The render failed, so there was nothing to publish.", RERENDER),
     "WORKER_CRASHED": ("The worker stopped in the middle of publishing, several times in a row.", RETRY),
