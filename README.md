@@ -7,12 +7,14 @@ Zernio on a schedule. Localhost only. See `CLAUDE.md` and `docs/PLAN.md`.
 
 Needs Docker. Settings live in `.env` at the repo root (gitignored); `.env.example` says where each value
 comes from. `ZERNIO_API_KEY` is required; `PUBLISHING_ENABLED` defaults to `false`, so scheduled posts never
-go out until you set it to `true` (real Reels, which Zernio cannot delete). Telegram alerts are optional.
+go out until you set it to `true` (real Reels, which Zernio cannot delete). Telegram is optional: with a bot
+token and chat id you get failure alerts and a bot that does everything the web app does
+(`docs/telegram-bot.md`).
 Other settings and their defaults: `backend/app/core/config.py`.
 
 ```sh
 cp .env.example .env                  # then fill in ZERNIO_API_KEY
-docker compose up -d --build          # postgres, migrate (one-shot), api, worker
+docker compose up -d --build          # postgres, migrate (one-shot), api, worker, bot
 curl http://127.0.0.1:8000/api/health # {"status":"ok"}
 curl http://127.0.0.1:8000/api/status # db, worker heartbeat, job counts
 ```
@@ -28,6 +30,9 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (proxies /ap
 - Postgres: `127.0.0.1:5432`, user/password/db `clipper`.
 - Worker code changes need `docker compose kill worker && docker compose start worker` (a running job
   re-runs from the start; `restart worker` does the same after waiting up to 90 s).
+- The Telegram bot: open your bot in Telegram and send /help. It answers only `TELEGRAM_CHAT_ID`; without
+  it the `bot` service exits at once (`docker compose logs bot` says why). Bot code changes need
+  `docker compose restart bot`.
 
 First run:
 

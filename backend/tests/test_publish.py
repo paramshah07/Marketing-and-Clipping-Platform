@@ -87,7 +87,7 @@ def env(db, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
     alerts: list[tuple[str, str]] = []
 
-    async def record(text_, link=None):
+    async def record(text_, link=None, buttons=None):
         alerts.append((text_, link))
         return True
 

@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createPost, createRender, deleteClip, deleteRender, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
-import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
+import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteClip, deleteRender, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
+import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -83,6 +83,44 @@ export const createClipFromUrlMutation = (options?: Partial<Options<CreateClipFr
     const mutationOptions: UseMutationOptions<CreateClipFromUrlResponse, CreateClipFromUrlError, Options<CreateClipFromUrlData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await createClipFromUrl({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Find Links
+ *
+ * The video links in a document (docx, xlsx, pptx, odt) or a text file. Nothing is imported.
+ */
+export const findLinksMutation = (options?: Partial<Options<FindLinksData>>): UseMutationOptions<FindLinksResponse, FindLinksError, Options<FindLinksData>> => {
+    const mutationOptions: UseMutationOptions<FindLinksResponse, FindLinksError, Options<FindLinksData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await findLinks({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Create Clips From Urls
+ *
+ * One DOWNLOADING clip per video that isn't in the library yet.
+ */
+export const createClipsFromUrlsMutation = (options?: Partial<Options<CreateClipsFromUrlsData>>): UseMutationOptions<CreateClipsFromUrlsResponse, CreateClipsFromUrlsError, Options<CreateClipsFromUrlsData>> => {
+    const mutationOptions: UseMutationOptions<CreateClipsFromUrlsResponse, CreateClipsFromUrlsError, Options<CreateClipsFromUrlsData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createClipsFromUrls({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

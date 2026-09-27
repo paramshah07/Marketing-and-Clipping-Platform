@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     ZERNIO_MIN_REEL_SECONDS: int = 3
     APP_BASE_URL: str = "http://localhost:5173"
     TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_CHAT_ID: str = ""  # alerts go here, and the bot (app/bot) answers this chat only
+    CLIPPER_API_URL: str = "http://api:8000"  # the api as the bot container sees it
     PUBLISHING_ENABLED: bool = False
     PUBLISH_DEBUG_PAUSE: Literal["", "after_upload", "before_post", "after_post"] = ""
     FFMPEG_THREADS: int = 2

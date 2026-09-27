@@ -6,7 +6,7 @@ import type { AccountOut, AccountPatch } from "@/api"
 import { listAccountsOptions, listAccountsQueryKey, listPostsQueryKey, syncAccountsMutation, updateAccountMutation } from "@/api/@tanstack/react-query.gen"
 import { Avatar, ConnChip, ZERNIO_URL } from "@/components/AccountBits"
 import { Drawer, Empty, Header } from "@/components/bits"
-import { ZONES, apiError, isHHMM, shortWhen, utcOffset } from "@/lib/schedule"
+import { SLOT_PRESETS, ZONES, apiError, isHHMM, shortWhen, utcOffset } from "@/lib/schedule"
 import { ago, btn, cn, field, label } from "@/lib/utils"
 
 export function Accounts() {
@@ -192,6 +192,21 @@ function Times({ times, onChange }: { times: string[]; onChange: (t: string[]) =
           Add
         </button>
       )}
+      {/* a whole set at once: replaces the times above (existing posts keep theirs) */}
+      <label className="relative inline-flex h-6 items-center gap-1 rounded border border-dashed border-line-strong pr-1.5 pl-2 text-muted hover:text-fg has-[:focus-visible]:border-muted">
+        Presets
+        <ChevronDown className="size-3" />
+        <select aria-label="Slot presets" value="" onChange={(e) => onChange(SLOT_PRESETS[Number(e.target.value)].times)} className="absolute inset-0 cursor-pointer opacity-0">
+          <option value="" disabled>
+            Replace the times with…
+          </option>
+          {SLOT_PRESETS.map((p, i) => (
+            <option key={p.label} value={i}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   )
 }
@@ -222,7 +237,7 @@ function ConnectDrawer({ onClose, onSync, syncing }: { onClose: () => void; onSy
   const steps = [
     ["Create a Zernio profile", "One profile per Instagram account, so each account keeps its own queue and limits."],
     ["Connect Instagram in that profile", "The account must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login."],
-    ["Sync accounts here", "Clipper pulls the connected accounts from Zernio. New accounts start on Europe/London with 09:00, 13:00 and 19:00 slots."],
+    ["Sync accounts here", "Clipper pulls the connected accounts from Zernio. New accounts start on Europe/London with a slot every hour from 07:00 to 23:00."],
   ]
   return (
     <Drawer label="Connect account" onClose={onClose}>

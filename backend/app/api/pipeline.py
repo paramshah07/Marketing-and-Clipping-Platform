@@ -24,11 +24,15 @@ from app.schemas import (
     ClipFromUrl,
     ClipOut,
     ClipPatch,
+    ClipsFromUrls,
+    ClipsFromUrlsOut,
+    FoundLink,
+    LinksOut,
     RenderCreate,
     RenderDetail,
     RenderOut,
 )
-from app.services import storage
+from app.services import links, storage
 from app.tasks.media import download_clip, probe_clip, render
 
 router = APIRouter(prefix="/api")
@@ -36,6 +40,10 @@ router = APIRouter(prefix="/api")
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
 RIGHTS = ("permission_granted", "none", "own_content")
 MAX_LOGO_BYTES = 10 * 1024**2
+MAX_DOCUMENT_BYTES = 20 * 1024**2
+# A list import must not starve the rest: its downloads queue behind renders and single imports (priority)
+# and run two at a time (lanes), which also keeps the sites' rate limits further away.
+BULK_PRIORITY, BULK_LANES = -10, 2
 
 
 async def _db():
@@ -46,10 +54,10 @@ async def _db():
 Db = Annotated[AsyncSession, Depends(_db)]
 
 
-async def _defer(s: AsyncSession, task, **kwargs) -> None:
+async def _defer(s: AsyncSession, task, options: dict | None = None, **kwargs) -> None:
     """Queue a job inside the session's transaction: it exists iff the row change commits."""
     raw = await (await s.connection()).get_raw_connection()
-    await task.configure(connection=raw.driver_connection).defer_async(**kwargs)
+    await task.configure(connection=raw.driver_connection, **(options or {})).defer_async(**kwargs)
 
 
 async def _get(s: AsyncSession, model, id: int):
@@ -206,6 +214,45 @@ async def create_clip_from_url(body: ClipFromUrl, s: Db) -> ClipOut:
     await s.commit()
     await s.refresh(clip)
     return clip
+
+
+async def _library_keys(s: AsyncSession) -> set[str]:
+    urls = await s.scalars(select(SourceClip.source_url).where(SourceClip.source_url.is_not(None)))
+    return {links.key(u) for u in urls}
+
+
+@router.post("/clips/links")
+async def find_links(file: UploadFile, s: Db) -> LinksOut:
+    """The video links in a document (docx, xlsx, pptx, odt) or a text file. Nothing is imported."""
+    data = await file.read(MAX_DOCUMENT_BYTES + 1)
+    if len(data) > MAX_DOCUMENT_BYTES:
+        raise HTTPException(413, f"document is larger than {MAX_DOCUMENT_BYTES // 1024**2} MB")
+    found, repeats, other = await run_in_threadpool(lambda: links.find(*links.read(data)))
+    have = await _library_keys(s)
+    return LinksOut(
+        links=[FoundLink(url=url, platform=platform, in_library=k in have) for platform, k, url in found],
+        repeats=repeats,
+        other=other[:20],
+        other_count=len(other),
+    )
+
+
+@router.post("/clips/from-urls", status_code=201)
+async def create_clips_from_urls(body: ClipsFromUrls, s: Db) -> ClipsFromUrlsOut:
+    """One DOWNLOADING clip per video that isn't in the library yet."""
+    have, ids = await _library_keys(s), []
+    for url in dict.fromkeys(links.clean(str(u)) for u in body.urls):
+        if (k := links.key(url)) in have:
+            continue
+        have.add(k)
+        clip = SourceClip(origin="url", status="DOWNLOADING", source_url=url, rights_status=body.rights_status)
+        s.add(clip)
+        await s.flush()
+        options = {"priority": BULK_PRIORITY, "lock": f"import-{clip.id % BULK_LANES}"}
+        await _defer(s, download_clip, options, clip_id=clip.id)
+        ids.append(clip.id)
+    await s.commit()
+    return ClipsFromUrlsOut(created=len(ids), skipped=len(body.urls) - len(ids), ids=ids)
 
 
 @router.get("/clips")

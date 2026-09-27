@@ -51,5 +51,28 @@ services:
     restart: unless-stopped  # a crashed/OOM-killed worker comes back; the sweeper runs inside it
     depends_on: { migrate: { condition: service_completed_successfully } }
 
+  # Telegram bot (docs/telegram-bot.md): a client of the api, like the browser. Without TELEGRAM_BOT_TOKEN
+  # and TELEGRAM_CHAT_ID it logs why and exits 0, and on-failure leaves it stopped.
+  bot:
+    <<: *backend
+    command: ["python", "-m", "app.bot"]
+    init: true  # PID 1 forwards SIGTERM: a restart takes a moment, not the 10 s stop timeout
+    restart: on-failure
+    depends_on: { api: { condition: service_started } }
+
+  # A second Telegram bot (own @BotFather token + chat), same api/account. Copy this block again for a
+  # third, each with its own TELEGRAM_BOT_TOKEN_N / TELEGRAM_CHAT_ID_N in .env.
+  bot2:
+    <<: *backend
+    command: ["python", "-m", "app.bot"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
+      DATA_DIR: /data
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_2}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_2}
+    init: true
+    restart: on-failure
+    depends_on: { api: { condition: service_started } }
+
 volumes:
   pgdata:

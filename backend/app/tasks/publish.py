@@ -93,6 +93,7 @@ async def _finish(s: AsyncSession, post: Post, from_statuses, status: str, code:
         await notify(
             f"<b>@{html.escape(account.username)}</b> post {post.id} {state}: {html.escape(cause)}",
             f"{settings.APP_BASE_URL}/recover/{post.id}",
+            [[("Open post", f"p:{post.id}")]],  # the bot's post card, with the remedy
         )
     return ok
 

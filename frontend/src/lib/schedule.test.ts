@@ -1,6 +1,6 @@
 // Same rules as backend/app/services/slots.py (zoneinfo, fold=0, gap shifts forward).
 import { describe, expect, it } from "vitest"
-import { ZONES, addDays, apiError, boardRows, boardSpot, dayLabel, dropTime, firstFree, localParts, planFill, slotInstants, tooClose, tzName, utcOffset, zonedToUtc } from "./schedule"
+import { SLOT_PRESETS, ZONES, addDays, apiError, boardRows, boardSpot, dayLabel, dropTime, everyN, firstFree, localParts, planFill, slotInstants, tooClose, tzName, utcOffset, zonedToUtc } from "./schedule"
 
 const iso = (d: Date) => d.toISOString()
 
@@ -173,5 +173,15 @@ describe("misc", () => {
   it("apiError reads {detail: {code, message}}", () => {
     expect(apiError({ detail: { code: "RIGHTS_NONE", message: "no rights" } })).toEqual({ code: "RIGHTS_NONE", message: "no rights" })
     expect(apiError({ detail: "Not found" })).toEqual({ message: "Not found" })
+  })
+})
+
+describe("slot presets", () => {
+  it("everyN spans both ends; the presets are sorted, unique HH:MM", () => {
+    expect(everyN(60, "07:00", "23:00")).toEqual(["07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23"].map((h) => `${h}:00`))
+    expect(everyN(30, "22:30", "23:30")).toEqual(["22:30", "23:00", "23:30"])
+    expect(everyN(120, "08:00", "22:00")).toEqual(["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00", "22:00"])
+    for (const p of SLOT_PRESETS) expect(p.times).toEqual([...new Set(p.times)].sort())
+    expect(SLOT_PRESETS.map((p) => p.times.length)).toEqual([17, 34, 8, 3])
   })
 })

@@ -142,8 +142,11 @@ def thumbnail(in_path: Path, out_path: Path, at: float, hdr: bool = False) -> No
 
 
 # yt-dlp exits 1 for every error, so classify its last "ERROR:" line. Lowercase substrings, first
-# match wins: an unexpected extractor crash says "please report this issue", so it goes first.
+# match wins. A login wall goes first: Instagram's (seen live 2026-09-27) also says "please report this
+# issue", which is what an unexpected extractor crash says.
 YTDLP_ERRORS = [
+    ("--cookies", "LOGIN_REQUIRED"),  # yt-dlp's own hint: YTDLP_COOKIES_FILE fixes it, then Retry
+    ("empty media response", "LOGIN_REQUIRED"),  # Instagram: login wall or rate limit
     ("please report this issue", "EXTRACTOR_FAILED"),
     ("not available from your location", "GEO_BLOCKED"),
     ("geo restriction", "GEO_BLOCKED"),
@@ -153,8 +156,7 @@ YTDLP_ERRORS = [
     ("only available for registered users", "PRIVATE"),
     ("login required", "PRIVATE"),
     ("log in", "PRIVATE"),
-    ("sign in to confirm", "PRIVATE"),  # YouTube: "...your age" / "...you're not a bot": cookies fix both
-    ("empty media response", "PRIVATE"),  # Instagram: private, login wall or rate limit
+    ("sign in to confirm", "LOGIN_REQUIRED"),  # YouTube: "...your age" / "...you're not a bot"
     ("your ip address is blocked", "PRIVATE"),  # TikTok: ambiguous, needs cookies either way
     ("video unavailable", "REMOVED"),
     ("video is unavailable", "REMOVED"),  # YouTube, 2026

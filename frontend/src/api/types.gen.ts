@@ -124,6 +124,16 @@ export type AutoScheduleOut = {
 };
 
 /**
+ * Body_find_links
+ */
+export type BodyFindLinks = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_upload_brand_logo
  */
 export type BodyUploadBrandLogo = {
@@ -361,6 +371,38 @@ export type ClipPatch = {
 };
 
 /**
+ * ClipsFromUrls
+ */
+export type ClipsFromUrls = {
+    /**
+     * Urls
+     */
+    urls: Array<string>;
+    /**
+     * Rights Status
+     */
+    rights_status: 'permission_granted' | 'none' | 'own_content';
+};
+
+/**
+ * ClipsFromUrlsOut
+ */
+export type ClipsFromUrlsOut = {
+    /**
+     * Created
+     */
+    created: number;
+    /**
+     * Skipped
+     */
+    skipped: number;
+    /**
+     * Ids
+     */
+    ids: Array<number>;
+};
+
+/**
  * CropConfig
  *
  * Crop rectangle as fractions of the source frame (after autorotate).
@@ -385,6 +427,24 @@ export type CropConfig = {
 };
 
 /**
+ * FoundLink
+ */
+export type FoundLink = {
+    /**
+     * Url
+     */
+    url: string;
+    /**
+     * Platform
+     */
+    platform: string;
+    /**
+     * In Library
+     */
+    in_library: boolean;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -402,6 +462,28 @@ export type Health = {
      * Status
      */
     status: string;
+};
+
+/**
+ * LinksOut
+ */
+export type LinksOut = {
+    /**
+     * Links
+     */
+    links: Array<FoundLink>;
+    /**
+     * Repeats
+     */
+    repeats: number;
+    /**
+     * Other
+     */
+    other: Array<string>;
+    /**
+     * Other Count
+     */
+    other_count: number;
 };
 
 /**
@@ -1182,6 +1264,56 @@ export type CreateClipFromUrlResponses = {
 };
 
 export type CreateClipFromUrlResponse = CreateClipFromUrlResponses[keyof CreateClipFromUrlResponses];
+
+export type FindLinksData = {
+    body: BodyFindLinks;
+    path?: never;
+    query?: never;
+    url: '/api/clips/links';
+};
+
+export type FindLinksErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FindLinksError = FindLinksErrors[keyof FindLinksErrors];
+
+export type FindLinksResponses = {
+    /**
+     * Successful Response
+     */
+    200: LinksOut;
+};
+
+export type FindLinksResponse = FindLinksResponses[keyof FindLinksResponses];
+
+export type CreateClipsFromUrlsData = {
+    body: ClipsFromUrls;
+    path?: never;
+    query?: never;
+    url: '/api/clips/from-urls';
+};
+
+export type CreateClipsFromUrlsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateClipsFromUrlsError = CreateClipsFromUrlsErrors[keyof CreateClipsFromUrlsErrors];
+
+export type CreateClipsFromUrlsResponses = {
+    /**
+     * Successful Response
+     */
+    201: ClipsFromUrlsOut;
+};
+
+export type CreateClipsFromUrlsResponse = CreateClipsFromUrlsResponses[keyof CreateClipsFromUrlsResponses];
 
 export type DeleteClipData = {
     body?: never;

@@ -42,7 +42,7 @@ from app.tasks import accounts as account_sync
 
 router = APIRouter(prefix="/api")
 
-MIN_LEAD = timedelta(minutes=5)  # a post can't be set closer than this
+MIN_LEAD = timedelta(minutes=-1)  # "now" is fine (the dispatcher takes it within a minute); a minute-precise picker puts it up to 60 s back
 AUTO_LEAD = slots.AUTO_LEAD  # automatic placement (auto-schedule, next-slot, late approve) skips nearer slots
 EDITABLE = ("DRAFT", "SCHEDULED")
 CANCELLABLE = ("DRAFT", "SCHEDULED", "FAILED", "DEAD_LETTER")
@@ -323,7 +323,7 @@ async def create_post(body: PostCreate, s: Db, response: Response) -> PostOut:
         raise _err(422, *bad)
     _usable(acc)
     if at < _now() + MIN_LEAD:
-        raise _err(422, "TOO_SOON", "pick a time at least 5 minutes from now")
+        raise _err(422, "TOO_SOON", "that time has passed: pick now or later")
     if rights == "none" and not body.rights_override:
         raise _err(409, "RIGHTS_NONE", "the clip has no rights; confirm to post anyway", render_ids=[r.id])
     await _slot_taken(s, acc.id, at)
@@ -373,7 +373,7 @@ async def update_post(post_id: int, body: PostPatch, s: Db) -> PostOut:
     if body.scheduled_for is not None:
         at = _aware(body.scheduled_for)
         if at < _now() + MIN_LEAD:
-            raise _err(422, "TOO_SOON", "pick a time at least 5 minutes from now")
+            raise _err(422, "TOO_SOON", "that time has passed: pick now or later")
         await _lock_account(s, post.account_id)
         await _slot_taken(s, post.account_id, at, exclude_post_id=post_id)
         values["scheduled_for"] = at  # idempotency_key stays as created
@@ -387,7 +387,7 @@ async def update_post(post_id: int, body: PostPatch, s: Db) -> PostOut:
 
 @router.post("/posts/{post_id}/approve")
 async def approve_post(post_id: int, s: Db) -> PostOut:
-    # DRAFT -> SCHEDULED; a draft whose time is under 5 min away (or past) moves to the next free slot
+    # DRAFT -> SCHEDULED; a draft whose time has passed moves to the next free slot
     post = await _post(s, post_id)
     acc = await _lock_account(s, post.account_id)
     await s.refresh(post)

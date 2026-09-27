@@ -11,7 +11,7 @@ tab, a Recover screen, Brands and Accounts. Publishing stays off unless the oper
    should be healthy and api and worker should be Up. Then run `curl -s http://127.0.0.1:8000/api/status`
    and check for `"db":true` and `"worker_alive":true`.
 2. **Dev server.** Run `cd frontend && npm run dev` and open http://localhost:5173 in Chrome. Use a
-   window of at least 1440x900 and close DevTools. The sidebar footer should read "Worker online".
+   window of at least 1440x900 and close DevTools. The sidebar footer should read "Publishing off" (amber) or "Publishing live" (green), not a red "… offline".
 3. **Publishing on or off.** Decide this before the demo.
    - **Off (recommended, and the default).** `.env` has `PUBLISHING_ENABLED=false`. The sidebar footer
      shows an amber **Publishing off**, and `/api/status` returns `"publishing_enabled":false`.
@@ -72,7 +72,7 @@ Each step lists what to click, what to say, and what the audience sees.
   each one and records its rights, so we only post what we're allowed to."
 - **They see:** a dense table with a 9:16 thumbnail, duration, resolution and fps, a rights chip, Ready
   or Failed status (failed rows say why in plain words, such as "Must be 3 s to 15 min"), and a render
-  count. The drop zone and URL field are at the top. The footer shows Worker online, Publishing off and
+  count. The drop zone and URL field are at the top. The footer shows Publishing off and
   the counts.
 - **Optional:** drag a short mp4 onto the drop zone to show the upload progress row. If you do, remove
   the clip afterwards.
@@ -101,8 +101,8 @@ Each step lists what to click, what to say, and what the audience sees.
 
 ### 4. Calendar (2:15–3:15)
 - **Click:** the dashed Draft card in its slot, then **Approve** in the drawer. Then **Cancel post**.
-- **Say:** "One lane per Instagram account, with slots at 09:00, 13:00 and 19:00 London and a daily cap
-  bar. Brands that aren't auto-approve wait as drafts until I approve them. Approving makes it
+- **Say:** "One lane per Instagram account, with a posting slot every hour from 07:00 to 23:00 (one
+  click on Accounts switches to every 30 min, every 2 hours or 3 a day) and a daily cap bar. Brands that aren't auto-approve wait as drafts until I approve them. Approving makes it
   Scheduled, and a worker publishes it at that minute through Zernio. It keeps an idempotency key, so a
   crash or retry can never post twice. I'll cancel this one so nothing goes out."
 - **They see:** the week grid, with the Ready to schedule tray on the left and the drawer on the right

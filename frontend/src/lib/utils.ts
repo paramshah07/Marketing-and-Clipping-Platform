@@ -12,6 +12,8 @@ export const btn = {
 export const field = "h-7 rounded border border-line bg-panel px-2 text-base text-fg outline-none placeholder:text-subtle focus:border-muted"
 export const label = "text-xs uppercase tracking-wider text-subtle"
 
+/** Files read for the links in them (Library "Import links"), not uploaded as videos. */
+export const DOCUMENTS = ["docx", "txt", "csv", "md", "rtf", "html", "htm", "xlsx", "pptx", "odt"]
 export const RIGHTS = { own_content: "own content", permission_granted: "permission granted", none: "none" } as const
 export type Rights = keyof typeof RIGHTS
 
@@ -22,6 +24,7 @@ export const MIN_REEL_SECONDS = 3 // backend ZERNIO_MIN_REEL_SECONDS
 /** Clip and render error codes in plain words. */
 export const CAUSES: Record<string, string> = {
   PRIVATE: "Private video",
+  LOGIN_REQUIRED: "Needs login cookies",
   REMOVED: "Video removed",
   GEO_BLOCKED: "Blocked in this region",
   EXTRACTOR_FAILED: "Import failed",

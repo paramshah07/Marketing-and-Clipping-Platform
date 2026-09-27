@@ -18,7 +18,7 @@ from app.tasks.queue import app
 logger = logging.getLogger(__name__)
 
 DEFAULT_TIMEZONE = "Europe/London"
-DEFAULT_SLOTS = ["09:00", "13:00", "19:00"]
+DEFAULT_SLOTS = [f"{h:02d}:00" for h in range(7, 24)]  # every hour, 07:00-23:00 (the "Every hour" slot preset)
 DISCONNECTED = "ACCOUNT_DISCONNECTED"
 
 
@@ -61,6 +61,7 @@ async def upsert(s: AsyncSession, parsed: list[dict]) -> None:
             f"Instagram account <b>@{html.escape(username)}</b> is disconnected in Zernio. "
             "Reconnect it there, then Sync accounts in Clipper.",
             f"{settings.APP_BASE_URL}/accounts",
+            [[("Reconnect in Zernio", "https://zernio.com"), ("Sync accounts", "sync")]],  # "sync": answered by the bot
         )
 
 

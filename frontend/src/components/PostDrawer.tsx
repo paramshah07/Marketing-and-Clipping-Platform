@@ -1,13 +1,14 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { ArrowUpRight, X } from "lucide-react"
-import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { ArrowUpRight, Maximize2, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router"
 
 import type { AccountOut, PostOut } from "@/api"
-import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, listRendersQueryKey, updatePostMutation } from "@/api/@tanstack/react-query.gen"
+import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, listRendersQueryKey, statusOptions, updatePostMutation } from "@/api/@tanstack/react-query.gen"
 import { Avatar } from "@/components/AccountBits"
 import { Drawer } from "@/components/bits"
-import { FAILED, MOVABLE, STATUS_LABEL, apiError, dayLabel, isHHMM, localParts, postAt, shortWhen, slotTime, utcOffset, zonedToUtc } from "@/lib/schedule"
+import { Slider } from "@/components/ui/slider"
+import { FAILED, MOVABLE, STATUS_LABEL, apiError, dayLabel, isHHMM, localParts, nowIso, postAt, postNowConfirm, shortWhen, slotTime, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, btn, cn, field, label, mmss, shortUrl } from "@/lib/utils"
 
 export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClose: () => void }) {
@@ -43,6 +44,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
   const approve = useMutation({ ...approvePostMutation(), onSuccess: done("Approved"), onError })
   const cancel = useMutation({ ...cancelPostMutation(), onSuccess: done("Cancelled"), onError })
   const busy = update.isPending || approve.isPending || cancel.isPending
+  const st = useQuery(statusOptions()) // the sidebar's query; shares its cache
 
   const editable = MOVABLE.has(p.status)
   const moved = date !== at.date || time !== at.time
@@ -53,6 +55,18 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
       path: { post_id: p.id },
       body: { ...(moved && { scheduled_for: zonedToUtc(date, time, a.timezone).toISOString() }), ...(caption !== p.caption && { caption }) },
     })
+  }
+
+  async function postNow() {
+    if (!confirm(postNowConfirm(a.username))) return
+    setMsg(null)
+    try {
+      await update.mutateAsync({ path: { post_id: p.id }, body: { scheduled_for: nowIso() } })
+      if (p.status === "DRAFT") await approve.mutateAsync({ path: { post_id: p.id } }) // Post now is the approval
+      setMsg({ ok: true, text: "Posting now: live within about a minute" })
+    } catch {
+      // onError has shown it
+    }
   }
 
   return (
@@ -68,7 +82,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
       </div>
       <div className="min-h-0 flex-1 space-y-4 overflow-auto px-4 py-3">
         <div className="flex gap-3">
-          <video src={p.render.output_url ?? undefined} poster={p.render.thumbnail_url ?? undefined} controls preload="none" className="h-[213px] w-[120px] shrink-0 rounded bg-raised object-cover" />
+          <ReelPlayer r={p.render} />
           <div className="min-w-0 space-y-1.5 text-sm text-muted">
             <div className="flex items-center gap-2 text-base text-fg">
               <Avatar a={a} className="size-5 text-xs" />@{a.username}
@@ -77,7 +91,6 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
               {shortUrl(p.render.clip_name ?? `Clip ${p.render.clip_id}`)}
             </div>
             <div>{p.render.brand_name ?? "No logo"}</div>
-            <div className="tabular-nums">{mmss(p.render.duration_s)}</div>
             {p.permalink && (
               <a href={p.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-fg underline decoration-line-strong underline-offset-2">
                 View on Instagram
@@ -156,6 +169,16 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
               Approve
             </button>
           )}
+          {editable && (
+            <button
+              className={btn.secondary}
+              disabled={busy || dirty || st.data?.publishing_enabled === false}
+              title={st.data?.publishing_enabled === false ? "Publishing is off" : dirty ? "Save changes first" : "Skip the schedule: publish within about a minute"}
+              onClick={postNow}
+            >
+              Post now
+            </button>
+          )}
           <button
             className={cn(btn.ghost, "ml-auto hover:text-bad")}
             disabled={busy}
@@ -166,5 +189,81 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
         </div>
       )}
     </Drawer>
+  )
+}
+
+/** The render, played in place like a Reel: a click anywhere plays or pauses (sound on, looping), the strip
+ * seeks and mutes, the corner button goes fullscreen, where the browser's own controls take over.
+ * Nothing downloads before the first play. */
+function ReelPlayer({ r }: { r: PostOut["render"] }) {
+  const video = useRef<HTMLVideoElement>(null)
+  const [started, setStarted] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [muted, setMuted] = useState(false)
+  const [t, setT] = useState(0)
+  const [dur, setDur] = useState(r.duration_s ?? 0)
+  const [full, setFull] = useState(false)
+  const [broken, setBroken] = useState(false)
+  useEffect(() => {
+    const on = () => setFull(document.fullscreenElement === video.current)
+    document.addEventListener("fullscreenchange", on)
+    return () => document.removeEventListener("fullscreenchange", on)
+  }, [])
+  const tool = "inline-grid size-6 place-items-center rounded text-white/80 hover:bg-white/15 hover:text-white"
+  return (
+    <div className="group relative h-[256px] w-[144px] shrink-0 overflow-hidden rounded bg-raised">
+      <video
+        ref={video}
+        src={r.output_url ?? undefined}
+        poster={r.thumbnail_url ?? undefined}
+        preload="none"
+        loop
+        playsInline
+        muted={muted}
+        controls={full}
+        className="size-full object-cover [&:fullscreen]:object-contain"
+        onPlay={() => (setPlaying(true), setStarted(true))}
+        onPause={() => setPlaying(false)}
+        onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
+        onDurationChange={(e) => Number.isFinite(e.currentTarget.duration) && setDur(e.currentTarget.duration)}
+        onVolumeChange={(e) => setMuted(e.currentTarget.muted)} // muted in fullscreen stays muted here
+        onError={() => setBroken(true)}
+      />
+      {broken ? (
+        <div className="absolute inset-x-0 bottom-0 bg-black/75 px-2 py-1.5 text-xs text-white/80">Can't play this render in the browser.</div>
+      ) : (
+        <>
+          <button
+            aria-label={playing ? "Pause" : "Play"}
+            disabled={!r.output_url}
+            className="absolute inset-0 grid place-items-center"
+            onClick={() => (video.current?.paused ? video.current.play() : video.current?.pause())}
+          >
+            {/* playing: out of the picture's way until the pointer is over it */}
+            <span className={cn("grid size-10 place-items-center rounded-full bg-black/50 text-white", playing && "opacity-0 group-hover:opacity-100")}>
+              {playing ? <Pause className="size-4 fill-current" /> : <Play className="size-4 fill-current" />}
+            </span>
+          </button>
+          {started ? (
+            <div className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 pt-0.5">
+              <Slider aria-label="Seek" min={0} max={dur || 1} step={0.01} value={[t]} onValueChange={([v]) => video.current && (video.current.currentTime = v)} />
+              <div className="flex items-center text-xs tabular-nums text-white/80">
+                <span>
+                  <span className="text-white">{mmss(t)}</span> / {mmss(dur)}
+                </span>
+                <button aria-label={muted ? "Unmute" : "Mute"} className={cn(tool, "ml-auto")} onClick={() => setMuted(!muted)}>
+                  {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                </button>
+                <button aria-label="Fullscreen" className={tool} onClick={() => video.current?.requestFullscreen()}>
+                  <Maximize2 className="size-3" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <span className="pointer-events-none absolute right-1.5 bottom-1.5 rounded-sm bg-black/75 px-1 text-xs tabular-nums text-white">{mmss(r.duration_s)}</span>
+          )}
+        </>
+      )}
+    </div>
   )
 }

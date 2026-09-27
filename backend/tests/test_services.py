@@ -81,6 +81,11 @@ def test_notify_sends_and_never_raises(monkeypatch):
         "text": "<b>failed</b>\nhttp://localhost:5173/recover/1",
         "parse_mode": "HTML",
     }
+    # bot buttons: callback data for the bot service, https values as link buttons
+    assert asyncio.run(notify("x", "http://localhost:5173/accounts", [[("Reconnect", "https://zernio.com"), ("Sync", "sync")]]))
+    assert json.loads(sent[2].content)["reply_markup"] == {
+        "inline_keyboard": [[{"text": "Reconnect", "url": "https://zernio.com"}, {"text": "Sync", "callback_data": "sync"}]]
+    }
 
     def down(request):
         raise httpx.ConnectError("network down")

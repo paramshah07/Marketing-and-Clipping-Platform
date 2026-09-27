@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
+import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -43,6 +43,35 @@ export const uploadClip = <ThrowOnError extends boolean = false>(options: Option
  */
 export const createClipFromUrl = <ThrowOnError extends boolean = false>(options: Options<CreateClipFromUrlData, ThrowOnError>): RequestResult<CreateClipFromUrlResponses, CreateClipFromUrlErrors, ThrowOnError> => (options.client ?? client).post<CreateClipFromUrlResponses, CreateClipFromUrlErrors, ThrowOnError>({
     url: '/api/clips/from-url',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Find Links
+ *
+ * The video links in a document (docx, xlsx, pptx, odt) or a text file. Nothing is imported.
+ */
+export const findLinks = <ThrowOnError extends boolean = false>(options: Options<FindLinksData, ThrowOnError>): RequestResult<FindLinksResponses, FindLinksErrors, ThrowOnError> => (options.client ?? client).post<FindLinksResponses, FindLinksErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/clips/links',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Create Clips From Urls
+ *
+ * One DOWNLOADING clip per video that isn't in the library yet.
+ */
+export const createClipsFromUrls = <ThrowOnError extends boolean = false>(options: Options<CreateClipsFromUrlsData, ThrowOnError>): RequestResult<CreateClipsFromUrlsResponses, CreateClipsFromUrlsErrors, ThrowOnError> => (options.client ?? client).post<CreateClipsFromUrlsResponses, CreateClipsFromUrlsErrors, ThrowOnError>({
+    url: '/api/clips/from-urls',
     ...options,
     headers: {
         'Content-Type': 'application/json',

@@ -23,7 +23,7 @@ path). Spec: `docs/spec.md`. Research: `.context/research/*.md`
 | D5 | Probe stores display dims (rotation), `avg_frame_rate`, codec, color_transfer, thumbnail | rotated/VFR phone clips |
 | D6 | Stalled-job sweeper (Procrastinate leaves SIGKILLed jobs in `doing`) | kill-resume acceptance |
 | D7 | Every-minute dispatcher instead of per-post `schedule_at` jobs; all state writes compare-and-set | no cancel races, no orphans |
-| D8 | Telegram = Bot API `sendMessage`; **optional** on localhost (in-app failed badge always on) | no webhook needed |
+| D8 | Telegram = Bot API `sendMessage` for alerts, plus the interactive bot service (long polling, `docs/telegram-bot.md`); **optional** on localhost (in-app failed badge always on) | no webhook needed |
 | D9 | Quota: Zernio `GET /v1/accounts/{id}/instagram/publishing-limit` (live `quotaTotal`), cached 5 min, next to our own `Today n/daily_cap` | Meta says 50 or 100 depending on page |
 | D10 | Storage = local `./data` dir (bind mount), browser uploads = multipart POST to API with XHR progress, files served at `/media/*` | localhost-first; swap `storage.py` to R2 later |
 | D11 | Tables 28×50 thumbs (15 rows), cards 36×64 | spec's 64 px-wide rows only fit 8 |
@@ -67,7 +67,8 @@ Browser ─ localhost:5173 (Vite dev server; proxies /api and /media → :8000)
                  └─ defers jobs ─> worker (Procrastinate; ffmpeg 7.1, ffprobe, yt-dlp; concurrency 4)
  ./data (bind mount shared by api + worker): raw/ thumbs/ renders/ logos/
  worker ─> zernio.com/api/v1 (upload render at publish time, publish now)
- worker ─> api.telegram.org (optional)
+ worker ─> api.telegram.org (optional alerts)
+Telegram ⇄ bot (long polling; optional) ─> api over HTTP, like the browser (docs/telegram-bot.md)
 ```
 - `docker compose up`: postgres, migrate (one-shot: `alembic upgrade head` + guarded
   `procrastinate schema --apply`), api, worker. Ports bound to 127.0.0.1. No auth (single user, local).
@@ -146,7 +147,7 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
 ## 5. API (under `/api`; files under `/media/*`)
 | Area | Endpoints |
 |---|---|
-| Clips | `POST /clips` (multipart: file, rights_status, source_creator_handle?) · `POST /clips/from-url` · `GET /clips` · `GET /clips/{id}` · `PATCH /clips/{id}` · `POST /clips/{id}/retry` · `DELETE /clips/{id}` |
+| Clips | `POST /clips` (multipart: file, rights_status, source_creator_handle?) · `POST /clips/from-url` · `POST /clips/links` (a document or text file → the video links in it) · `POST /clips/from-urls` (bulk; skips videos already in the library; downloads at priority -10, two at a time) · `GET /clips` · `GET /clips/{id}` · `PATCH /clips/{id}` · `POST /clips/{id}/retry` · `DELETE /clips/{id}` |
 | Renders | `POST /renders` · `GET /renders?clip_id&status&unscheduled` · `GET /renders/{id}` · `POST /renders/{id}/retry` · `DELETE /renders/{id}` |
 | Brands | `GET /brands?archived` · `POST /brands` · `PATCH /brands/{id}` · `POST /brands/{id}/logo` (multipart) |
 | Accounts | `GET /accounts` (+ cached quota) · `POST /accounts/sync` (pull from Zernio) · `PATCH /accounts/{id}` (slots, cap, tz, min gap, disable) |
@@ -154,7 +155,7 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
 | System | `GET /health` · `GET /status` |
 
 Validation: POST /posts + auto-schedule reject render not READY, render longer than
-`ZERNIO_MAX_REEL_SECONDS`, disabled/disconnected account, time < 5 min away, rights "none" without
+`ZERNIO_MAX_REEL_SECONDS`, disabled/disconnected account, a time already passed (now is allowed), rights "none" without
 `rights_override` (409 `RIGHTS_NONE`). Drag = time change within a lane. Auto-schedule keeps input order,
 skips slots < 10 min away, 30-day horizon, returns unplaced ids. Deletes only when no live post refers
 to the row (a render's CANCELLED posts are deleted with it); files removed too.
@@ -163,7 +164,9 @@ to the row (a render's CANCELLED posts are deleted with it); files removed too.
 `ZERNIO_API_KEY` (required to publish), `ZERNIO_BASE_URL=https://zernio.com/api/v1`,
 `ZERNIO_MAX_REEL_SECONDS=900`, `APP_BASE_URL=http://localhost:5173`, `TELEGRAM_BOT_TOKEN` +
 `TELEGRAM_CHAT_ID` (optional), `PUBLISHING_ENABLED=false`, `PUBLISH_DEBUG_PAUSE`, `FFMPEG_THREADS`,
-`YTDLP_COOKIES_FILE` (optional), `MAX_UPLOAD_BYTES` (2 GB). `DATABASE_URL` / `DATA_DIR` set by compose.
+`YTDLP_COOKIES_FILE` (optional), `MAX_UPLOAD_BYTES` (2 GB), `CLIPPER_API_URL` (the api as the bot sees it,
+`http://api:8000`). `DATABASE_URL` / `DATA_DIR` set by compose. The Telegram token and chat id also turn on
+the bot, which answers that chat only.
 
 ## 7. Phases (each ends with acceptance + `docs/phase-N.md` of what could not be verified)
 - **Phase 0 — Zernio spike**: `backend/scripts/spike_zernio.py` (httpx; logs every request/response with
@@ -187,6 +190,9 @@ to the row (a render's CANCELLED posts are deleted with it); files removed too.
 - **Phase 5 — publish + recovery**: §4, alerts, `/recover/:id`, remedies, Published tab (filters,
   permalink, "Re-render for…"), failed badge. Acceptance: a post 5 min out publishes unattended; three
   kill-resume runs (after_upload, before_post, after_post) each end with exactly one Reel.
+- **Phase 6 — Telegram bot** (`docs/telegram-bot.md`): everything the web app does, from the operator's
+  chat. A compose service that calls the api over HTTP (no DB access, no rules of its own); alerts gain
+  buttons it answers.
 - **Later (not now)**: production — R2 storage, Cloudflare Access + Tunnel, VPS, backups, Zernio
   webhooks.
 

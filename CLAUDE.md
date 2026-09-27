@@ -4,10 +4,13 @@ An internal tool for one operator. It takes video files, overlays an advertiser 
 them as Instagram Reels to the operator's own Instagram accounts on a schedule.
 
 Single user. No multi-tenancy, no billing, no org model, no login. **This version runs on localhost
-only** (not production-grade): no Cloudflare Access, no tunnel, no VPS, no R2. Publishing goes through
-**Zernio** (a third-party publishing API with its own approved Meta app), not the Meta API directly.
+by default** (not production-grade): no Cloudflare Access, no VPS, no R2. A Cloudflare tunnel is
+allowed temporarily for demos; there is still no login, so anyone with the link has full access —
+tear the tunnel down right after. Publishing goes through **Zernio** (a third-party publishing API
+with its own approved Meta app), not the Meta API directly.
 
 Source of truth: `docs/PLAN.md` (implementation plan, rev 2). Original spec: `docs/spec.md`.
+Telegram bot: `docs/telegram-bot.md`.
 UI design contract: `docs/design/BRIEF.md` + mockups `docs/design/*.png` / `*.html`.
 Zernio API reference: https://docs.zernio.com (append `.mdx` to a page URL for plain text;
 `https://docs.zernio.com/llms.txt` is the index).
@@ -23,7 +26,8 @@ Publishing: Zernio REST API (`https://zernio.com/api/v1`) via httpx
 Frontend: React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, react-router
 Tables: plain <table> + map() (add TanStack Table v9 when sorting/selection is needed). Data fetching: TanStack Query
 API client: generated from the FastAPI OpenAPI schema with @hey-api/openapi-ts
-Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /frontend
+Telegram: a long-polling bot service (`app/bot`, httpx, no bot framework) that calls the api like the browser
+Run: `docker compose up` (postgres, migrate, api, worker, bot) + `npm run dev` in /frontend
 
 ## Repo layout
 
@@ -35,6 +39,7 @@ Run: `docker compose up` (postgres, migrate, api, worker) + `npm run dev` in /fr
     /tasks        Procrastinate tasks
     /services     business logic (zernio.py, render.py, storage.py)
     /core         config, db session
+    /bot          Telegram bot service: a client of the api (python -m app.bot)
   /alembic
   /scripts        spike_zernio.py (Phase 0), dump_openapi.py
   /tests          fixtures/zernio/ holds real recorded Zernio responses
@@ -63,6 +68,8 @@ docker compose run --rm --no-deps api python scripts/dump_openapi.py  # refresh 
 docker compose exec api procrastinate defer ping                      # prove the worker consumes jobs
 docker compose exec postgres psql -U clipper                          # SQL shell
 docker compose kill worker && docker compose start worker             # reload worker code (no auto-reload)
+docker compose restart bot                                            # reload bot code (no auto-reload)
+docker compose logs -f bot                                            # the bot (an ignored chat logs its chat id)
 ```
 
 Frontend, from `frontend/` on the host (Node 22):
@@ -124,7 +131,8 @@ finishes that first, so the worker can look offline for up to the render's lengt
 - Do not add Redis, Celery, or any broker other than Postgres.
 - Do not run ffmpeg anywhere except the worker container.
 - Do not use localStorage or sessionStorage for anything that matters.
-- Do not add user accounts, login pages, roles or permissions.
+- Do not add user accounts, login pages, roles or permissions. The bot answers `TELEGRAM_CHAT_ID` only.
+- Do not give the bot database access or rules of its own: it calls the api, so every guard applies once.
 - Do not commit `.env` or anything under `data/`.
 
 ## Design direction

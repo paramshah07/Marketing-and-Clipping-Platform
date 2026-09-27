@@ -5,6 +5,7 @@ import { Link } from "react-router"
 
 import type { PostOut, RenderOut } from "@/api"
 import {
+  approvePostMutation,
   createPostMutation,
   listAccountsOptions,
   listAccountsQueryKey,
@@ -14,7 +15,7 @@ import {
   nextSlotQueryKey,
   statusOptions,
 } from "@/api/@tanstack/react-query.gen"
-import { apiError, localParts, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
+import { apiError, localParts, nowIso, postNowConfirm, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, MAX_REEL_SECONDS, btn, cn, field, label } from "@/lib/utils"
 
 /** Render queue "Schedule…": pick an account, take the suggested slot (or edit it), POST /api/posts. */
@@ -44,36 +45,48 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   const [caption, setCaption] = useState(r.caption ?? "")
   const [error, setError] = useState("")
   const [done, setDone] = useState<PostOut | null>(null)
+  const [now, setNow] = useState(false) // done came from Post now
   const create = useMutation(createPostMutation())
+  const approve = useMutation(approvePostMutation())
+  const busy = create.isPending || approve.isPending
   const st = useQuery(statusOptions()) // the sidebar's query; shares its cache
   const long = (r.duration_s ?? 0) > MAX_REEL_SECONDS
 
-  async function submit(override = false) {
-    if (!a || !date || !time) return
+  async function submit(now = false, override = false) {
+    if (!a || (!now && (!date || !time))) return
     setError("")
     try {
-      const body = { render_id: r.id, account_id: a.id, scheduled_for: zonedToUtc(date, time, a.timezone).toISOString(), caption, rights_override: override }
-      setDone(await create.mutateAsync({ body }))
+      const scheduled_for = now ? nowIso() : zonedToUtc(date, time, a.timezone).toISOString()
+      let post = await create.mutateAsync({ body: { render_id: r.id, account_id: a.id, scheduled_for, caption, rights_override: override } })
+      if (now && post.status === "DRAFT") post = await approve.mutateAsync({ path: { post_id: post.id } }) // Post now is the approval
+      setNow(now)
+      setDone(post)
+    } catch (e) {
+      const { code, message } = apiError(e)
+      if (code === "RIGHTS_NONE" && !override) {
+        if (confirm(`${message}\n\nThis clip has no rights recorded. ${now ? "Post" : "Schedule"} it anyway?`)) await submit(now, true)
+        return
+      }
+      setError(message)
+    } finally {
+      // also after a failure: the post may exist as a draft (created, approve refused)
       qc.invalidateQueries({ queryKey: listPostsQueryKey() })
       qc.invalidateQueries({ queryKey: listAccountsQueryKey() })
       qc.invalidateQueries({ queryKey: listRendersQueryKey() })
       qc.invalidateQueries({ queryKey: nextSlotQueryKey({ path: { account_id: a.id } }) })
-    } catch (e) {
-      const { code, message } = apiError(e)
-      if (code === "RIGHTS_NONE" && !override) {
-        if (confirm(`${message}\n\nThis clip has no rights recorded. Schedule it anyway?`)) await submit(true)
-        return
-      }
-      setError(message)
     }
   }
 
   if (done && a)
     return (
       <div data-scheduled={done.id} className="space-y-2">
-        <p className="text-ok">
-          {done.status === "DRAFT" ? "Saved as a draft" : "Scheduled"} for <span className="tabular-nums">{shortWhen(done.scheduled_for, a.timezone)}</span> on @{a.username}.
-        </p>
+        {now ? (
+          <p className="text-ok">Posting now on @{a.username}: live within about a minute.</p>
+        ) : (
+          <p className="text-ok">
+            {done.status === "DRAFT" ? "Saved as a draft" : "Scheduled"} for <span className="tabular-nums">{shortWhen(done.scheduled_for, a.timezone)}</span> on @{a.username}.
+          </p>
+        )}
         {done.status === "DRAFT" && <p className="text-sm text-muted">{r.brand_id ? "This brand needs approval before it publishes." : "Posts without a brand start as drafts."} Approve it on the calendar.</p>}
         {st.data?.publishing_enabled === false && <p className="text-sm text-warn">Publishing is off: nothing reaches Instagram until it is turned on.</p>}
         <Link to={`/calendar?week=${localParts(done.scheduled_for, a.timezone).date}&account=${a.id}`} className="text-sm underline decoration-line-strong underline-offset-2 hover:decoration-fg">
@@ -94,7 +107,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           </Link>
         </p>
       )}
-      <fieldset disabled={!a || long || create.isPending} className="space-y-2.5">
+      <fieldset disabled={!a || long || busy} className="space-y-2.5">
         <label className="block space-y-1">
           <span className={label}>Account</span>
           <select className={cn(field, "w-full")} value={a?.id ?? ""} onChange={(e) => (setPicked(Number(e.target.value)), setWhen(null))}>
@@ -132,9 +145,19 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           <textarea rows={4} maxLength={CAPTION_MAX} className={cn(field, "h-auto w-full resize-none py-1.5")} value={caption} onChange={(e) => setCaption(e.target.value)} />
         </label>
         {error && <p className="text-sm text-bad">{error}</p>}
-        <button className={cn(btn.primary, "w-full")} disabled={!date || !time} onClick={() => submit()}>
-          {create.isPending ? "Scheduling…" : "Schedule"}
-        </button>
+        <div className="flex gap-1.5">
+          <button className={cn(btn.primary, "flex-1")} disabled={!date || !time} onClick={() => submit()}>
+            {busy ? "Scheduling…" : "Schedule"}
+          </button>
+          <button
+            className={btn.secondary}
+            disabled={st.data?.publishing_enabled === false}
+            title={st.data?.publishing_enabled === false ? "Publishing is off" : "Skip the schedule: publish within about a minute"}
+            onClick={() => a && confirm(postNowConfirm(a.username)) && submit(true)}
+          >
+            Post now
+          </button>
+        </div>
       </fieldset>
     </div>
   )
