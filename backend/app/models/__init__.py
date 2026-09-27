@@ -75,7 +75,7 @@ class Brand(Base):
     name: Mapped[str]
     logo_key: Mapped[str | None]  # PNG, null until uploaded
     default_overlay_config: Mapped[dict[str, Any]] = mapped_column(
-        server_default=text("""'{"x": 0.72, "y": 0.06, "w": 0.22, "opacity": 1}'::jsonb""")
+        server_default=text("""'{"x": 0.72, "y": 0.16, "w": 0.22, "opacity": 1}'::jsonb""")
     )
     caption_template: Mapped[str | None]
     link: Mapped[str | None]
@@ -104,6 +104,7 @@ class Render(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
     completed_at: Mapped[datetime | None]
+    superseded_at: Mapped[datetime | None]  # 'Re-render and retry' replaced it: never back in the Ready tray
 
 
 class Account(Base):

@@ -21,7 +21,7 @@ import {
 } from "@/api/@tanstack/react-query.gen"
 import { Chip, Header } from "@/components/bits"
 import { dayLabel, localParts } from "@/lib/schedule"
-import { MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
+import { CAUSES, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -29,19 +29,6 @@ const TERMINAL = new Set(["READY", "FAILED"])
 // uploads refresh the list when their POST returns, so it is not polled for.
 const polled = (c: ClipOut) => !TERMINAL.has(c.status) && (c.status !== "UPLOADING" || Date.now() - Date.parse(c.created_at) < 600_000)
 const FINAL = new Set(["PRIVATE", "REMOVED", "GEO_BLOCKED", "DURATION_OUT_OF_RANGE", "PROBE_FAILED", "UPLOAD_ABANDONED"])
-const CAUSES: Record<string, string> = {
-  PRIVATE: "Private video",
-  REMOVED: "Video removed",
-  GEO_BLOCKED: "Blocked in this region",
-  EXTRACTOR_FAILED: "Import failed",
-  DURATION_OUT_OF_RANGE: "Must be 3 s to 15 min",
-  PROBE_FAILED: "Not a readable video",
-  THUMBNAIL_FAILED: "Thumbnail failed",
-  WORKER_CRASHED: "Worker crashed",
-  INTERRUPTED: "Interrupted",
-  INTERNAL_ERROR: "Internal error",
-  UPLOAD_ABANDONED: "Upload abandoned",
-}
 
 /** A file on its way up; the server row replaces it when the POST returns. */
 type Upload = { key: string; file: File; rights: Rights; handle: string; loaded: number; rate: number; error?: string; fatal?: boolean; xhr?: XMLHttpRequest }
@@ -446,7 +433,7 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
               <Trash2 className="size-4" />
             </button>
           ) : ready ? (
-            <button className={btn.icon} title="Delete its renders first" aria-label="Remove" disabled>
+            <button className={btn.icon} title="Delete its renders in the editor first" aria-label="Remove" disabled>
               <Trash2 className="size-4" />
             </button>
           ) : (
@@ -671,7 +658,7 @@ function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; accou
       const caption = fillCaption(b.caption_template, b.link, clip.source_creator_handle).trim() || null
       return (await createRender({ body: { clip_id: clipId, brand_id: b.id, crop_config: orig.crop_config, caption }, throwOnError: true })).data
     },
-    onSuccess: () => (qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clipId } }) }), navigate(`/editor/${clipId}`)),
+    onSuccess: (_, b) => (qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clipId } }) }), navigate(`/editor/${clipId}?brand=${b.id}`)),
     onError: (e) => onError(`Re-render failed: ${errorText(e)}`),
   })
   return (

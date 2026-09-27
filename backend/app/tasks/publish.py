@@ -78,8 +78,12 @@ async def _claim_alert(s: AsyncSession, post: Post, code: str, status: str) -> b
 
 async def _finish(s: AsyncSession, post: Post, from_statuses, status: str, code: str | None = None,
                   detail: dict | None = None, guard=None, **values) -> bool:  # fmt: skip
-    """CAS the post to status (+ error), claim its alert, commit, then send the alert."""
+    """CAS the post to status (+ error), claim its alert, commit, then send the alert. ACCOUNT_DISCONNECTED
+    also marks the account disconnected: its other due posts fail before uploading, and the next sync that
+    lists it connected again moves them all to free slots (accounts.upsert)."""
     ok = await _set(s, post.id, from_statuses, guard, status=status, error_code=code, error_detail=detail, **values)
+    if ok and code == "ACCOUNT_DISCONNECTED":
+        await s.execute(update(Account).where(Account.id == post.account_id).values(connection_status="disconnected"))
     alert = ok and code is not None and await _claim_alert(s, post, code, status)
     await s.commit()
     if alert:

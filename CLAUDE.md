@@ -87,6 +87,8 @@ TaskNotFound). Always pass an explicit `name=`. The `retry_stalled_jobs` periodi
 killed worker left in `doing` (within about 30-90 s). `docker compose restart worker` blocks for the full
 90 s `stop_grace_period` when a sync job runs past the 60 s graceful timeout, then SIGKILLs it and the
 job re-runs from the start via the sweeper; kill + start gets the same result without the wait.
+A Postgres restart makes the worker stop itself (its LISTEN connection drops); if a render is running it
+finishes that first, so the worker can look offline for up to the render's length before Docker restarts it.
 
 ## Hard constraints the code must respect
 

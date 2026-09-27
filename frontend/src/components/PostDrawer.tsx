@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Link } from "react-router"
 
 import type { AccountOut, PostOut } from "@/api"
-import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, updatePostMutation } from "@/api/@tanstack/react-query.gen"
+import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, listRendersQueryKey, updatePostMutation } from "@/api/@tanstack/react-query.gen"
 import { Avatar } from "@/components/AccountBits"
 import { Drawer } from "@/components/bits"
 import { FAILED, MOVABLE, STATUS_LABEL, apiError, isHHMM, localParts, postAt, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
@@ -32,6 +32,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
     qc.setQueryData(getPostQueryKey({ path: { post_id: p.id } }), next)
     qc.invalidateQueries({ queryKey: listPostsQueryKey() })
     qc.invalidateQueries({ queryKey: listAccountsQueryKey() })
+    qc.invalidateQueries({ queryKey: listRendersQueryKey() }) // a cancelled post's render is back in the tray
   }
   const onError = (e: unknown) => {
     const { code, message } = apiError(e)

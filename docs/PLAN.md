@@ -82,7 +82,8 @@ Browser ─ localhost:5173 (Vite dev server; proxies /api and /media → :8000)
   `content_type`, `created_at`; status adds `DOWNLOADING`; probe rejects < 3 s or > 15 min.
 - **brands**: spec columns; `logo_key` nullable until uploaded (PNG, alpha checked); default overlay
   `{"x":0.72,"y":0.06,"w":0.22,"opacity":1}`.
-- **renders**: spec columns + `caption`, `thumbnail_key`, `size_bytes`, `error_code`, `updated_at`;
+- **renders**: spec columns + `caption`, `thumbnail_key`, `size_bytes`, `error_code`, `updated_at`,
+  `superseded_at` (set by "Re-render and retry"; such a render never shows as unscheduled again);
   `brand_id` null ⇒ no logo; > 300 MB → FAILED `OUTPUT_TOO_LARGE`.
 - **accounts**: `zernio_account_id` unique, `zernio_profile_id`, `username`, `avatar_url`,
   `connection_status` (connected | disconnected), `posting_slots` `{"times":[…]}` (account-local, DST
@@ -130,8 +131,9 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
   ACCOUNT_DISCONNECTED · platform_rate_limit, quota_exhausted → RATE_LIMITED (auto next slot) ·
   user_content, platform_rejected → CONTENT_REJECTED · platform_error, system_error → NETWORK_ERROR
   (3 retries → DEAD_LETTER) · user_abuse, unknown → UNKNOWN (no retry).
-- Remedies: ACCOUNT_DISCONNECTED → "Reconnect" (opens Zernio dashboard; on next sync the account's
-  posts move to next free slots) · CONTENT_REJECTED → "Re-render and retry" · RATE_LIMITED → automatic ·
+- Remedies: ACCOUNT_DISCONNECTED → "Reconnect" (opens Zernio dashboard; a post failing with it also marks
+  the account disconnected, so the next sync that lists it connected moves the account's failed posts to
+  the next free slots) · CONTENT_REJECTED → "Re-render and retry" · RATE_LIMITED → automatic ·
   everything else → "Retry now" (if `zernio_post_id` set: GET first — published ⇒ PUBLISHED, failed ⇒
   `POST /v1/posts/{id}/retry`; else SCHEDULED at now).
 - Alerts: in-app failed badge + `/recover/:id` always; Telegram when configured (deep link
@@ -155,7 +157,7 @@ Validation: POST /posts + auto-schedule reject render not READY, render longer t
 `ZERNIO_MAX_REEL_SECONDS`, disabled/disconnected account, time < 5 min away, rights "none" without
 `rights_override` (409 `RIGHTS_NONE`). Drag = time change within a lane. Auto-schedule keeps input order,
 skips slots < 10 min away, 30-day horizon, returns unplaced ids. Deletes only when no live post refers
-to the row; files removed too.
+to the row (a render's CANCELLED posts are deleted with it); files removed too.
 
 ## 6. Settings (`.env`)
 `ZERNIO_API_KEY` (required to publish), `ZERNIO_BASE_URL=https://zernio.com/api/v1`,

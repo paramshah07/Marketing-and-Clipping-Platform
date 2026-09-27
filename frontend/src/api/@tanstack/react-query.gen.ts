@@ -242,7 +242,7 @@ export const listRendersQueryKey = (options?: Options<ListRendersData>) => creat
 /**
  * List Renders
  *
- * unscheduled: renders with no post other than CANCELLED ones.
+ * unscheduled: renders with no post other than CANCELLED ones, and not superseded by a re-render.
  */
 export const listRendersOptions = (options?: Options<ListRendersData>) => queryOptions<ListRendersResponse, ListRendersError, ListRendersResponse, ReturnType<typeof listRendersQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -277,7 +277,8 @@ export const createRenderMutation = (options?: Partial<Options<CreateRenderData>
 /**
  * Delete Render
  *
- * Not while RENDERING, and not once any post refers to it. Files go too.
+ * Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
+ * and files go too.
  */
 export const deleteRenderMutation = (options?: Partial<Options<DeleteRenderData>>): UseMutationOptions<DeleteRenderResponse, DeleteRenderError, Options<DeleteRenderData>> => {
     const mutationOptions: UseMutationOptions<DeleteRenderResponse, DeleteRenderError, Options<DeleteRenderData>> = {

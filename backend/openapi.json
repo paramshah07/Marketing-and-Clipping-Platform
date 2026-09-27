@@ -489,7 +489,7 @@
       },
       "get": {
         "summary": "List Renders",
-        "description": "unscheduled: renders with no post other than CANCELLED ones.",
+        "description": "unscheduled: renders with no post other than CANCELLED ones, and not superseded by a re-render.",
         "operationId": "list_renders",
         "parameters": [
           {
@@ -603,7 +603,7 @@
       },
       "delete": {
         "summary": "Delete Render",
-        "description": "Not while RENDERING, and not once any post refers to it. Files go too.",
+        "description": "Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts\nand files go too.",
         "operationId": "delete_render",
         "parameters": [
           {
@@ -2953,6 +2953,10 @@
             "type": "integer",
             "title": "Scheduled Posts",
             "default": 0
+          },
+          "publishing_enabled": {
+            "type": "boolean",
+            "title": "Publishing Enabled"
           }
         },
         "type": "object",
@@ -2960,7 +2964,8 @@
           "db",
           "worker_alive",
           "worker_last_heartbeat",
-          "jobs"
+          "jobs",
+          "publishing_enabled"
         ],
         "title": "SystemStatus"
       },

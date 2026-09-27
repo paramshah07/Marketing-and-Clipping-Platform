@@ -52,7 +52,7 @@ def test_insert_every_table(db):
         post = make_post(s, "k-insert")
         s.commit()
         render = s.get(Render, post.render_id)
-        assert render.overlay_config == {"x": 0.72, "y": 0.06, "w": 0.22, "opacity": 1}
+        assert render.overlay_config == {"x": 0.72, "y": 0.16, "w": 0.22, "opacity": 1}
         assert render.status == "PENDING"
         assert post.status == "DRAFT" and post.attempt_count == 0
         assert post.created_at.tzinfo is not None

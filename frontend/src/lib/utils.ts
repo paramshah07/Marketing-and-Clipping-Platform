@@ -17,6 +17,24 @@ export type Rights = keyof typeof RIGHTS
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3 // backend MAX_UPLOAD_BYTES default
 export const MAX_REEL_SECONDS = 900 // backend ZERNIO_MAX_REEL_SECONDS: Instagram's 15 min API Reel limit (Zernio's documented 90 s is not enforced)
+
+/** Clip and render error codes in plain words. */
+export const CAUSES: Record<string, string> = {
+  PRIVATE: "Private video",
+  REMOVED: "Video removed",
+  GEO_BLOCKED: "Blocked in this region",
+  EXTRACTOR_FAILED: "Import failed",
+  DURATION_OUT_OF_RANGE: "Must be 3 s to 15 min",
+  PROBE_FAILED: "Not a readable video",
+  THUMBNAIL_FAILED: "Thumbnail failed",
+  WORKER_CRASHED: "Worker crashed",
+  INTERRUPTED: "Interrupted",
+  INTERNAL_ERROR: "Internal error",
+  UPLOAD_ABANDONED: "Upload abandoned",
+  FFMPEG_FAILED: "ffmpeg exited with an error",
+  OUTPUT_TOO_LARGE: "Output file too large",
+}
+
 export const CAPTION_MAX = 2200
 export const HASHTAG_MAX = 30
 
@@ -35,8 +53,16 @@ export function ago(iso: string, now = Date.now()) {
 
 export const hashtagCount = (s: string) => (s.match(/#[\p{L}\p{N}_]+/gu) ?? []).length
 
+/** Brand template → caption. With no creator, the " · " part (or whole line) holding {creator} is dropped
+ * instead of leaving "clip by " / "Clip: " dangling. */
 export const fillCaption = (template: string | null, link: string | null, creator: string | null) =>
-  (template ?? "").replaceAll("{link}", link ?? "").replaceAll("{creator}", creator ?? "")
+  (template ?? "")
+    .split("\n")
+    .map((line) => (creator || !line.includes("{creator}") ? line : line.split(" · ").filter((part) => !part.includes("{creator}")).join(" · ")))
+    .filter((line, i, all) => line.trim() || !(template ?? "").split("\n")[i].includes("{creator}") || all.length === 1)
+    .join("\n")
+    .replaceAll("{link}", link ?? "")
+    .replaceAll("{creator}", creator ?? "")
 
 /** "youtube.com/watch?v=…" for an http(s) URL (no scheme, no www); anything else as is. */
 export function shortUrl(s: string) {
@@ -53,9 +79,13 @@ export function shortUrl(s: string) {
 export const clipName = (c: ClipOut) => c.original_filename || (c.source_url ? shortUrl(c.source_url) : `Clip ${c.id}`)
 
 /** FastAPI error body ({detail: string | [{loc, msg}]}) or anything else -> one line. */
+const UNREACHABLE = "The server didn't answer. Is the stack running (docker compose up -d)?"
+
 export function errorText(e: unknown): string {
   const d = (e as { detail?: unknown })?.detail
   if (typeof d === "string") return d
   if (Array.isArray(d)) return d.map((x) => `${x.loc?.slice(1).join(".")}: ${x.msg}`).join("; ")
-  return e instanceof Error ? e.message : String(e)
+  if (e instanceof Error) return e.message
+  return typeof e === "string" && e.trim() ? e : UNREACHABLE // e.g. the dev proxy's empty 502 while the api is down
 }
+export { UNREACHABLE }

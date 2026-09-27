@@ -59,14 +59,23 @@ describe("weeks", () => {
 describe("tooClose", () => {
   it("flags the later of two posts under the min gap", () => {
     const posts = [
-      { id: 2, scheduled_for: "2026-09-30T18:18:00Z" },
-      { id: 1, scheduled_for: "2026-09-30T18:00:00Z" },
-      { id: 3, scheduled_for: "2026-09-30T20:00:00Z" },
+      { id: 2, scheduled_for: "2026-09-30T18:18:00Z", status: "SCHEDULED" as const },
+      { id: 1, scheduled_for: "2026-09-30T18:00:00Z", status: "PUBLISHED" as const },
+      { id: 3, scheduled_for: "2026-09-30T20:00:00Z", status: "DRAFT" as const },
     ]
     const { gaps, warn } = tooClose(posts, 45)
     expect([...gaps]).toEqual([[2, 18]])
     expect([...warn].sort()).toEqual([1, 2])
     expect(tooClose(posts, 0).warn.size).toBe(0)
+  })
+
+  it("ignores pairs that are both already out (nothing left to move)", () => {
+    const posts = [
+      { id: 1, scheduled_for: "2026-09-26T18:00:00Z", status: "PUBLISHED" as const },
+      { id: 2, scheduled_for: "2026-09-26T18:10:00Z", status: "PUBLISHED" as const },
+      { id: 3, scheduled_for: "2026-09-26T18:19:00Z", status: "FAILED" as const },
+    ]
+    expect(tooClose(posts, 30).warn.size).toBe(0)
   })
 })
 

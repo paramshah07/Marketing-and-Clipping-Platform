@@ -1,13 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarPlus, Camera, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Volume2, VolumeX, X } from "lucide-react"
+import { CalendarPlus, Camera, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Volume2, VolumeX, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 
 import type { BrandOut, ClipOut, OverlayConfig, RenderOut } from "@/api"
 import {
   createRenderMutation,
+  deleteRenderMutation,
   getClipOptions,
   getRenderOptions,
+  listAccountsOptions,
   listBrandsOptions,
   listBrandsQueryKey,
   listRendersOptions,
@@ -21,9 +23,9 @@ import { Chip, Empty, Header } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { IG, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
-import { CAPTION_MAX, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, RIGHTS, btn, label } from "@/lib/utils"
+import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, RIGHTS, btn, label } from "@/lib/utils"
 
-const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.06, w: 0.22, opacity: 1 } // backend brands default
+const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.16, w: 0.22, opacity: 1 } // backend brands default (below the IG top bar)
 const MIN_W = 0.02
 const MAX_W = 0.6
 const LIVE = new Set(["PENDING", "RENDERING"])
@@ -36,8 +38,13 @@ export function Editor() {
     refetchInterval: (q) => (q.state.data && !["READY", "FAILED"].includes(q.state.data.status) ? 2000 : false),
   })
   const brands = useQuery(listBrandsOptions())
+  const history = useQuery(listRendersOptions({ query: { clip_id: id } }))
+  const [params] = useSearchParams()
   if (clip.isError || brands.isError) return <Page title="Clip">{errorText(clip.error ?? brands.error)}</Page>
-  if (!clip.data || !brands.data) return <Page title="Clip">Loading…</Page>
+  if (!clip.data || !brands.data || history.isPending) return <Page title="Clip">Loading…</Page>
+  // ?brand= wins, else the brand this clip was last rendered with (newest first), else the operator picks
+  const byId = (bid: number | null | undefined) => brands.data.find((b) => b.id === bid && b.logo_url)
+  const initial = byId(Number(params.get("brand"))) ?? (history.data ?? []).map((r) => byId(r.brand_id)).find(Boolean) ?? null
   if (clip.data.status === "FAILED")
     return (
       <Page title={clipName(clip.data)}>
@@ -46,7 +53,7 @@ export function Editor() {
     )
   if (clip.data.status !== "READY" || !clip.data.width || !clip.data.height)
     return <Page title={clipName(clip.data)}>This clip is {clip.data.status.toLowerCase()}; the editor opens once it is READY.</Page>
-  return <EditorBody key={id} clip={clip.data} brands={brands.data} />
+  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} />
 }
 
 function Page({ title, children }: { title: string; children: ReactNode }) {
@@ -71,14 +78,14 @@ function useSize<T extends HTMLElement>() {
   return [ref, size] as const
 }
 
-function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
+function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null }) {
   const qc = useQueryClient()
-  const [params] = useSearchParams()
   const W = clip.width!
   const H = clip.height!
 
-  const first = brands.find((b) => b.logo_url && b.id === Number(params.get("brand"))) ?? brands.find((b) => b.logo_url) ?? null
+  const first = initial
   const [brandId, setBrandId] = useState<number | null>(first?.id ?? null)
+  const [chosen, setChosen] = useState(!!first) // false: nothing picked yet, Render waits for a choice
   const brand = brands.find((b) => b.id === brandId) ?? null
   const [overlay, setOverlay] = useState<OverlayConfig>(first?.default_overlay_config ?? DEFAULT_OVERLAY)
   const template = (b: BrandOut | null) => fillCaption(b?.caption_template ?? null, b?.link ?? null, clip.source_creator_handle)
@@ -90,7 +97,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
   const [crop, setCrop] = useState<Box>(() => crop916(W, H))
   const [mode, setMode] = useState<"output" | "crop">("output")
   const [ig, setIg] = useState(true)
-  const [preview, setPreview] = useState<RenderOut | null>(null)
+  const [previewId, setPreview] = useState<number | null>(null)
   const [logFor, setLogFor] = useState<number | null>(null)
   const [error, setError] = useState("")
 
@@ -102,9 +109,10 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
   }
 
   function pickBrand(b: BrandOut | null) {
+    setChosen(true)
     setBrandId(b?.id ?? null)
     setOverlay(b?.default_overlay_config ?? DEFAULT_OVERLAY)
-    setCaption(template(b))
+    setCaption((c) => (c === template(brand) ? template(b) : c)) // keep the operator's own edits
     setCell(null)
     setLogoAR(null)
   }
@@ -113,7 +121,10 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
     ...listRendersOptions({ query: { clip_id: clip.id } }),
     refetchInterval: (q) => (q.state.data?.some((r) => LIVE.has(r.status)) ? 2000 : false),
   })
+  const preview = renders.data?.find((r) => r.id === previewId) ?? null // null again once that render is deleted
   const archived = useQuery(listBrandsOptions({ query: { archived: true } }))
+  const accounts = useQuery(listAccountsOptions())
+  const handle = accounts.data?.find((a) => a.connection_status === "connected" && !a.disabled_at)?.username
   const brandName = (id: number | null) => (id == null ? "No logo" : ([...brands, ...(archived.data ?? [])].find((b) => b.id === id)?.name ?? `Brand ${id}`))
   // No second render until 1 s after this one settles. Set synchronously (isPending needs a re-render), and the
   // cool-down because a localhost POST settles in ~15 ms, before a fast second ⌘↵ arrives.
@@ -133,7 +144,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
   const tags = hashtagCount(caption)
   const tooLong = caption.length > CAPTION_MAX || tags > HASHTAG_MAX // Instagram refuses these captions
   function submit() {
-    if (Date.now() < busyUntil.current || tooLong) return
+    if (Date.now() < busyUntil.current || tooLong || !chosen) return
     busyUntil.current = Infinity
     render.mutate({
       body: {
@@ -146,7 +157,12 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
     })
   }
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && e.key === "Enter" && (e.preventDefault(), !e.repeat && submit())
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "Enter") return
+      if ((e.target as Element | null)?.closest?.('dialog, [role="dialog"]')) return // popover / log dialog: not a render
+      e.preventDefault()
+      if (!e.repeat) submit()
+    }
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
   })
@@ -198,6 +214,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
           ig={ig}
           setIg={setIg}
           caption={caption}
+          handle={handle}
           logo={
             brand?.logo_url
               ? (
@@ -257,11 +274,16 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
                 {brand?.logo_url ? <img src={brand.logo_url} alt="" className="checker size-4 shrink-0 rounded-sm object-contain" /> : <span className="size-4 shrink-0 rounded-sm border border-line-strong" />}
                 <select
                   aria-label="Brand"
-                  value={brandId ?? ""}
+                  value={chosen ? (brandId ?? "none") : ""}
                   onChange={(e) => pickBrand(brands.find((b) => b.id === Number(e.target.value)) ?? null)}
                   className="min-w-0 flex-1 appearance-none bg-transparent text-fg outline-none"
                 >
-                  <option value="">No logo</option>
+                  {!chosen && (
+                    <option value="" disabled>
+                      Choose a brand…
+                    </option>
+                  )}
+                  <option value="none">No logo</option>
                   {brands.map((b) => (
                     <option key={b.id} value={b.id} disabled={!b.logo_url}>
                       {b.name}
@@ -395,7 +417,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
               <span>1080x1920 · H.264 · {mmss(clip.duration_s)}</span>
               <span>{brand?.name ?? "No logo"}</span>
             </div>
-            <button className={cn(btn.primary, "w-full gap-2")} disabled={render.isPending || tooLong} onClick={submit}>
+            <button className={cn(btn.primary, "w-full gap-2")} disabled={render.isPending || tooLong || !chosen} title={chosen ? undefined : "Choose a brand (or No logo) first"} onClick={submit}>
               {render.isPending ? "Queueing…" : "Render"}
               <kbd className="font-sans text-sm text-white/70">⌘↵</kbd>
             </button>
@@ -410,7 +432,7 @@ function EditorBody({ clip, brands }: { clip: ClipOut; brands: BrandOut[] }) {
           </div>
           <ul className="min-h-0 flex-1 divide-y divide-line overflow-auto">
             {renders.data?.map((r) => (
-              <RenderCard key={r.id} r={r} now={renders.dataUpdatedAt} name={brandName(r.brand_id)} thumb={r.thumbnail_url ?? clip.thumbnail_url} previewing={preview?.id === r.id} onPreview={() => setPreview(r)} onLog={() => setLogFor(r.id)} />
+              <RenderCard key={r.id} r={r} now={renders.dataUpdatedAt} name={brandName(r.brand_id)} thumb={r.thumbnail_url ?? clip.thumbnail_url} previewing={preview?.id === r.id} onPreview={() => setPreview(r.id)} onLog={() => setLogFor(r.id)} />
             ))}
             {renders.data?.length === 0 && <li className="p-3 text-sm text-subtle">No renders yet. Set the logo, then Render.</li>}
           </ul>
@@ -447,6 +469,7 @@ function Stage(props: {
   ig: boolean
   setIg: (v: boolean) => void
   caption: string
+  handle?: string
   logo: ReactNode
   cropBox: ReactNode
   crop: Box
@@ -519,7 +542,7 @@ function Stage(props: {
                   className="pointer-events-none absolute border border-dashed border-white/20"
                   style={{ left: `${IG.side * 100}%`, right: `${IG.side * 100}%`, top: `${IG.top * 100}%`, bottom: `${IG.bottom * 100}%` }}
                 />
-                <ReelsChrome scale={frameW / 324} caption={props.caption} />
+                <ReelsChrome scale={frameW / 324} caption={props.caption} handle={props.handle} />
               </>
             )}
             {mode === "crop" && (
@@ -587,7 +610,7 @@ function Stage(props: {
 }
 
 /** Instagram Reels chrome, drawn at the mockup's 324x576 and scaled to the frame. Non-interactive, 40%. */
-function ReelsChrome({ scale, caption }: { scale: number; caption: string }) {
+function ReelsChrome({ scale, caption, handle }: { scale: number; caption: string; handle?: string }) {
   const pct = (v: number) => `${v * 100}%`
   return (
     <div data-ig-overlay className="pointer-events-none absolute top-0 left-0 h-[576px] w-[324px] origin-top-left text-white opacity-40" style={{ transform: `scale(${scale})` }}>
@@ -596,11 +619,8 @@ function ReelsChrome({ scale, caption }: { scale: number; caption: string }) {
         <Camera className="size-4" strokeWidth={1.75} />
       </div>
       <div className="absolute right-0 bottom-[18px] flex flex-col items-center justify-end gap-3.5 text-[10px] font-medium tabular-nums" style={{ top: pct(IG.railTop), width: pct(IG.railW) }}>
-        {([[Heart, "24.1K"], [MessageCircle, "312"], [Send, "1,204"]] as const).map(([Icon, n]) => (
-          <div key={n} className="flex flex-col items-center gap-0.5">
-            <Icon className="size-4" strokeWidth={1.75} />
-            {n}
-          </div>
+        {[Heart, MessageCircle, Send].map((Icon, i) => (
+          <Icon key={i} className="size-4" strokeWidth={1.75} />
         ))}
         <Ellipsis className="size-4" strokeWidth={1.75} />
         <span className="size-[22px] rounded-sm bg-white/40 ring-2 ring-white" />
@@ -608,10 +628,10 @@ function ReelsChrome({ scale, caption }: { scale: number; caption: string }) {
       <div className="absolute bottom-[18px] left-3 space-y-1.5" style={{ right: pct(IG.railW) }}>
         <div className="flex items-center gap-2">
           <span className="size-6 rounded-full bg-white/40" />
-          <span className="text-[12px] font-semibold">your.account</span>
+          <span className="truncate text-[12px] font-semibold">{handle ?? "your.account"}</span>
           <span className="inline-flex h-[22px] items-center rounded-md border border-white px-2 text-[11px] font-semibold">Follow</span>
         </div>
-        <p className="line-clamp-2 text-[12px] leading-[16px]">{caption || "Caption goes here"}</p>
+        <p className="line-clamp-2 text-[12px] leading-[16px]">{caption}</p>
         <div className="flex items-center gap-1.5 text-[11px]">
           <Music2 className="size-3" />
           Original audio
@@ -629,6 +649,22 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
     onSuccess: () => qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: r.source_clip_id } }) }),
     onError: (e) => alert(`Retry failed: ${errorText(e)}`),
   })
+  const remove = useMutation({
+    ...deleteRenderMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: listRendersQueryKey() }), // this clip's list and the Library's counts
+    onError: (e) => alert(`Couldn't delete render ${r.id}: ${errorText(e)}`),
+  })
+  const del = (
+    <button
+      className="inline-grid size-6 place-items-center rounded text-muted hover:bg-hover hover:text-fg disabled:text-subtle"
+      title="Delete render"
+      aria-label="Delete render"
+      disabled={remove.isPending}
+      onClick={() => confirm(`Delete render ${r.id}? Its MP4 is deleted too.`) && remove.mutate({ path: { render_id: r.id } })}
+    >
+      <Trash2 className="size-3.5" />
+    </button>
+  )
   const live = LIVE.has(r.status)
   const action = "inline-flex h-6 items-center gap-1 rounded px-1.5 text-sm text-fg hover:bg-hover disabled:text-subtle"
   return (
@@ -680,6 +716,7 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
               <a href={r.output_url ?? ""} download className="ml-auto inline-grid size-6 place-items-center rounded text-muted hover:bg-hover" title="Download MP4">
                 <Download className="size-3.5" />
               </a>
+              {del}
             </div>
           </>
         )}
@@ -687,8 +724,11 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
           <>
             <div className="flex min-w-0 items-center gap-2">
               <Chip tone="bad">Failed</Chip>
-              <span className="truncate font-mono text-sm text-muted">{r.error_code}</span>
+              <span className="truncate font-mono text-xs text-subtle" title={r.error_code ?? undefined}>
+                {r.error_code}
+              </span>
             </div>
+            <div className="truncate text-sm text-muted">{CAUSES[r.error_code ?? ""] ?? "Render failed"}</div>
             <div className="-ml-1.5 flex items-center gap-1">
               <button className={action} onClick={props.onLog}>
                 <FileText className="size-3" />
@@ -698,7 +738,8 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
                 <RotateCw className="size-3" />
                 Retry
               </button>
-              <span className="ml-auto font-mono text-xs text-subtle">render {r.id}</span>
+              <span className="ml-auto" />
+              {del}
             </div>
           </>
         )}
