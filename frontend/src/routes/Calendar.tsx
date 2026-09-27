@@ -157,7 +157,7 @@ export function Calendar() {
               ))}
               {lanes.map((a) => {
                 const mine = live.filter((p) => p.account_id === a.id)
-                const { gaps, warn } = tooClose(mine.map((p) => ({ id: p.id, scheduled_for: postAt(p) })), a.min_gap_minutes)
+                const { gaps, warn } = tooClose(mine.map((p) => ({ id: p.id, scheduled_for: postAt(p), status: p.status })), a.min_gap_minutes)
                 const slots = a.posting_slots.times ?? []
                 return (
                   <Fragment key={a.id}>

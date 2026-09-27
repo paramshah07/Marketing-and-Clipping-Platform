@@ -855,3 +855,69 @@ def test_dispatcher_keeps_going_after_one_bad_post(db, env, monkeypatch):
     monkeypatch.setattr(publish, "defer_publish", defer)
     run(dispatch(timestamp=0))
     assert (len(jobs(db, bad)), len(jobs(db, good))) == (0, 1)
+
+
+# ---------------------------------------------------------------- audit fixes
+
+
+def test_403_marks_the_account_disconnected_and_the_next_sync_reslots(db, env, monkeypatch):
+    """The account row goes down with the 403: its other due post fails before uploading, and the sync that
+    lists it connected again (operator reconnected in Zernio) moves both to free slots."""
+    pid = make_post(db, env)
+    acc = row(db, pid).account_id
+    sibling = make_post(db, env, account_id=acc)
+    z = use(monkeypatch, Zernio(routes("docs_403_disconnected")))
+    go(pid)
+    go(sibling)
+    assert [(row(db, p).status, row(db, p).error_code) for p in (pid, sibling)] == [
+        ("FAILED", "ACCOUNT_DISCONNECTED")] * 2  # fmt: skip
+    assert (len(z.sent(PRESIGN_)), len(z.sent(POST_)), len(env.alerts)) == (1, 1, 1)
+    with Session(db) as s:
+        a = s.get(Account, acc)
+        assert a.connection_status == "disconnected"
+        parsed = [{"zernio_account_id": a.zernio_account_id, "zernio_profile_id": a.zernio_profile_id,
+                   "username": a.username, "avatar_url": None, "connection_status": "connected"}]  # fmt: skip
+
+    async def sync():
+        async with publish.SessionLocal() as s:
+            await account_sync.upsert(s, parsed)
+
+    run(sync())
+    assert [(row(db, p).status, row(db, p).error_code, row(db, p).scheduled_for) for p in (pid, sibling)] == [
+        ("SCHEDULED", None, SLOT)] * 2  # fmt: skip
+
+
+def test_rerender_keeps_the_old_render_out_of_the_ready_tray(db, env, monkeypatch):
+    pid = make_post(db, env, status="FAILED", error_code="CONTENT_REJECTED", zernio_post_id=ZPOST,
+                    zernio_media_url=PRESIGN["publicUrl"], first_post_at=now())  # fmt: skip
+    old = row(db, pid).render_id
+    use(monkeypatch, Zernio({GET_: [fx("docs_207_failed", errorCategory="user_content")]}))
+    assert remedy(pid).status_code == 200
+    with Session(db) as s:
+        r = s.get(Render, old)
+        s.execute(update(Render).where(Render.id.in_([old, row(db, pid).render_id])).values(status="READY",
+                  overlay_config=None, crop_config=None))  # fmt: skip
+        s.commit()
+        clip, superseded = r.source_clip_id, r.superseded_at
+    with TestClient(api_app) as c:
+        tray = c.get("/api/renders", params={"clip_id": clip, "status": "READY", "unscheduled": True}).json()
+        c.portal.call(engine.dispose)
+    assert superseded is not None and tray == []  # the new render has the post; the old one is superseded
+
+
+def test_delete_render_takes_its_cancelled_posts_but_not_a_live_one(db, env):
+    gone = make_post(db, env, status="CANCELLED")
+    kept = make_post(db, env, status="CANCELLED")
+    with Session(db) as s:
+        p = s.get(Post, kept)
+        s.add(Post(render_id=p.render_id, account_id=p.account_id, caption="c", scheduled_for=now() + timedelta(days=1),
+                   status="SCHEDULED", idempotency_key=uuid.uuid4().hex))  # fmt: skip
+        s.commit()
+        rid_gone, rid_kept = s.get(Post, gone).render_id, p.render_id
+    with TestClient(api_app) as c:
+        assert c.delete(f"/api/renders/{rid_gone}").status_code == 204
+        assert c.delete(f"/api/renders/{rid_kept}").status_code == 409
+        c.portal.call(engine.dispose)
+    with Session(db) as s:
+        assert (s.get(Render, rid_gone), s.get(Post, gone)) == (None, None)
+        assert s.get(Render, rid_kept) is not None and s.get(Post, kept).status == "CANCELLED"

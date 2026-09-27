@@ -832,6 +832,10 @@ export type SystemStatus = {
      * Scheduled Posts
      */
     scheduled_posts?: number;
+    /**
+     * Publishing Enabled
+     */
+    publishing_enabled: boolean;
 };
 
 /**

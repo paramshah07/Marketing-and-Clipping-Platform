@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useEffect, useRef } from "react"
 import { AtSign, CalendarDays, Film, Stamp } from "lucide-react"
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
@@ -38,6 +39,20 @@ const NAV = [
 
 function Shell() {
   const { data: st, isError } = useQuery({ ...statusOptions(), refetchInterval: 10_000 })
+  // After an outage (api or db down), pages stuck on "Couldn't load …" reload themselves once it answers again
+  const qc = useQueryClient()
+  const down = useRef(false)
+  const healthy = !isError && !!st?.db
+  useEffect(() => {
+    if (!healthy) {
+      if (isError || st) down.current = true // a retry in flight (no error, no data yet) keeps the flag
+      return
+    }
+    if (down.current) {
+      down.current = false
+      qc.refetchQueries({ predicate: (q) => q.state.status === "error" })
+    }
+  }, [healthy, isError, st, qc])
   const online = !isError && st?.worker_alive
   const { pathname } = useLocation()
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
@@ -80,8 +95,14 @@ function Shell() {
         <div className="mt-auto space-y-1.5 border-t border-line p-3 text-sm text-muted">
           <div className="flex items-center gap-2">
             <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : "bg-bad")} />
-            {isError ? "API offline" : !st ? "Checking…" : online ? "Worker online" : "Worker offline"}
+            {isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}
           </div>
+          {st?.publishing_enabled === false && (
+            <div className="flex items-center gap-2 text-warn" title="PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram.">
+              <span className="size-1.5 rounded-full bg-warn" />
+              Publishing off
+            </div>
+          )}
           {st && (
             <div className="tabular-nums">
               {st.rendering_renders ?? 0} rendering · {st.scheduled_posts ?? 0} scheduled

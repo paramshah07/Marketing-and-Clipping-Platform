@@ -258,7 +258,7 @@ async def delete_clip(clip_id: int, s: Db) -> Response:
     if deleted.rowcount != 1:
         raise HTTPException(409, "clip is still processing or has renders")
     await s.commit()
-    for key in (clip.raw_key, clip.thumbnail_key):
+    for key in (clip.raw_key, clip.thumbnail_key, f"raw/{clip_id}.part"):  # .part: an upload that never finished
         if key:
             await run_in_threadpool(storage.delete, key)
     return Response(status_code=204)
@@ -368,7 +368,7 @@ async def create_render(body: RenderCreate, s: Db) -> RenderOut:
 async def list_renders(
     s: Db, clip_id: int | None = None, status: str | None = None, unscheduled: bool = False
 ) -> list[RenderOut]:
-    """unscheduled: renders with no post other than CANCELLED ones."""
+    """unscheduled: renders with no post other than CANCELLED ones, and not superseded by a re-render."""
     q = select(Render).order_by(Render.created_at.desc(), Render.id.desc())
     if clip_id is not None:
         q = q.where(Render.source_clip_id == clip_id)
@@ -376,6 +376,7 @@ async def list_renders(
         q = q.where(Render.status == status)
     if unscheduled:
         q = q.where(~exists().where(Post.render_id == Render.id, Post.status != "CANCELLED"))
+        q = q.where(Render.superseded_at.is_(None))
     return (await s.scalars(q)).all()
 
 
@@ -394,8 +395,10 @@ async def retry_render(render_id: int, s: Db) -> RenderOut:
 
 @router.delete("/renders/{render_id}", status_code=204)
 async def delete_render(render_id: int, s: Db) -> Response:
-    """Not while RENDERING, and not once any post refers to it. Files go too."""
+    """Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
+    and files go too."""
     r = await _get(s, Render, render_id)
+    await s.execute(delete(Post).where(Post.render_id == render_id, Post.status == "CANCELLED"))  # FK RESTRICT
     deleted = await s.execute(
         delete(Render).where(
             Render.id == render_id,
@@ -404,7 +407,7 @@ async def delete_render(render_id: int, s: Db) -> Response:
         )
     )
     if deleted.rowcount != 1:
-        raise HTTPException(409, "render is RENDERING or a post refers to it")
+        raise HTTPException(409, "render is RENDERING or a live post refers to it")  # no commit: cancelled posts stay
     await s.commit()
     for key in (r.output_key, r.thumbnail_key):
         if key:

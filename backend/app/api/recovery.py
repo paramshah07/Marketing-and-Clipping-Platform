@@ -92,6 +92,7 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
         crop_config=old.crop_config, caption=old.caption,
     )  # fmt: skip
     s.add(new)
+    old.superseded_at = datetime.now(UTC)  # with no post left it would be 'Ready to schedule' again: a duplicate Reel
     await s.flush()
     await _cas(
         s, post, status="SCHEDULED", render_id=new.id, scheduled_for=at,
@@ -104,9 +105,9 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
 
 async def _reconnect(s: AsyncSession, post: Post) -> None:
     """Pull the account state from Zernio (read-only); if it is connected, its ACCOUNT_DISCONNECTED posts
-    move to their next free slots (the sync itself does that on a disconnected -> connected change; this
-    covers a post that failed with a 403 while Zernio still listed the account). Still disconnected: the
-    post stays as it is."""
+    move to their next free slots (the sync itself does that on a disconnected -> connected change, and a
+    post failing ACCOUNT_DISCONNECTED marks its account disconnected; this also catches posts a sync left
+    behind). Still disconnected: the post stays as it is."""
     try:
         await account_sync.sync(s)
     except zernio.ZernioError as e:

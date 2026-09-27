@@ -5,10 +5,13 @@ Zernio on a schedule. Localhost only. See `CLAUDE.md` and `docs/PLAN.md`.
 
 ## Run
 
-Needs Docker. Put secrets in `.env` at the repo root (gitignored): `ZERNIO_API_KEY`, and optionally
-`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Other settings and their defaults: `backend/app/core/config.py`.
+Needs Docker. Settings live in `.env` at the repo root (gitignored); `.env.example` says where each value
+comes from. `ZERNIO_API_KEY` is required; `PUBLISHING_ENABLED` defaults to `false`, so scheduled posts never
+go out until you set it to `true` (real Reels, which Zernio cannot delete). Telegram alerts are optional.
+Other settings and their defaults: `backend/app/core/config.py`.
 
 ```sh
+cp .env.example .env                  # then fill in ZERNIO_API_KEY
 docker compose up -d --build          # postgres, migrate (one-shot), api, worker
 curl http://127.0.0.1:8000/api/health # {"status":"ok"}
 curl http://127.0.0.1:8000/api/status # db, worker heartbeat, job counts
@@ -25,6 +28,13 @@ cd frontend && npm install && npm run dev   # http://localhost:5173 (proxies /ap
 - Postgres: `127.0.0.1:5432`, user/password/db `clipper`.
 - Worker code changes need `docker compose kill worker && docker compose start worker` (a running job
   re-runs from the start; `restart worker` does the same after waiting up to 90 s).
+
+First run:
+
+1. Connect the Instagram account in the Zernio dashboard (Clipper never talks to Meta directly).
+2. Accounts → Sync accounts, then set the account's timezone, posting slots, daily cap and min gap.
+3. Brands → New brand, with a transparent PNG logo.
+4. Library → upload a clip (3 s to 15 min), open it in the Editor, render, then schedule the render.
 
 ## Test
 

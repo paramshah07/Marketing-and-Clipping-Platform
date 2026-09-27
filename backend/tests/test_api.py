@@ -79,7 +79,7 @@ def test_png_alpha():
 
 def test_logo_upload_validation(client):
     brand = client.post("/api/brands", json={"name": "Acme"}).json()
-    assert brand["default_overlay_config"] == {"x": 0.72, "y": 0.06, "w": 0.22, "opacity": 1}
+    assert brand["default_overlay_config"] == {"x": 0.72, "y": 0.16, "w": 0.22, "opacity": 1}
     assert brand["logo_url"] is None
     url = f"/api/brands/{brand['id']}/logo"
     assert client.post(url, files={"file": ("a.jpg", b"\xff\xd8\xff\xe0 jpeg")}).status_code == 415
@@ -297,3 +297,22 @@ def test_cli_interrupt_fails_the_render(db, monkeypatch):
     monkeypatch.setattr(sys, "argv", ["app.cli", "render", str(clip_id), str(brand_id), "--w", "2"])
     with pytest.raises(SystemExit, match="bad overlay: w: Input should be less than or equal to 1"):
         cli.main()
+
+
+def test_api_startup_fails_orphaned_uploads_and_drops_their_part_file(db, client, data_dir):
+    """An UPLOADING row when the api starts lost its request (one api process): FAILED, .part removed."""
+    with Session(db) as s:
+        clip = SourceClip(origin="upload", status="UPLOADING", original_filename="half.mp4")
+        s.add(clip)
+        s.commit()
+        cid = clip.id
+    (data_dir / "raw").mkdir(exist_ok=True)
+    part = data_dir / "raw" / f"{cid}.part"
+    part.write_bytes(b"half an upload")
+    from app.main import _abandon_orphan_uploads  # what the lifespan runs at startup
+
+    client.portal.call(_abandon_orphan_uploads)  # on the client's loop, which owns the pooled connections
+    with Session(db) as s:
+        clip = s.get(SourceClip, cid)
+        assert (clip.status, clip.error_code) == ("FAILED", "UPLOAD_ABANDONED")
+    assert not part.exists()

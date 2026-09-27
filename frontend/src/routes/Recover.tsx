@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react"
 import { Link, useParams } from "react-router"
 
 import type { PostOut, PostRender, Remedy } from "@/api"
-import { getPostOptions, getPostQueryKey, listAccountsOptions, listPostsQueryKey, nextSlotOptions, remedyPostMutation, statusQueryKey } from "@/api/@tanstack/react-query.gen"
+import { cancelPostMutation, getPostOptions, getPostQueryKey, listAccountsOptions, listPostsQueryKey, nextSlotOptions, remedyPostMutation, statusOptions, statusQueryKey } from "@/api/@tanstack/react-query.gen"
 import { ZERNIO_URL } from "@/components/AccountBits"
 import { Chip } from "@/components/bits"
 import { FAILED, STATUS_LABEL, apiError, shortWhen } from "@/lib/schedule"
@@ -69,6 +69,16 @@ export function Recover() {
       if (next.error_code === "ACCOUNT_DISCONNECTED" && FAILED.has(next.status)) setNote(`@${next.account_username} is still disconnected in Zernio.`)
     },
   })
+  const st = useQuery(statusOptions())
+  const dismiss = useMutation({
+    ...cancelPostMutation(),
+    onSuccess: (next) => {
+      qc.setQueryData(getPostQueryKey({ path: { post_id: id } }), next)
+      qc.invalidateQueries({ queryKey: listPostsQueryKey() })
+      qc.invalidateQueries({ queryKey: statusQueryKey() })
+    },
+  })
+  const said = typeof p?.error_detail?.errorMessage === "string" ? p.error_detail.errorMessage : null // Zernio's own words
   function apply() {
     setNote("")
     if (fix?.action === "rerender" && MAYBE_LIVE.has(p!.error_code ?? "") && !confirm(`Check @${p!.account_username} on Instagram first. This Reel may already be live; re-rendering posts it again.\n\nOK only if you checked and it is not there.`)) return
@@ -86,7 +96,7 @@ export function Recover() {
       </header>
 
       {!p ? (
-        <p className="p-8 text-center text-muted">{post.isError ? `Couldn't load post ${id}: ${apiError(post.error).message}` : "Loading…"}</p>
+        <p className="p-8 text-center text-muted">{!(id > 0) ? "No post at this address." : post.isError ? `Couldn't load post ${id}: ${apiError(post.error).message}` : "Loading…"}</p>
       ) : (
         <main className="px-4 pt-4 pb-6">
           <div className="flex items-center gap-2">
@@ -111,6 +121,8 @@ export function Recover() {
           {failed ? (
             <>
               {p.cause && <p className="mt-5 text-md">{p.cause}</p>}
+              {said && <p className="mt-2 text-sm text-muted">Instagram said: “{said}”</p>}
+              {st.data?.publishing_enabled === false && <p className="mt-2 text-sm text-warn">Publishing is off on this machine: a retry waits until it is turned on.</p>}
               {fix && <RemedyButton remedy={fix} busy={remedy.isPending} onClick={apply} />}
               {fix && (
                 <p className="mt-2 text-center text-sm tabular-nums text-muted">
@@ -120,6 +132,14 @@ export function Recover() {
               )}
               {note && <p className="mt-2 text-center text-sm text-warn">{note}</p>}
               {remedy.isError && <p className="mt-2 text-center text-sm text-bad">{apiError(remedy.error).message}</p>}
+              <button
+                className="mx-auto mt-4 block text-sm text-muted underline decoration-line-strong underline-offset-2 hover:text-fg disabled:opacity-50"
+                disabled={dismiss.isPending}
+                onClick={() => confirm("Dismiss this post? It is cancelled and will not be published.") && dismiss.mutate({ path: { post_id: id } })}
+              >
+                Dismiss (cancel this post)
+              </button>
+              {dismiss.isError && <p className="mt-2 text-center text-sm text-bad">{apiError(dismiss.error).message}</p>}
             </>
           ) : (
             <div className="mt-5 flex flex-col items-center gap-2 text-center">

@@ -20,8 +20,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await _abandon_orphan_uploads()
     async with queue_app.open_async():  # lets the api defer jobs
         yield
+
+
+async def _abandon_orphan_uploads() -> None:
+    """Uploads stream through this one api process, so an UPLOADING row at startup lost its request (e.g. a
+    --reload mid-upload). Fail it and drop its partial file instead of leaving a spinner for 24 h."""
+    try:
+        async with SessionLocal() as s:
+            ids = (await s.execute(text(
+                "UPDATE source_clips SET status = 'FAILED', error_code = 'UPLOAD_ABANDONED',"
+                " error_detail = 'the api restarted during the upload' WHERE status = 'UPLOADING' RETURNING id"
+            ))).scalars().all()  # fmt: skip
+            await s.commit()
+        for i in ids:
+            (settings.DATA_DIR / "raw" / f"{i}.part").unlink(missing_ok=True)
+    except SQLAlchemyError:
+        logger.exception("could not clean up orphaned uploads")
 
 
 # route.name as the operation id gives the generated TS client clean function names
@@ -53,6 +70,7 @@ class SystemStatus(BaseModel):
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
     rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
     scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
+    publishing_enabled: bool  # PUBLISHING_ENABLED and ZERNIO_API_KEY: off, SCHEDULED posts never go out
 
 
 @app.get("/api/health")
@@ -62,6 +80,7 @@ async def health() -> Health:
 
 @app.get("/api/status")
 async def status() -> SystemStatus:
+    publishing = bool(settings.PUBLISHING_ENABLED and settings.ZERNIO_API_KEY)
     try:
         async with SessionLocal() as s:
             last, alive = (
@@ -84,8 +103,10 @@ async def status() -> SystemStatus:
             rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
                 db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed,
-                rendering_renders=rendering, scheduled_posts=scheduled,
+                rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=publishing,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
-        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, jobs={})
+        return SystemStatus(
+            db=False, worker_alive=False, worker_last_heartbeat=None, jobs={}, publishing_enabled=publishing
+        )

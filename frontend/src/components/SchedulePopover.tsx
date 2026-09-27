@@ -12,6 +12,7 @@ import {
   listRendersQueryKey,
   nextSlotOptions,
   nextSlotQueryKey,
+  statusOptions,
 } from "@/api/@tanstack/react-query.gen"
 import { apiError, localParts, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, MAX_REEL_SECONDS, btn, cn, field, label } from "@/lib/utils"
@@ -44,6 +45,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   const [error, setError] = useState("")
   const [done, setDone] = useState<PostOut | null>(null)
   const create = useMutation(createPostMutation())
+  const st = useQuery(statusOptions()) // the sidebar's query; shares its cache
   const long = (r.duration_s ?? 0) > MAX_REEL_SECONDS
 
   async function submit(override = false) {
@@ -72,7 +74,8 @@ function ScheduleForm({ r }: { r: RenderOut }) {
         <p className="text-ok">
           {done.status === "DRAFT" ? "Saved as a draft" : "Scheduled"} for <span className="tabular-nums">{shortWhen(done.scheduled_for, a.timezone)}</span> on @{a.username}.
         </p>
-        {done.status === "DRAFT" && <p className="text-sm text-muted">This brand needs approval before it publishes. Approve it on the calendar.</p>}
+        {done.status === "DRAFT" && <p className="text-sm text-muted">{r.brand_id ? "This brand needs approval before it publishes." : "Posts without a brand start as drafts."} Approve it on the calendar.</p>}
+        {st.data?.publishing_enabled === false && <p className="text-sm text-warn">Publishing is off: nothing reaches Instagram until it is turned on.</p>}
         <Link to={`/calendar?week=${localParts(done.scheduled_for, a.timezone).date}`} className="text-sm underline decoration-line-strong underline-offset-2 hover:decoration-fg">
           Open calendar
         </Link>
@@ -113,7 +116,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           </div>
           <div className="flex gap-1.5">
             <input type="date" aria-label="Date" className={cn(field, "min-w-0 flex-1 tabular-nums")} value={date} onChange={(e) => setWhen({ date: e.target.value, time })} />
-            <input type="time" aria-label="Time" className={cn(field, "w-[92px] tabular-nums")} value={time} onChange={(e) => setWhen({ date, time: e.target.value })} />
+            <input type="time" aria-label="Time" className={cn(field, "w-[124px] tabular-nums")} value={time} onChange={(e) => setWhen({ date, time: e.target.value })} />
           </div>
           <div className="text-xs text-subtle">
             {!a ? " " : next.isPending ? "Finding the next free slot…" : next.isError ? `No suggestion: ${apiError(next.error).message}` : next.data && !next.data.scheduled_for ? "No free slot within 30 days" : when ? "Edited" : "Next free slot"}

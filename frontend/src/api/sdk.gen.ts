@@ -128,7 +128,7 @@ export const uploadBrandLogo = <ThrowOnError extends boolean = false>(options: O
 /**
  * List Renders
  *
- * unscheduled: renders with no post other than CANCELLED ones.
+ * unscheduled: renders with no post other than CANCELLED ones, and not superseded by a re-render.
  */
 export const listRenders = <ThrowOnError extends boolean = false>(options?: Options<ListRendersData, ThrowOnError>): RequestResult<ListRendersResponses, ListRendersErrors, ThrowOnError> => (options?.client ?? client).get<ListRendersResponses, ListRendersErrors, ThrowOnError>({ url: '/api/renders', ...options });
 
@@ -147,7 +147,8 @@ export const createRender = <ThrowOnError extends boolean = false>(options: Opti
 /**
  * Delete Render
  *
- * Not while RENDERING, and not once any post refers to it. Files go too.
+ * Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
+ * and files go too.
  */
 export const deleteRender = <ThrowOnError extends boolean = false>(options: Options<DeleteRenderData, ThrowOnError>): RequestResult<DeleteRenderResponses, DeleteRenderErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRenderResponses, DeleteRenderErrors, ThrowOnError>({ url: '/api/renders/{render_id}', ...options });
 

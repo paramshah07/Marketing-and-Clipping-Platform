@@ -3,6 +3,7 @@
 // overlap takes the earlier instant (Python fold=0). Days are "YYYY-MM-DD" calendar dates.
 
 import type { PostOut } from "@/api"
+import { errorText } from "@/lib/utils"
 
 const MIN = 60_000
 const DAY = 86_400_000
@@ -60,14 +61,15 @@ export function dropTime(currentIso: string, tz: string, date: string, slot?: st
   return zonedToUtc(date, slot ?? localParts(currentIso, tz).time, tz).toISOString()
 }
 
-/** Posts closer than minGap (same account). gaps: later post id -> minutes apart; warn: both ends. */
-export function tooClose(posts: { id: number; scheduled_for: string }[], minGap: number) {
+/** Posts closer than minGap (same account). gaps: later post id -> minutes apart; warn: both ends.
+ * Only pairs the operator can still fix: at least one side is DRAFT or SCHEDULED. */
+export function tooClose(posts: { id: number; scheduled_for: string; status: PostOut["status"] }[], minGap: number) {
   const gaps = new Map<number, number>()
   const warn = new Set<number>()
   const sorted = [...posts].sort((a, b) => Date.parse(a.scheduled_for) - Date.parse(b.scheduled_for))
   for (let i = 1; i < sorted.length; i++) {
     const gap = Math.round((Date.parse(sorted[i].scheduled_for) - Date.parse(sorted[i - 1].scheduled_for)) / MIN)
-    if (gap >= minGap) continue
+    if (gap >= minGap || !(MOVABLE.has(sorted[i].status) || MOVABLE.has(sorted[i - 1].status))) continue
     gaps.set(sorted[i].id, gap)
     warn.add(sorted[i].id).add(sorted[i - 1].id)
   }
@@ -110,7 +112,7 @@ export function apiError(e: unknown): { code?: string; message: string } {
   }
   if (typeof d === "string") return { message: d }
   if (Array.isArray(d)) return { message: d.map((x) => `${x.loc?.slice(1).join(".")}: ${x.msg}`).join("; ") }
-  return { message: e instanceof Error ? e.message : String(e) }
+  return { message: errorText(e) }
 }
 
 // Chrome's ICU list uses old names the backend's tzdata (no backward links) rejects: store the current ones.

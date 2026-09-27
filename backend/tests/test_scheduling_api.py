@@ -445,3 +445,12 @@ def test_status_counts(client):
     after = client.get("/api/status").json()
     assert after["rendering_renders"] - before["rendering_renders"] == 1
     assert after["scheduled_posts"] - before["scheduled_posts"] == 1
+    assert after["publishing_enabled"] is False  # no ZERNIO_API_KEY (env fixture)
+
+
+def test_status_publishing_enabled(client, monkeypatch):
+    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test")
+    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
+    assert client.get("/api/status").json()["publishing_enabled"] is False
+    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
+    assert client.get("/api/status").json()["publishing_enabled"] is True
