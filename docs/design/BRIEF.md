@@ -18,6 +18,12 @@ React + Tailwind + shadcn/ui build, so use only things that build can reproduce.
 - Video is the content: thumbnails get real size; chrome around them stays minimal.
   - Table rows: 56px tall, 9:16 thumb 28x50 (`w-7 h-[50px] rounded-sm object-cover`).
   - Cards (upload rows, render queue, calendar): 9:16 thumb 36x64.
+  - Exception, the calendar slot board (2026-09 redesign, `.context/calendar-redesign/slotboard.html`): with up
+    to 4 posting slots a tile's 9:16 thumb grows with the row, capped at 128 px tall (72x128), so the advertiser
+    logo on the render can be checked on the board. This is intentional. With 5+ slots, tiles fall back to 36x64
+    beside the text; off-slot posts are 36 px lines with an 18x32 thumb.
+  - The calendar's render queue is a list, not cards: 56 px rows with the table's 28x50 thumb (grouped clips stack
+    two 28x50 thumbs in the same 28 px column).
 - Borders (`border-line`) separate things, not shadows. Controls 28px tall (`h-7`), radius 4px.
 - Motion: none in a static mock; you may indicate "animates" in an HTML comment.
 - Icons: lucide via `<i data-lucide="name"></i>` (already loaded in the base).

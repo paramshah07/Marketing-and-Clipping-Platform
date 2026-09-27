@@ -58,12 +58,15 @@ function Shell() {
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
   const failed = useQuery({ ...listPostsOptions({ query: { status: ["FAILED", "DEAD_LETTER"] } }), enabled: !!st?.failed_posts })
   const oldest = failed.data?.reduce((a, b) => (Date.parse(b.scheduled_for) < Date.parse(a.scheduled_for) ? b : a), failed.data[0])
+  // The calendar needs every column it can get: below 1400 px the sidebar folds to an icon rail there.
+  const rail = pathname.startsWith("/calendar")
+  const word = rail ? "max-[1400px]:sr-only" : ""
   return (
     <div className="flex h-screen overflow-hidden">
-      <aside className="flex w-[200px] shrink-0 flex-col border-r border-line bg-panel">
-        <div className="flex h-12 items-center gap-2 border-b border-line px-4">
-          <div className="size-4 rounded-sm bg-fg" />
-          <span className="text-md font-semibold tracking-tight">Clipper</span>
+      <aside className={cn("flex w-[200px] shrink-0 flex-col border-r border-line bg-panel", rail && "max-[1400px]:w-14")}>
+        <div className={cn("flex h-12 items-center gap-2 border-b border-line px-4", rail && "max-[1400px]:justify-center max-[1400px]:px-0")}>
+          <div className="size-4 shrink-0 rounded-sm bg-fg" />
+          <span className={cn("text-md font-semibold tracking-tight", word)}>Clipper</span>
         </div>
         <nav className="space-y-0.5 p-2">
           {NAV.map(({ to, label, icon: Icon, also }) => (
@@ -73,18 +76,22 @@ function Shell() {
                 className={({ isActive }) =>
                   cn(
                     "flex h-8 items-center gap-2.5 rounded px-2.5",
+                    rail && "max-[1400px]:justify-center max-[1400px]:px-0",
                     isActive || (also && pathname.startsWith(also)) ? "bg-raised text-fg" : "text-muted hover:bg-hover"
                   )
                 }
               >
-                <Icon className="size-4" strokeWidth={1.75} />
-                {label}
+                <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+                <span className={word}>{label}</span>
               </NavLink>
               {to === "/calendar" && !!st?.failed_posts && (
                 <Link
                   to={oldest ? `/recover/${oldest.id}` : "/calendar"}
                   title={`${st.failed_posts} failed post${st.failed_posts === 1 ? "" : "s"}: open the oldest`}
-                  className="absolute top-1.5 right-2 rounded bg-bad/15 px-1.5 text-xs leading-5 font-medium tabular-nums text-bad hover:bg-bad/25"
+                  className={cn(
+                    "absolute top-1.5 right-2 rounded bg-bad/15 px-1.5 text-xs leading-5 font-medium tabular-nums text-bad hover:bg-bad/25",
+                    rail && "max-[1400px]:-top-0.5 max-[1400px]:right-0 max-[1400px]:px-1 max-[1400px]:leading-4"
+                  )}
                 >
                   {st.failed_posts}
                 </Link>
@@ -93,25 +100,25 @@ function Shell() {
           ))}
         </nav>
         {/* min-h: three rows reserved, so the footer doesn't grow once status loads */}
-        <div className="mt-auto min-h-[89px] space-y-1.5 border-t border-line p-3 text-sm text-muted">
-          <div className="flex items-center gap-2">
-            <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : !st && !isError ? "bg-subtle" : "bg-bad")} />
-            {isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}
+        <div className={cn("mt-auto min-h-[89px] space-y-1.5 border-t border-line p-3 text-sm text-muted", rail && "max-[1400px]:[&>div]:justify-center")}>
+          <div className="flex items-center gap-2" title={isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}>
+            <span className={cn("size-1.5 shrink-0 rounded-full", online ? "bg-ok" : !st && !isError ? "bg-subtle" : "bg-bad")} />
+            <span className={word}>{isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}</span>
           </div>
           {st?.publishing_enabled === true && (
             <div className="flex items-center gap-2" title={online ? "Scheduled posts go out to Instagram at their time" : "Nothing publishes until the worker and database are back"}>
-              <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : "bg-subtle")} />
-              {online ? "Publishing live" : "Publishing paused"}
+              <span className={cn("size-1.5 shrink-0 rounded-full", online ? "bg-ok" : "bg-subtle")} />
+              <span className={word}>{online ? "Publishing live" : "Publishing paused"}</span>
             </div>
           )}
           {st?.publishing_enabled === false && (
             <div className="flex items-center gap-2 text-warn" title="PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram.">
-              <span className="size-1.5 rounded-full bg-warn" />
-              Publishing off
+              <span className="size-1.5 shrink-0 rounded-full bg-warn" />
+              <span className={word}>Publishing off</span>
             </div>
           )}
           {st && (
-            <div className="tabular-nums">
+            <div className={cn("tabular-nums", word)}>
               {st.rendering_renders ?? 0} rendering · {st.scheduled_posts ?? 0} scheduled
             </div>
           )}

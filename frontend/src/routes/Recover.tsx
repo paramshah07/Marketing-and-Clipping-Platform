@@ -7,7 +7,7 @@ import type { PostOut, PostRender, Remedy } from "@/api"
 import { cancelPostMutation, getPostOptions, getPostQueryKey, listAccountsOptions, listPostsQueryKey, nextSlotOptions, remedyPostMutation, statusOptions, statusQueryKey } from "@/api/@tanstack/react-query.gen"
 import { ZERNIO_URL } from "@/components/AccountBits"
 import { Chip } from "@/components/bits"
-import { BROWSER_TZ, FAILED, STATUS_LABEL, apiError, shortWhen } from "@/lib/schedule"
+import { BROWSER_TZ, FAILED, STATUS_LABEL, apiError, localParts, shortWhen } from "@/lib/schedule"
 import { cn, label, mmss, shortUrl } from "@/lib/utils"
 
 const TONE: Partial<Record<PostOut["status"], "accent" | "ok" | "bad" | "warn">> = { DRAFT: "warn", SCHEDULED: "accent", PUBLISHING: "accent", PUBLISHED: "ok", FAILED: "bad", DEAD_LETTER: "bad" }
@@ -77,6 +77,7 @@ export function Recover() {
       qc.invalidateQueries({ queryKey: statusQueryKey() })
     },
   })
+  const back = p ? `/calendar?account=${p.account_id}&week=${localParts(p.scheduled_for, tz).date}` : "/calendar" // the board shows one account
   const said = typeof p?.error_detail?.errorMessage === "string" ? p.error_detail.errorMessage : null // Zernio's own words
   function apply() {
     setNote("")
@@ -87,7 +88,7 @@ export function Recover() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col">
       <header className="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-1 border-b border-line bg-panel px-1.5">
-        <Link to="/calendar" aria-label="Back to calendar" className="grid size-9 place-items-center rounded text-muted hover:bg-hover hover:text-fg">
+        <Link to={back} aria-label="Back to calendar" className="grid size-9 place-items-center rounded text-muted hover:bg-hover hover:text-fg">
           <ChevronLeft className="size-5" />
         </Link>
         <div className="size-4 rounded-sm bg-fg" />
@@ -147,7 +148,7 @@ export function Recover() {
                   View on Instagram
                 </a>
               )}
-              <Link to="/calendar" className="text-muted hover:text-fg hover:underline">
+              <Link to={back} className="text-muted hover:text-fg hover:underline">
                 Open the calendar
               </Link>
             </div>

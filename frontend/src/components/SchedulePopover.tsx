@@ -76,7 +76,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
         </p>
         {done.status === "DRAFT" && <p className="text-sm text-muted">{r.brand_id ? "This brand needs approval before it publishes." : "Posts without a brand start as drafts."} Approve it on the calendar.</p>}
         {st.data?.publishing_enabled === false && <p className="text-sm text-warn">Publishing is off: nothing reaches Instagram until it is turned on.</p>}
-        <Link to={`/calendar?week=${localParts(done.scheduled_for, a.timezone).date}`} className="text-sm underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+        <Link to={`/calendar?week=${localParts(done.scheduled_for, a.timezone).date}&account=${a.id}`} className="text-sm underline decoration-line-strong underline-offset-2 hover:decoration-fg">
           Open calendar
         </Link>
       </div>

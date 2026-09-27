@@ -7,7 +7,7 @@ import type { AccountOut, PostOut } from "@/api"
 import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, listRendersQueryKey, updatePostMutation } from "@/api/@tanstack/react-query.gen"
 import { Avatar } from "@/components/AccountBits"
 import { Drawer } from "@/components/bits"
-import { FAILED, MOVABLE, STATUS_LABEL, apiError, isHHMM, localParts, postAt, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
+import { FAILED, MOVABLE, STATUS_LABEL, apiError, dayLabel, isHHMM, localParts, postAt, shortWhen, slotTime, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, btn, cn, field, label, mmss, shortUrl } from "@/lib/utils"
 
 export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClose: () => void }) {
@@ -104,6 +104,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
                 <input type="date" aria-label="Date" className={cn(field, "tabular-nums")} value={date} onChange={(e) => setDate(e.target.value)} />
                 {/* text, not type=time: that one follows the browser locale (01:00 PM); the app is 24 h */}
                 <input aria-label="Time" placeholder="HH:MM" maxLength={5} className={cn(field, "w-20 tabular-nums", !isHHMM(time) && "border-bad")} value={time} onChange={(e) => setTime(e.target.value)} />
+                {/^\d{4}-\d\d-\d\d$/.test(date) && <span className="self-center text-muted tabular-nums">{dayLabel(date, { weekday: true })}</span>}
               </div>
             </div>
             <div className="space-y-1.5">
@@ -128,7 +129,8 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
             <div className="space-y-1.5">
               <div className={label}>{p.status === "PUBLISHED" ? "Published" : "Time"}</div>
               <div className="tabular-nums">
-                {shortWhen(postAt(p), a.timezone)}{" "}
+                {shortWhen(postAt(p), a.timezone)}
+                {p.published_at && localParts(p.published_at, a.timezone).time !== slotTime(p, a.timezone) && <span className="text-muted"> (slot {slotTime(p, a.timezone)})</span>}{" "}
                 <span className="text-subtle">
                   {a.timezone} {utcOffset(a.timezone, Date.parse(postAt(p)))}
                 </span>

@@ -20,11 +20,14 @@
   --color-fg: #ededef;
   --color-muted: #a0a0a8;
   --color-subtle: #6b6b73;
+  --color-dim: #8a8f98; /* tertiary text that still carries meaning: 5.9:1 on bg (subtle is 3.8:1) */
   --color-accent: #4f8cff;
   --color-accent-hover: #6a9dff;
   --color-ok: #3fb950;
   --color-warn: #d29922;
   --color-bad: #f85149;
+  --color-grid: rgb(255 255 255 / 0.055); /* board grid hairlines: quieter than line, they must not compete with tiles */
+  --color-today: #111112; /* bg + 3% white: today's column (opaque, so the sticky day head covers the tiles) */
 
   --text-xs: 11px;
   --text-xs--line-height: 16px;
