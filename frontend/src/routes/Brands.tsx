@@ -12,8 +12,9 @@ import {
   updateBrandMutation,
   uploadBrandLogoMutation,
 } from "@/api/@tanstack/react-query.gen"
-import { Header } from "@/components/bits"
+import { Drawer, Header } from "@/components/bits"
 import { Switch } from "@/components/ui/switch"
+import { BROWSER_TZ, dayLabel, localParts, today } from "@/lib/schedule"
 import { CAPTION_MAX, HASHTAG_MAX, cn, errorText, hashtagCount, btn, label } from "@/lib/utils"
 
 export function Brands() {
@@ -95,7 +96,7 @@ export function Brands() {
                       {gone ? (
                         <div className="flex items-center gap-1 text-sm tabular-nums">
                           <Archive className="size-3" />
-                          Archived {new Date(b.archived_at!).toLocaleDateString("en-GB", { day: "numeric", month: "short" }).replace("Sept", "Sep")}
+                          Archived {archivedDay(b.archived_at!)}
                         </div>
                       ) : (
                         <div className="font-mono text-xs text-subtle">brand {b.id}</div>
@@ -138,6 +139,12 @@ export function Brands() {
       </section>
     </>
   )
+}
+
+/** "26 Sep", with the year once it isn't this year. */
+function archivedDay(iso: string) {
+  const d = localParts(iso, BROWSER_TZ).date
+  return dayLabel(d, { year: d.slice(0, 4) !== today().slice(0, 4) })
 }
 
 function LogoTile({ url, className }: { url: string | null; className?: string }) {
@@ -197,7 +204,9 @@ function BrandDrawer({ brand, ready, onClose, onCreated }: { brand: BrandOut | n
   const fileUrl = useObjectUrl(file)
   const shown = fileUrl ?? brand?.logo_url ?? null
   const values = { name: name.trim(), link: link.trim() || null, caption_template: template.trim() ? template : null, auto_approve: autoApprove }
-  const dirty = !brand || !!file || values.name !== brand.name || values.link !== brand.link || values.caption_template !== brand.caption_template || autoApprove !== brand.auto_approve
+  const base = brand ?? { name: "", link: null, caption_template: null, auto_approve: false }
+  const dirty = !!file || values.name !== base.name || values.link !== base.link || values.caption_template !== base.caption_template || autoApprove !== base.auto_approve
+  const close = () => (!dirty || confirm("Discard unsaved changes?")) && onClose()
 
   async function save() {
     if (!values.name || busy) return
@@ -237,7 +246,7 @@ function BrandDrawer({ brand, ready, onClose, onCreated }: { brand: BrandOut | n
   const tags = hashtagCount(template)
 
   return (
-    <aside className="flex w-[440px] shrink-0 flex-col border-l border-line bg-panel shadow-[-12px_0_32px_rgba(0,0,0,0.45)]">
+    <Drawer label={brand ? brand.name : "New brand"} onClose={close} className="w-[440px]">
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
         <div className="flex min-w-0 items-baseline gap-2">
           <h2 className="truncate text-md font-semibold">{brand ? brand.name : "New brand"}</h2>
@@ -250,7 +259,7 @@ function BrandDrawer({ brand, ready, onClose, onCreated }: { brand: BrandOut | n
               Unsaved changes
             </span>
           )}
-          <button className={btn.icon} aria-label="Close" onClick={onClose}>
+          <button className={btn.icon} aria-label="Close" onClick={close}>
             <X className="size-4" />
           </button>
         </div>
@@ -390,7 +399,7 @@ function BrandDrawer({ brand, ready, onClose, onCreated }: { brand: BrandOut | n
           </button>
         </div>
       </div>
-    </aside>
+    </Drawer>
   )
 }
 

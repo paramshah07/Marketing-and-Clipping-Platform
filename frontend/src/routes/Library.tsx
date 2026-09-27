@@ -20,7 +20,7 @@ import {
   updateClipMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { Chip, Header } from "@/components/bits"
-import { dayLabel, localParts } from "@/lib/schedule"
+import { BROWSER_TZ as TZ, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
 import { CAUSES, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
@@ -250,11 +250,11 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
           <colgroup>
             <col className="w-[44px]" />
             <col />
-            <col className="w-[72px]" />
+            <col className="w-[84px]" />
             <col className="w-[156px]" />
-            <col className="w-[160px]" />
+            <col className="w-[136px]" />
             <col className="w-[212px]" />
-            <col className="w-[68px]" />
+            <col className="w-[80px]" />
             <col className="w-[84px]" />
             <col className="w-[150px]" />
           </colgroup>
@@ -267,18 +267,22 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
               <th>Rights</th>
               <th>Status</th>
               <th className="text-right">Renders</th>
-              <th className="text-muted">Added</th>
+              <th className="text-muted" aria-sort="descending">
+                Added <span aria-hidden>↓</span>
+              </th>
               <th />
             </tr>
           </thead>
-          <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-panel">
+          <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-raised">
             {uploads.map((u) => (
               <tr key={u.key} data-upload={u.file.name}>
                 <td className="!pl-4 !pr-0">
                   <Placeholder />
                 </td>
                 <td>
-                  <div className="truncate font-medium">{u.file.name}</div>
+                  <div className="truncate font-medium" title={u.file.name}>
+                    {u.file.name}
+                  </div>
                   <div className="flex items-center gap-1.5 text-sm tabular-nums text-muted">
                     <HardDriveUpload className="size-3 text-subtle" />
                     {u.fatal ? size(u.file.size) : `${u.error ? "Stopped at" : "Uploading ·"} ${size(u.loaded)} of ${size(u.file.size)}`}
@@ -365,8 +369,10 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
   const retryable = c.status === "FAILED" && !FINAL.has(c.error_code ?? "") && (c.origin === "url" || !!c.raw_url)
   const importing = c.status === "DOWNLOADING" || c.status === "PROBING"
   const fps = c.fps ? `${+c.fps.toFixed(2)}fps` : ""
+  // fades once when it turns READY while the page is open (not for rows that load READY)
+  const [first] = useState(c.status)
   return (
-    <tr data-clip={c.id} data-status={c.status}>
+    <tr data-clip={c.id} data-status={c.status} className={cn("group/row", ready && first !== "READY" && "settle")}>
       <td className="!pl-4 !pr-0">
         {c.thumbnail_url ? (
           <div className="group relative w-7">
@@ -378,13 +384,15 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
         )}
       </td>
       <td>
-        <div className="truncate font-medium" title={c.source_url ?? undefined}>
+        <div className="truncate font-medium" title={c.source_url ?? clipName(c)}>
           {clipName(c)}
         </div>
-        <div className="flex items-center gap-1.5 truncate text-sm text-muted">
+        <div className="flex min-w-0 items-center gap-1.5 text-sm text-muted">
           {c.origin === "url" ? <PlatformIcon platform={c.platform} /> : <HardDriveUpload className="size-3 shrink-0 text-subtle" />}
-          {c.source_creator_handle ??
-            (c.origin === "url" ? (c.platform ?? (importing ? "Importing" : "URL import")) : c.status === "UPLOADING" ? "Uploading" : "Uploaded")}
+          <span className="truncate" title={c.source_creator_handle ?? undefined}>
+            {c.source_creator_handle ??
+              (c.origin === "url" ? (c.platform ?? (importing ? "Importing" : "URL import")) : c.status === "UPLOADING" ? "Uploading" : "Uploaded")}
+          </span>
         </div>
       </td>
       <td className={cn("text-right tabular-nums", c.duration_s == null && "text-subtle")}>{mmss(c.duration_s)}</td>
@@ -398,9 +406,10 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
         {c.status === "FAILED" ? (
           <Failed cause={CAUSES[c.error_code ?? ""] ?? "Failed"} code={c.error_code} detail={c.error_detail} />
         ) : ready ? (
-          <Chip tone="ok" dot>
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+            <span className="size-1.5 rounded-full bg-ok" />
             Ready
-          </Chip>
+          </span>
         ) : (
           <Chip tone="accent" spin>
             {c.status[0] + c.status.slice(1).toLowerCase()}
@@ -408,9 +417,12 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
         )}
       </td>
       <td className={cn("text-right tabular-nums", !renders && "text-subtle")}>{ready ? renders : "—"}</td>
-      <td className="tabular-nums text-muted">{ago(c.created_at)}</td>
+      <td className="tabular-nums text-muted" title={shortWhen(c.created_at, TZ)}>
+        {ago(c.created_at)}
+      </td>
       <td>
-        <div className="flex items-center justify-end gap-1">
+        {/* hover or keyboard focus reveals them (opacity, so Tab still reaches them); failures always show theirs */}
+        <div className={cn("flex items-center justify-end gap-1", c.status !== "FAILED" && "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100")}>
           {c.status === "FAILED" && retryable ? (
             <button className={cn(btn.secondary, "px-2 font-normal")} onClick={onRetry}>
               <RotateCw className="size-3.5" />
@@ -501,11 +513,12 @@ function Failed({ cause, code, detail }: { cause: string; code?: string | null; 
   )
 }
 
-/** The rights chip; a native select in chip clothing where it can be changed. */
+/** Rights as plain text (a warn chip for "none"); a native select in that clothing where it can be changed. */
 function RightsChip({ value, onChange }: { value: Rights; onChange?: (v: Rights) => void }) {
   const cls = cn(
-    "h-5 appearance-none rounded border bg-transparent px-1.5 text-xs outline-none [field-sizing:content] focus-visible:border-muted",
-    value === "none" ? "border-warn/40 text-warn" : "border-line text-muted",
+    "h-5 appearance-none rounded border bg-transparent px-1.5 outline-none [field-sizing:content] focus-visible:border-muted",
+    // plain text lines up with the column; the bordered warn chip sits inside it, like Status's chips
+    value === "none" ? "border-warn/40 text-xs text-warn" : "-ml-[7px] border-transparent text-sm text-muted",
     onChange && "cursor-pointer hover:border-line-strong"
   )
   if (!onChange) return <span className={cn(cls, "inline-flex items-center")}>{RIGHTS[value]}</span>
@@ -521,8 +534,7 @@ function RightsChip({ value, onChange }: { value: Rights; onChange?: (v: Rights)
 }
 
 const RANGES = { 7: "Last 7 days", 30: "Last 30 days", 90: "Last 90 days", 365: "Last 12 months" }
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
-const day = (d: Date, weekday = false) => dayLabel(localParts(d, TZ).date, { weekday })
+const day = (d: Date, year = false) => dayLabel(localParts(d, TZ).date, { year })
 // Filter selects: sized to the chosen option, compact chevron instead of the native one
 const filter = cn(field, "flex items-center gap-2 text-muted focus-within:border-muted")
 const bare = "appearance-none bg-transparent outline-none [field-sizing:content]"
@@ -583,7 +595,7 @@ function Published({ search }: { search: string }) {
           </select>
           {chevron}
           <span className="tabular-nums text-muted">
-            {day(from)} – {day(new Date())}
+            {day(from, days === 365)} – {day(new Date())}
           </span>
         </label>
         <div className="ml-auto flex items-center gap-4 text-sm text-muted">
@@ -608,7 +620,7 @@ function Published({ search }: { search: string }) {
         <table className="w-full table-fixed border-collapse">
           <colgroup>
             <col className="w-[52px]" />
-            <col className="w-[172px]" />
+            <col className="w-[196px]" />
             <col className="w-[160px]" />
             <col className="w-[160px]" />
             <col />
@@ -618,7 +630,9 @@ function Published({ search }: { search: string }) {
           <thead className="sticky top-0 z-10 bg-bg">
             <tr className="h-8 text-left text-xs uppercase tracking-wider text-subtle shadow-[inset_0_-1px_0_var(--color-line)] [&>th]:px-3 [&>th]:font-medium">
               <th className="!pl-4 !pr-0" />
-              <th>Published at ↓</th>
+              <th aria-sort="descending">
+                Published at <span aria-hidden>↓</span>
+              </th>
               <th>Account</th>
               <th>Brand</th>
               <th>Caption</th>
@@ -626,7 +640,7 @@ function Published({ search }: { search: string }) {
               <th />
             </tr>
           </thead>
-          <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-panel">
+          <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-raised">
             {rows.map((p) => (
               <PublishedRow key={p.id} p={p} account={accounts.find((a) => a.id === p.account_id)} brands={brands} logo={logoOf(p.render.brand_id)} onError={setNotice} />
             ))}
@@ -647,7 +661,6 @@ function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; accou
   const navigate = useNavigate()
   const clipId = p.render.clip_id
   const iso = p.published_at ?? p.scheduled_for
-  const d = new Date(iso)
   // Same clip and crop as the original, the new brand's default overlay (overlay_config omitted) and caption.
   const rerender = useMutation({
     mutationFn: async (b: BrandOut) => {
@@ -667,13 +680,14 @@ function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; accou
         {p.render.thumbnail_url ? <img src={p.render.thumbnail_url} alt="" className="h-[50px] w-7 rounded-sm bg-raised object-cover" /> : <div className="h-[50px] w-7 rounded-sm bg-raised" />}
       </td>
       <td className="whitespace-nowrap tabular-nums">
-        <div className="font-medium">
-          {day(d, true)} · {d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
-        </div>
-        <div className="text-sm text-muted">
+        <div className="font-medium">{shortWhen(iso, TZ)}</div>
+        <div className="truncate text-sm text-muted">
           {ago(iso)}
           {account && account.timezone !== TZ && (
-            <span className="text-subtle"> · {d.toLocaleTimeString("en-US", { timeZone: account.timezone, hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" })}</span>
+            <span className="text-subtle" title={`${shortWhen(iso, account.timezone)} ${account.timezone}`}>
+              {" "}
+              · {shortWhen(iso, account.timezone)} {utcOffset(account.timezone, Date.parse(iso))}
+            </span>
           )}
         </div>
       </td>

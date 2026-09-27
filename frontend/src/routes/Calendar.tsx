@@ -139,14 +139,14 @@ export function Calendar() {
         </div>
       </Header>
       <section className="flex min-h-0 flex-1">
-        <ScheduleTray accounts={lanes} />
+        <ScheduleTray accounts={accounts.isPending ? undefined : lanes} />
         {accounts.isError || posts.isError ? (
           <Empty>Couldn't load the calendar: {apiError(accounts.error ?? posts.error).message}</Empty>
         ) : accounts.data && lanes.length === 0 ? (
           <Empty>No accounts to schedule on. Connect one on the Accounts page.</Empty>
         ) : (
           <div className="min-w-0 flex-1 overflow-auto" onDragEnd={() => (setDrag(null), setOver(""))}>
-            <div className="grid min-h-full" style={{ gridTemplateColumns: "160px repeat(7, minmax(112px, 1fr))", gridTemplateRows: `36px repeat(${lanes.length}, auto) 1fr` }}>
+            <div className="grid min-h-full" style={{ gridTemplateColumns: "160px repeat(7, minmax(96px, 1fr))", gridTemplateRows: ["36px", ...lanes.map(() => "auto"), "1fr"].join(" ") }}>
               <div className="sticky top-0 left-0 z-30 grid border-r border-b border-line bg-bg">
                 <Legend />
               </div>
@@ -172,20 +172,22 @@ export function Calendar() {
                         </div>
                       </div>
                       <div className="text-xs text-subtle">{a.timezone}</div>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <ConnChip a={a} />
-                        {a.connection_status === "disconnected" && (
+                      {a.connection_status !== "connected" && (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <ConnChip a={a} />
                           <a href={ZERNIO_URL} target="_blank" rel="noreferrer" className="text-xs text-muted underline underline-offset-2 hover:text-fg">
                             Reconnect
                           </a>
-                        )}
-                      </div>
-                      <div className="mt-auto text-sm tabular-nums text-subtle">{plural(mine.filter((p) => inWeek(p, a)).length, "post")} this week</div>
+                        </div>
+                      )}
+                      {posts.data && <div className="mt-auto text-sm tabular-nums text-subtle">{plural(mine.filter((p) => inWeek(p, a)).length, "post")} this week</div>}
                     </div>
                     {week.map((date) => {
                       const day = mine.filter((p) => localParts(postAt(p), a.timezone).date === date)
                       const cards = day.map((p) => ({ t: slotTime(p, a.timezone), p })) // a post published at 09:02 fills the 09:00 slot
-                      const open = slots.filter((t) => !cards.some((c) => c.t === t)).map((t) => ({ t, p: undefined }))
+                      // Free slots only once posts loaded, and only ones still schedulable (not past, not inside the lead time).
+                      const free = (t: string) => !!posts.data && !cards.some((c) => c.t === t) && zonedToUtc(date, t, a.timezone).getTime() >= now + LEAD_MS
+                      const open = slots.filter(free).map((t) => ({ t, p: undefined }))
                       const items = [...cards, ...open].sort((x, y) => x.t.localeCompare(y.t))
                       const cell = target(a, date)
                       return (
@@ -193,8 +195,7 @@ export function Calendar() {
                           {items.map(({ t, p }) => {
                             if (!p) {
                               const slot = target(a, date, t)
-                              const past = zonedToUtc(date, t, a.timezone).getTime() < now + LEAD_MS
-                              return <SlotBox key={`s${t}`} time={t} past={past} over={over === slot.id} droppable={!past} handlers={slot.handlers} />
+                              return <SlotBox key={`s${t}`} time={t} over={over === slot.id} handlers={slot.handlers} />
                             }
                             const gap = gaps.get(p.id)
                             return (
@@ -212,7 +213,7 @@ export function Calendar() {
                               </Fragment>
                             )
                           })}
-                          <DayMeter n={day.length} cap={a.daily_cap} />
+                          {posts.data && <DayMeter n={day.length} cap={a.daily_cap} />}
                         </div>
                       )
                     })}

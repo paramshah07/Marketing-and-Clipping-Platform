@@ -22,7 +22,7 @@ import { SchedulePopover } from "@/components/SchedulePopover"
 import { Chip, Empty, Header } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { IG, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
+import { IG, OUT_H, OUT_W, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
 import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, RIGHTS, btn, label } from "@/lib/utils"
 
 const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.16, w: 0.22, opacity: 1 } // backend brands default (below the IG top bar)
@@ -60,7 +60,9 @@ function Page({ title, children }: { title: string; children: ReactNode }) {
   return (
     <>
       <Header>
-        <h1 className="text-lg font-semibold">{title}</h1>
+        <h1 className="truncate text-lg font-semibold" title={title}>
+          {title}
+        </h1>
       </Header>
       <Empty>{children}</Empty>
     </>
@@ -184,17 +186,19 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
       <Header>
         <div className="flex min-w-0 items-center gap-3">
           <nav className="flex min-w-0 items-center gap-1.5 text-lg">
-            <Link to="/library" className="text-muted hover:text-fg">
+            <Link to="/library" className="shrink-0 text-muted hover:text-fg">
               Library
             </Link>
             <span className="text-subtle">/</span>
-            <h1 className="truncate font-semibold">{clipName(clip)}</h1>
+            <h1 className="truncate font-semibold" title={clip.source_url ?? clipName(clip)}>
+              {clipName(clip)}
+            </h1>
           </nav>
-          <span className="whitespace-nowrap text-sm tabular-nums text-muted">
+          <span className="shrink-0 whitespace-nowrap text-sm tabular-nums text-muted">
             {mmss(clip.duration_s)} · {W}x{H} · {clip.fps ? +clip.fps.toFixed(2) : "?"}fps · {clip.has_audio ? "has audio" : "no audio"}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
           <span className="font-mono text-sm text-subtle">clip {clip.id}</span>
           <span className="inline-flex h-5 items-center rounded border border-line px-1.5 text-xs text-muted">{RIGHTS[clip.rights_status]}</span>
         </div>
@@ -204,7 +208,7 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
           clip={clip}
           mode={preview ? "preview" : mode}
           previewSrc={preview?.output_url ?? null}
-          previewLabel={preview ? `${preview.id} · ${brandName(preview.brand_id)} · 1080x1920` : ""}
+          previewLabel={preview ? `#${preview.id} · ${brandName(preview.brand_id)} · 1080x1920` : ""}
           onExitPreview={() => setPreview(null)}
           view={outputView(W, H, cropOn ? crop : null)}
           setMode={(m) => {
@@ -432,7 +436,7 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
           </div>
           <ul className="min-h-0 flex-1 divide-y divide-line overflow-auto">
             {renders.data?.map((r) => (
-              <RenderCard key={r.id} r={r} now={renders.dataUpdatedAt} name={brandName(r.brand_id)} thumb={r.thumbnail_url ?? clip.thumbnail_url} previewing={preview?.id === r.id} onPreview={() => setPreview(r.id)} onLog={() => setLogFor(r.id)} />
+              <RenderCard key={r.id} r={r} now={renders.dataUpdatedAt} name={brandName(r.brand_id)} thumb={r.thumbnail_url ?? clip.thumbnail_url} previewing={preview?.id === r.id} onPreview={() => setPreview(preview?.id === r.id ? null : r.id)} onLog={() => setLogFor(r.id)} />
             ))}
             {renders.data?.length === 0 && <li className="p-3 text-sm text-subtle">No renders yet. Set the logo, then Render.</li>}
           </ul>
@@ -666,9 +670,14 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
     </button>
   )
   const live = LIVE.has(r.status)
+  const [born] = useState(r.status) // settle only on a READY seen happening, not on load
   const action = "inline-flex h-6 items-center gap-1 rounded px-1.5 text-sm text-fg hover:bg-hover disabled:text-subtle"
   return (
-    <li data-render={r.id} data-status={r.status} className={cn("flex gap-2.5 p-3", props.previewing && "bg-raised")}>
+    <li
+      data-render={r.id}
+      data-status={r.status}
+      className={cn("flex gap-2.5 p-3", props.previewing && "bg-raised shadow-[inset_2px_0_0_var(--color-fg)]", born !== "READY" && r.status === "READY" && "settle")}
+    >
       <img
         src={props.thumb ?? ""}
         alt=""
@@ -676,9 +685,13 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
       />
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate font-medium">{props.name}</span>
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <span className="truncate font-medium">{props.name}</span>
+            <span className="font-mono text-xs text-subtle">#{r.id}</span>
+          </span>
           <span className="whitespace-nowrap text-sm tabular-nums text-subtle">{ago(r.created_at)}</span>
         </div>
+        <div className="truncate text-sm text-muted">{placement(r)}</div>
         {live && (
           <>
             <div className="flex items-center gap-2">
@@ -703,7 +716,8 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
               </span>
             </div>
             <div className="-ml-1.5 flex items-center gap-1">
-              <button className={action} onClick={props.onPreview}>
+              {/* a toggle: fixed label, pressed look; a second click leaves the preview */}
+              <button className={cn(action, props.previewing && "bg-hover")} aria-pressed={props.previewing} onClick={props.onPreview}>
                 <Play className="size-3" />
                 Preview
               </button>
@@ -746,6 +760,20 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
       </div>
     </li>
   )
+}
+
+/** "Top right · 22% · 9:16 crop" / "Full frame" (no logo: the card already says so). */
+function placement(r: RenderOut) {
+  const c = r.crop_config
+  const crop = !c || (c.w > 0.999 && c.h > 0.999) ? "full frame" : "9:16 crop"
+  const o = r.overlay_config
+  if (r.brand_id == null || !o) return crop[0].toUpperCase() + crop.slice(1)
+  // ponytail: the row buckets the logo's centre, estimated as if the logo were square (renders don't carry its aspect);
+  // right for square and wide logos at usual sizes, a tall portrait logo can read one row up. Exact: logo size on BrandOut.
+  const cy = o.y + (o.w * OUT_W) / OUT_H / 2
+  const col = clamp(Math.floor((o.x + o.w / 2) * 3), 0, 2)
+  const row = clamp(Math.floor(((cy - IG.top) / (1 - IG.top - IG.bottom)) * 3), 0, 2)
+  return `${SNAPS[row * 3 + col]} · ${Math.round(o.w * 100)}% · ${crop}`
 }
 
 function LogDialog({ id, onClose }: { id: number; onClose: () => void }) {

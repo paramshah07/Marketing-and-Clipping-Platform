@@ -3,8 +3,8 @@ import type { DragEvent, ReactNode } from "react"
 import { Link } from "react-router"
 
 import type { PostOut } from "@/api"
-import { FAILED, MOVABLE, STATUS_LABEL, localParts, slotTime } from "@/lib/schedule"
-import { cn } from "@/lib/utils"
+import { FAILED, MOVABLE, STATUS_LABEL, shortWhen, slotTime } from "@/lib/schedule"
+import { cn, shortUrl } from "@/lib/utils"
 
 const LOOK: Record<PostOut["status"], { dot: string; label?: boolean }> = {
   DRAFT: { dot: "border border-muted", label: true },
@@ -27,7 +27,7 @@ export function Legend() {
     <div className="grid grid-cols-2 content-center gap-x-2 px-3 text-xs text-subtle">
       {items.map(([dot, text]) => (
         <span key={text} className="flex items-center gap-1.5">
-          <span className={cn("size-1.5 rounded-full", dot)} />
+          <span className={cn("size-1.5 shrink-0 rounded-full", dot)} />
           {text}
         </span>
       ))}
@@ -49,18 +49,25 @@ export function PostCard(props: { p: PostOut; tz: string; warn: boolean; ghost?:
   const look = LOOK[p.status]
   const draft = p.status === "DRAFT"
   const failed = FAILED.has(p.status)
+  const brand = p.render.brand_name ?? "No logo"
+  const clip = shortUrl(p.render.clip_name ?? `Clip ${p.render.clip_id}`)
   const body: ReactNode = (
     <>
       <img src={p.render.thumbnail_url ?? ""} alt="" className="h-16 w-9 shrink-0 bg-panel object-cover" />
       <div className="flex min-w-0 flex-1 flex-col py-1 pr-1 pl-1.5 text-left">
-        <div className="flex items-center justify-between">
-          <span className="font-medium tabular-nums" title={p.published_at ? `Published ${localParts(p.published_at, props.tz).time}` : undefined}>
+        <div className="flex items-center justify-between gap-1 leading-4">
+          <span className="font-medium tabular-nums" title={p.published_at ? `Published ${shortWhen(p.published_at, props.tz)}` : undefined}>
             {slotTime(p, props.tz)}
           </span>
           <span className={cn("size-1.5 shrink-0 rounded-full", look.dot)} />
         </div>
-        <div className={cn(look.label ? "line-clamp-1" : "line-clamp-2", "shrink-0 text-sm leading-[14px] text-muted")}>{p.render.brand_name ?? p.render.clip_name ?? `render ${p.render_id}`}</div>
-        {look.label && <div className={cn("mt-auto text-xs", failed ? "text-bad" : "text-muted")}>{STATUS_LABEL[p.status]}</div>}
+        <div className={cn(look.label ? "truncate" : "line-clamp-2", "text-sm leading-[14px] text-muted")} title={brand}>
+          {brand}
+        </div>
+        <div className="truncate text-sm leading-[14px] text-muted" title={p.render.clip_name ?? undefined}>
+          {clip}
+        </div>
+        {look.label && <div className={cn("mt-auto text-xs leading-[14px]", failed ? "text-bad" : "text-muted")}>{STATUS_LABEL[p.status]}</div>}
       </div>
     </>
   )
@@ -93,16 +100,12 @@ export function PostCard(props: { p: PostOut; tz: string; warn: boolean; ghost?:
   )
 }
 
-export function SlotBox(props: { time: string; past: boolean; over: boolean; droppable: boolean; handlers: object }) {
+export function SlotBox(props: { time: string; over: boolean; handlers: object }) {
   return (
     <div
       data-slot={props.time}
-      {...(props.droppable ? props.handlers : {})}
-      className={cn(
-        "h-[66px] shrink-0 rounded border border-dashed pt-1 pl-[43px] text-sm tabular-nums",
-        props.over ? "border-accent bg-accent/10 text-accent" : "border-line text-subtle",
-        props.past && "opacity-40"
-      )}
+      {...props.handlers}
+      className={cn("h-[66px] shrink-0 rounded border border-dashed pt-1 pl-[43px] text-sm tabular-nums", props.over ? "border-accent bg-accent/10 text-accent" : "border-line text-subtle")}
     >
       {props.time}
     </div>

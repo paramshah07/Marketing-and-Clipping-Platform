@@ -1,5 +1,5 @@
 import { LoaderCircle } from "lucide-react"
-import { useEffect, type ReactNode } from "react"
+import { useEffect, useRef, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -25,15 +25,29 @@ export function Chip({ tone, spin, dot, children }: { tone: keyof typeof TONES; 
 
 /** Full-height right drawer over a dimmed page; the backdrop or Escape closes it. */
 export function Drawer({ label, onClose, className, children }: { label: string; onClose: () => void; className?: string; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
   }, [onClose])
+  useEffect(() => {
+    // focus moves in on open and back to whatever opened it on close
+    const prev = document.activeElement as HTMLElement | null
+    ref.current?.focus()
+    return () => prev?.focus()
+  }, [])
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <aside role="dialog" aria-label={label} className={cn("fixed inset-y-0 right-0 z-40 flex w-[400px] flex-col border-l border-line bg-panel shadow-[-12px_0_32px_rgba(0,0,0,0.45)]", className)}>
+      <aside
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        tabIndex={-1}
+        className={cn("fixed inset-y-0 right-0 z-40 flex w-[400px] flex-col border-l border-line bg-panel shadow-[-12px_0_32px_rgba(0,0,0,0.45)] outline-none", className)}
+      >
         {children}
       </aside>
     </>

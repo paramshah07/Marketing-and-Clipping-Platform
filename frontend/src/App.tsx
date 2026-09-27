@@ -53,7 +53,7 @@ function Shell() {
       qc.refetchQueries({ predicate: (q) => q.state.status === "error" })
     }
   }, [healthy, isError, st, qc])
-  const online = !isError && st?.worker_alive
+  const online = !isError && st?.db && st.worker_alive
   const { pathname } = useLocation()
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
   const failed = useQuery({ ...listPostsOptions({ query: { status: ["FAILED", "DEAD_LETTER"] } }), enabled: !!st?.failed_posts })
@@ -92,11 +92,18 @@ function Shell() {
             </div>
           ))}
         </nav>
-        <div className="mt-auto space-y-1.5 border-t border-line p-3 text-sm text-muted">
+        {/* min-h: three rows reserved, so the footer doesn't grow once status loads */}
+        <div className="mt-auto min-h-[89px] space-y-1.5 border-t border-line p-3 text-sm text-muted">
           <div className="flex items-center gap-2">
-            <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : "bg-bad")} />
+            <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : !st && !isError ? "bg-subtle" : "bg-bad")} />
             {isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}
           </div>
+          {st?.publishing_enabled === true && (
+            <div className="flex items-center gap-2" title={online ? "Scheduled posts go out to Instagram at their time" : "Nothing publishes until the worker and database are back"}>
+              <span className={cn("size-1.5 rounded-full", online ? "bg-ok" : "bg-subtle")} />
+              {online ? "Publishing live" : "Publishing paused"}
+            </div>
+          )}
           {st?.publishing_enabled === false && (
             <div className="flex items-center gap-2 text-warn" title="PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram.">
               <span className="size-1.5 rounded-full bg-warn" />

@@ -86,8 +86,8 @@
 }
 .indeterminate { animation: indeterminate 1.2s linear infinite; }
 
-/* "Just finished": one soft ok tint that fades when a clip or render turns READY. Re-key the element on
-   status (key={status}) so it plays once per transition. */
+/* "Just finished": one soft ok tint that fades when a clip or render turns READY. Add it only when the status
+   seen at mount wasn't READY (useState(status)); the class then stays on, so polls don't replay it. */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes settle {
     from { background-color: color-mix(in srgb, var(--color-ok) 16%, transparent); }
