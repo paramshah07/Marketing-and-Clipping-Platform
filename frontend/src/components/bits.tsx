@@ -27,7 +27,7 @@ export function Chip({ tone, spin, dot, children }: { tone: keyof typeof TONES; 
 export function Drawer({ label, onClose, className, children }: { label: string; onClose: () => void; className?: string; children: ReactNode }) {
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose()
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !document.fullscreenElement && onClose() // Escape leaves a fullscreen video first
     addEventListener("keydown", onKey)
     return () => removeEventListener("keydown", onKey)
   }, [onClose])

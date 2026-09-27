@@ -7,9 +7,29 @@ import { MAX_REEL_SECONDS, MIN_REEL_SECONDS, errorText } from "@/lib/utils"
 
 const MIN = 60_000
 const DAY = 86_400_000
-export const MIN_LEAD = 5 * MIN // backend MIN_LEAD: no post closer than this
+export const MIN_LEAD = -1 * MIN // backend MIN_LEAD: now is allowed, a time already passed is not
 export const AUTO_LEAD = 10 * MIN // backend slots.AUTO_LEAD: automatic placement skips nearer slots
+/** "Post now": this instant, to the second. The dispatcher takes it within a minute. */
+export const nowIso = () => new Date(Math.floor(Date.now() / 1000) * 1000).toISOString()
+export const postNowConfirm = (username: string) => `Post to @${username} now?\n\nIt goes live on Instagram within about a minute and can't be deleted from here.`
 const HORIZON = 30 * DAY // backend slots.HORIZON
+
+/** "HH:MM" every `step` minutes from `from` to `to`, both included. */
+export function everyN(step: number, from: string, to: string): string[] {
+  const m = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3))
+  const hhmm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}`
+  const out: string[] = []
+  for (let n = m(from); n <= m(to); n += step) out.push(hhmm(n))
+  return out
+}
+
+/** One-click posting-slot sets (Accounts page; the bot's account card has the same, backend app/bot/fmt.py). */
+export const SLOT_PRESETS = [
+  { label: "Every hour, 07:00–23:00", times: everyN(60, "07:00", "23:00") }, // new accounts' default
+  { label: "Every 30 min, 07:00–23:30", times: everyN(30, "07:00", "23:30") },
+  { label: "Every 2 hours, 08:00–22:00", times: everyN(120, "08:00", "22:00") },
+  { label: "3 a day: 09:00, 13:00, 19:00", times: ["09:00", "13:00", "19:00"] },
+]
 
 const fmts = new Map<string, Intl.DateTimeFormat>()
 function fmt(tz: string) {

@@ -114,6 +114,84 @@
         }
       }
     },
+    "/api/clips/links": {
+      "post": {
+        "summary": "Find Links",
+        "description": "The video links in a document (docx, xlsx, pptx, odt) or a text file. Nothing is imported.",
+        "operationId": "find_links",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_find_links"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinksOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/clips/from-urls": {
+      "post": {
+        "summary": "Create Clips From Urls",
+        "description": "One DOWNLOADING clip per video that isn't in the library yet.",
+        "operationId": "create_clips_from_urls",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClipsFromUrls"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClipsFromUrlsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/clips/{clip_id}": {
       "get": {
         "summary": "Get Clip",
@@ -1468,6 +1546,20 @@
         ],
         "title": "AutoScheduleOut"
       },
+      "Body_find_links": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_find_links"
+      },
       "Body_upload_brand_logo": {
         "properties": {
           "file": {
@@ -2004,6 +2096,63 @@
         "type": "object",
         "title": "ClipPatch"
       },
+      "ClipsFromUrls": {
+        "properties": {
+          "urls": {
+            "items": {
+              "type": "string",
+              "maxLength": 2083,
+              "minLength": 1,
+              "format": "uri"
+            },
+            "type": "array",
+            "maxItems": 1000,
+            "minItems": 1,
+            "title": "Urls"
+          },
+          "rights_status": {
+            "type": "string",
+            "enum": [
+              "permission_granted",
+              "none",
+              "own_content"
+            ],
+            "title": "Rights Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "urls",
+          "rights_status"
+        ],
+        "title": "ClipsFromUrls"
+      },
+      "ClipsFromUrlsOut": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "skipped",
+          "ids"
+        ],
+        "title": "ClipsFromUrlsOut"
+      },
       "CropConfig": {
         "properties": {
           "x": {
@@ -2041,6 +2190,29 @@
         "title": "CropConfig",
         "description": "Crop rectangle as fractions of the source frame (after autorotate)."
       },
+      "FoundLink": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "in_library": {
+            "type": "boolean",
+            "title": "In Library"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "platform",
+          "in_library"
+        ],
+        "title": "FoundLink"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -2066,6 +2238,40 @@
           "status"
         ],
         "title": "Health"
+      },
+      "LinksOut": {
+        "properties": {
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/FoundLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "repeats": {
+            "type": "integer",
+            "title": "Repeats"
+          },
+          "other": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Other"
+          },
+          "other_count": {
+            "type": "integer",
+            "title": "Other Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "links",
+          "repeats",
+          "other",
+          "other_count"
+        ],
+        "title": "LinksOut"
       },
       "NextSlot": {
         "properties": {

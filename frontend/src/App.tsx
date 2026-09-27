@@ -53,7 +53,19 @@ function Shell() {
       qc.refetchQueries({ predicate: (q) => q.state.status === "error" })
     }
   }, [healthy, isError, st, qc])
-  const online = !isError && st?.db && st.worker_alive
+  // One status, the first thing in the way of a post going out: api, database, worker, then the publishing switch
+  const bad = { dot: "bg-bad", text: "text-bad" }
+  const status = isError
+    ? { ...bad, label: "API offline", hint: "The api isn't answering: nothing on this page is current." }
+    : !st
+      ? { dot: "bg-subtle", text: "", label: "Checking…", hint: "Checking…" }
+      : !st.db
+        ? { ...bad, label: "Database offline", hint: "Nothing renders or publishes until the database is back." }
+        : !st.worker_alive
+          ? { ...bad, label: "Worker offline", hint: "Nothing renders or publishes until the worker is back." }
+          : !st.publishing_enabled
+            ? { dot: "bg-warn", text: "text-warn", label: "Publishing off", hint: "Worker online, renders run. PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram." }
+            : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Worker online. Scheduled posts go out to Instagram at their time." }
   const { pathname } = useLocation()
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
   const failed = useQuery({ ...listPostsOptions({ query: { status: ["FAILED", "DEAD_LETTER"] } }), enabled: !!st?.failed_posts })
@@ -99,24 +111,12 @@ function Shell() {
             </div>
           ))}
         </nav>
-        {/* min-h: three rows reserved, so the footer doesn't grow once status loads */}
-        <div className={cn("mt-auto min-h-[89px] space-y-1.5 border-t border-line p-3 text-sm text-muted", rail && "max-[1400px]:[&>div]:justify-center")}>
-          <div className="flex items-center gap-2" title={isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}>
-            <span className={cn("size-1.5 shrink-0 rounded-full", online ? "bg-ok" : !st && !isError ? "bg-subtle" : "bg-bad")} />
-            <span className={word}>{isError ? "API offline" : !st ? "Checking…" : !st.db ? "Database offline" : online ? "Worker online" : "Worker offline"}</span>
+        {/* min-h: two rows reserved, so the footer doesn't grow once status loads */}
+        <div className={cn("mt-auto min-h-[63px] space-y-1.5 border-t border-line p-3 text-sm text-muted", rail && "max-[1400px]:[&>div]:justify-center")}>
+          <div className={cn("flex items-center gap-2", status.text)} title={status.hint}>
+            <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
+            <span className={word}>{status.label}</span>
           </div>
-          {st?.publishing_enabled === true && (
-            <div className="flex items-center gap-2" title={online ? "Scheduled posts go out to Instagram at their time" : "Nothing publishes until the worker and database are back"}>
-              <span className={cn("size-1.5 shrink-0 rounded-full", online ? "bg-ok" : "bg-subtle")} />
-              <span className={word}>{online ? "Publishing live" : "Publishing paused"}</span>
-            </div>
-          )}
-          {st?.publishing_enabled === false && (
-            <div className="flex items-center gap-2 text-warn" title="PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram.">
-              <span className="size-1.5 shrink-0 rounded-full bg-warn" />
-              <span className={word}>Publishing off</span>
-            </div>
-          )}
           {st && (
             <div className={cn("tabular-nums", word)}>
               {st.rendering_renders ?? 0} rendering · {st.scheduled_posts ?? 0} scheduled

@@ -130,8 +130,9 @@ def test_create_guards(client):
     r = create(client, rid, account(disabled_at=NOW), ok)
     assert (r.status_code, code(r)) == (422, "ACCOUNT_UNAVAILABLE")
     assert code(create(client, rid, account(connection_status="disconnected"), ok)) == "ACCOUNT_UNAVAILABLE"
-    r = create(client, rid, aid, NOW + 4 * M)
+    r = create(client, rid, aid, NOW - 2 * M)
     assert (r.status_code, code(r)) == (422, "TOO_SOON")
+    assert create(client, rid, aid, NOW - M).status_code == 201  # "now" on a minute-precise picker
     assert create(client, rid, aid, NOW + 5 * M).status_code == 201
     assert code(create(client, rid, aid, datetime(2030, 1, 9, 9))) == "BAD_TIME"  # noqa: DTZ001 (naive on purpose)
     assert create(client, 10**6, aid, ok).status_code == 404
@@ -156,7 +157,7 @@ def test_patch_moves_without_rekeying(client):
     assert (datetime.fromisoformat(r.json()["scheduled_for"]), r.json()["caption"]) == (NOW + 2 * D, "new")
     with SyncSession() as s:
         assert s.get(Post, p["id"]).idempotency_key == scheduling.idempotency_key(rid, aid, NOW + D)
-    assert code(client.patch(f"/api/posts/{p['id']}", json={"scheduled_for": iso(NOW + 4 * M)})) == "TOO_SOON"
+    assert code(client.patch(f"/api/posts/{p['id']}", json={"scheduled_for": iso(NOW - 2 * M)})) == "TOO_SOON"
     for status in ("PUBLISHING", "PUBLISHED", "FAILED", "CANCELLED"):
         set_post(p["id"], status=status)
         r = client.patch(f"/api/posts/{p['id']}", json={"caption": "x"})
@@ -170,11 +171,15 @@ def test_approve(client, env):
     r = client.post(f"/api/posts/{p['id']}/approve")
     assert r.json()["status"] == "SCHEDULED" and r.json()["scheduled_for"] == p["scheduled_for"]
     assert code(client.post(f"/api/posts/{p['id']}/approve")) == "STATE_CONFLICT"  # DRAFT only
-    # a draft whose time has come too close moves to the next free slot >= now + 10 min
+    # a draft whose time has passed moves to the next free slot >= now + 10 min
     late = create(client, render(), aid, NOW + 10 * H).json()  # 18:00
-    env["now"] = NOW + 10 * H - 3 * M  # 17:57
+    env["now"] = NOW + 10 * H + 3 * M  # 18:03
     r = client.post(f"/api/posts/{late['id']}/approve").json()
     assert (r["status"], datetime.fromisoformat(r["scheduled_for"])) == ("SCHEDULED", NOW + 11 * H)  # 19:00
+    # "Post now": created at this instant and approved at once, it keeps its time
+    now = create(client, render(), aid, env["now"]).json()
+    r = client.post(f"/api/posts/{now['id']}/approve").json()
+    assert (r["status"], r["scheduled_for"]) == ("SCHEDULED", now["scheduled_for"])
 
 
 def test_cancel(client):
@@ -310,7 +315,7 @@ def test_auto_schedule_race_does_not_double_book(client):
 def test_sync_upsert(client, monkeypatch):
     sent = []
 
-    async def fake_notify(text, link=None):
+    async def fake_notify(text, link=None, buttons=None):
         sent.append(text)
         return True
 
@@ -325,7 +330,7 @@ def test_sync_upsert(client, monkeypatch):
 
     client.portal.call(upsert, row)
     a = next(x for x in client.get("/api/accounts").json() if x["zernio_account_id"] == zid)
-    assert (a["timezone"], a["posting_slots"]["times"], a["daily_cap"]) == ("Europe/London", ["09:00", "13:00", "19:00"], 10)
+    assert (a["timezone"], a["posting_slots"]["times"], a["daily_cap"]) == ("Europe/London", [f"{h:02d}:00" for h in range(7, 24)], 10)
     client.patch(f"/api/accounts/{a['id']}", json={"daily_cap": 4, "timezone": "UTC", "posting_slots": {"times": ["07:00"]}})
     client.portal.call(upsert, row | {"username": "renamed", "connection_status": "disconnected"})
     client.portal.call(upsert, row | {"connection_status": "connected"})

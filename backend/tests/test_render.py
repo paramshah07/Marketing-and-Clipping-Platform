@@ -107,13 +107,20 @@ YTDLP_STDERR = [
     ("ERROR: [youtube] x: Private video. Sign in if you've been granted access to this video", "PRIVATE"),
     ("ERROR: [vimeo] 1: This video is private", "PRIVATE"),
     ("ERROR: [twitter] 1: This content is only available for registered users. Use --cookies-from-browser "
-     "or --cookies for the authentication.", "PRIVATE"),
+     "or --cookies for the authentication.", "LOGIN_REQUIRED"),
     ("ERROR: [youtube] x: Sign in to confirm your age. This video may be inappropriate for some users. Use "
-     "--cookies-from-browser or --cookies for the authentication.", "PRIVATE"),
+     "--cookies-from-browser or --cookies for the authentication.", "LOGIN_REQUIRED"),
     ("ERROR: [youtube] x: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the "
-     "authentication.", "PRIVATE"),
-    ("ERROR: [Instagram] C1: Instagram sent an empty media response. Check if this post is accessible in your "
-     "browser without being logged-in.", "PRIVATE"),
+     "authentication.", "LOGIN_REQUIRED"),
+    ("ERROR: [youtube] x: Sign in to confirm you’re not a bot.", "LOGIN_REQUIRED"),
+    # seen live 2026-09-27, in full: a login wall that also asks to be reported
+    ("ERROR: [Instagram] DcG-xX0JJ17: Instagram sent an empty media response. Check if this post is accessible in "
+     "your browser without being logged-in. If it is not, then use --cookies-from-browser or --cookies for the "
+     "authentication. See  https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp  for how to "
+     "manually pass cookies. Otherwise, if the post is accessible in browser without being logged-in, please report "
+     "this issue on  https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue template. "
+     "Confirm you are on the latest version using  yt-dlp -U", "LOGIN_REQUIRED"),
+    ("ERROR: [Instagram] C1: Instagram sent an empty media response.", "LOGIN_REQUIRED"),
     ("ERROR: [TikTok] 7: Your IP address is blocked from accessing this post", "PRIVATE"),
     ("ERROR: [BBC] p1: This video is not available from your location due to geo restriction", "GEO_BLOCKED"),
     ("ERROR: [youtube] x: Video unavailable. The uploader has not made this video available in your country",

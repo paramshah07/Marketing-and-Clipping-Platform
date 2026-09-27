@@ -1,11 +1,13 @@
 """Clips / brands / renders API against the test database. Jobs are deferred for real (checked in
 procrastinate_jobs) and then run inline, since no worker listens on clipper_test."""
 
+import io
 import json
 import shutil
 import struct
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -19,6 +21,7 @@ from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import app
 from app.models import Brand, Render, SourceClip, cas
+from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
 from conftest import needs_ffmpeg
@@ -232,6 +235,83 @@ def test_from_url_defers_download(client, db):
     assert (clip["status"], clip["origin"], clip["source_url"]) == ("DOWNLOADING", "url", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
     assert job(db, "download_clip", clip_id=clip["id"])
     assert client.delete(f"/api/clips/{clip['id']}").status_code == 409  # still downloading
+
+
+def docx(document: str, rels: str = "") -> bytes:
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        z.writestr("word/document.xml", f'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">{document}</w:document>')
+        z.writestr("word/_rels/document.xml.rels", f'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{rels}</Relationships>')
+    return out.getvalue()
+
+
+def test_find_links():
+    run = lambda t: f"<w:r><w:t>{t}</w:t></w:r>"  # noqa: E731
+    rel = lambda u: f'<Relationship Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="{u}" TargetMode="External"/>'  # noqa: E731
+    reel = "https://www.instagram.com/reel/DcG-xX0JJ17/"
+    doc = docx(
+        # a hyperlink (text + target), the same reel with another tracking query, a URL Word split over two runs,
+        # two links with nothing between them, a field code, a profile (not a video)
+        f"<w:p>{run(reel + '?igsi=aaa')}</w:p><w:p>{run(reel + '?igsi=bbb')}</w:p>"
+        f"<w:p>{run('see https://youtu.be/jNQXAC')}{run('9IVRw.')}</w:p>"
+        f"<w:p>{run('https://www.tiktok.com/@a/video/7612?_t=1https://x.com/a/status/99?s=20')}</w:p>"
+        '<w:p><w:r><w:instrText> HYPERLINK "https://www.youtube.com/shorts/abcdefghijk" </w:instrText></w:r></w:p>'
+        f"<w:p>{run('https://www.instagram.com/someone/')}</w:p>",
+        rel(reel + "?igsi=aaa&amp;x=1") + rel(reel + "?igsi=bbb"),
+    )
+    found, repeats, other = links.find(*links.read(doc))
+    assert [(p, u) for p, _, u in found] == [
+        ("Instagram", reel),
+        ("YouTube", "https://youtu.be/jNQXAC9IVRw"),
+        ("TikTok", "https://www.tiktok.com/@a/video/7612"),
+        ("X", "https://x.com/a/status/99"),
+        ("YouTube", "https://www.youtube.com/shorts/abcdefghijk"),
+    ]
+    assert (repeats, other) == (1, ["https://www.instagram.com/someone/"])  # the namespaces are no links
+    # one video, however it is linked
+    same = ["https://youtu.be/jNQXAC9IVRw?si=x", "https://m.youtube.com/watch?v=jNQXAC9IVRw&t=3", "http://www.youtube.com/embed/jNQXAC9IVRw"]
+    assert {links.key(u) for u in same} == {"YouTube:jNQXAC9IVRw"}
+    assert links.key("https://vimeo.com/123/?x=1") == "https://vimeo.com/123"
+    # text: utf-16 (Notepad), a markdown autolink, html (the href and its text are one link)
+    assert links.find(*links.read("\ufeffhttps://vm.tiktok.com/ZM8abc/ ok".encode("utf-16")))[0][0][1] == "TikTok:ZM8abc"
+    assert [u for *_, u in links.find(*links.read(b"- <https://fb.watch/abc123/>, and (https://x.com/a/status/5)."))[0]] == ["https://fb.watch/abc123/", "https://x.com/a/status/5"]
+    page = f'<html><a href="{reel}?a=1&amp;b=2">{reel}</a><br><a href="{reel}">again</a></html>'.encode()
+    assert links.find(*links.read(page))[:2] == ([("Instagram", "Instagram:DcG-xX0JJ17", reel)], 1)
+
+
+def test_import_links(client, db):
+    seen = client.post("/api/clips/from-url", json={"url": "https://www.youtube.com/watch?v=inlibrary01", "rights_status": "none"}).json()
+    pasted = b"https://youtu.be/inlibrary01?si=abc https://www.instagram.com/reel/AAA111/?igsi=x https://www.instagram.com/p/AAA111/ https://example.com/page"
+    r = client.post("/api/clips/links", files={"file": ("pasted.txt", pasted)})
+    assert r.status_code == 200, r.text
+    assert r.json() == {
+        "links": [
+            {"url": "https://youtu.be/inlibrary01", "platform": "YouTube", "in_library": True},
+            {"url": "https://www.instagram.com/reel/AAA111/", "platform": "Instagram", "in_library": False},
+        ],
+        "repeats": 1,
+        "other": ["https://example.com/page"],
+        "other_count": 1,
+    }
+    assert client.post("/api/clips/links", files={"file": ("big.txt", b"x" * (20 * 1024**2 + 1))}).status_code == 413
+
+    urls = [link["url"] for link in r.json()["links"]] + ["https://www.instagram.com/reel/AAA111/?igsi=again", "https://vimeo.com/77"]
+    assert client.post("/api/clips/from-urls", json={"urls": [], "rights_status": "none"}).status_code == 422
+    r = client.post("/api/clips/from-urls", json={"urls": urls, "rights_status": "permission_granted"})
+    assert (r.status_code, {k: r.json()[k] for k in ("created", "skipped")}) == (201, {"created": 2, "skipped": 2})
+    new = [c for c in client.get("/api/clips").json() if c["id"] > seen["id"]]
+    assert sorted(r.json()["ids"]) == sorted(c["id"] for c in new)
+    assert {(c["source_url"], c["status"], c["rights_status"], c["source_creator_handle"]) for c in new} == {
+        ("https://www.instagram.com/reel/AAA111/", "DOWNLOADING", "permission_granted", None),
+        ("https://vimeo.com/77", "DOWNLOADING", "permission_granted", None),
+    }
+    with db.connect() as c:  # behind renders and single imports, in one of two lanes
+        jobs = c.execute(
+            text("SELECT priority, lock FROM procrastinate_jobs WHERE task_name = 'download_clip' AND args @> CAST(:a AS jsonb)"),
+            {"a": json.dumps({"clip_id": new[0]["id"]})},
+        ).all()
+    assert jobs == [(-10, f"import-{new[0]['id'] % 2}")]
+    assert client.post("/api/clips/from-urls", json={"urls": urls, "rights_status": "none"}).json() == {"created": 0, "skipped": 4, "ids": []}
 
 
 @needs_ffmpeg

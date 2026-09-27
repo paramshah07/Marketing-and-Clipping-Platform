@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo, Globe, HardDriveUpload, Link2, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
+import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo, Globe, HardDriveUpload, Link2, ListPlus, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 
@@ -20,8 +20,9 @@ import {
   updateClipMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { Chip, Header } from "@/components/bits"
+import { ImportLinks } from "@/components/ImportLinks"
 import { BROWSER_TZ as TZ, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
-import { CAUSES, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
+import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -93,6 +94,7 @@ export function Library() {
   const [search, setSearch] = useState("")
   const searchRef = useRef<HTMLInputElement>(null)
   const pickRef = useRef<HTMLInputElement>(null)
+  const [links, setLinks] = useState<{ file?: File } | null>(null) // the Import links dialog, maybe with a dropped document
   const clips = useQuery({
     ...listClipsOptions(),
     refetchInterval: (q) => (q.state.data?.some(polled) ? 2000 : false),
@@ -138,6 +140,10 @@ export function Library() {
             />
             <kbd className="grid h-4 min-w-4 place-items-center rounded-sm border border-line-strong px-1 font-sans text-xs text-subtle">/</kbd>
           </label>
+          <button className={cn(btn.secondary, "pl-2")} title="Import every video linked in a document or pasted text" onClick={() => (setParams({}), setLinks({}))}>
+            <ListPlus className="size-3.5" />
+            Import links
+          </button>
           <button className={cn(btn.primary, "pl-2")} onClick={() => (setParams({}), pickRef.current?.click())}>
             <UploadIcon className="size-3.5" />
             Upload
@@ -147,13 +153,14 @@ export function Library() {
       {published && <Published search={search} />}
       {/* stays mounted on Published: the header's Upload button uses its file input */}
       <div hidden={published} className="contents">
-        <Clips clips={clips.data} loading={clips.isPending} error={clips.isError ? errorText(clips.error) : ""} search={search} pickRef={pickRef} />
+        <Clips clips={clips.data} loading={clips.isPending} error={clips.isError ? errorText(clips.error) : ""} search={search} pickRef={pickRef} onDocument={(file) => setLinks({ file })} />
       </div>
+      {links && <ImportLinks file={links.file} onClose={() => setLinks(null)} />}
     </>
   )
 }
 
-function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; search: string; pickRef: React.RefObject<HTMLInputElement | null> }) {
+function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; search: string; pickRef: React.RefObject<HTMLInputElement | null>; onDocument: (f: File) => void }) {
   const { clips, loading, search, pickRef } = props
   const qc = useQueryClient()
   const uploads = useSyncExternalStore(subscribe, getUploads)
@@ -170,7 +177,14 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const retry = useMutation({ ...retryClipMutation(), onSuccess: refresh, onError })
   const patch = useMutation({ ...updateClipMutation(), onSuccess: refresh, onError })
 
-  const addFiles = (files: FileList | null) => [...(files ?? [])].forEach((f) => upload(f, rights, handle.trim(), refresh))
+  // a document is a list of links to import, not a video
+  const isDocument = (f: File) => DOCUMENTS.includes(f.name.split(".").pop()?.toLowerCase() ?? "")
+  const addFiles = (files: FileList | null) => {
+    const all = [...(files ?? [])]
+    all.filter((f) => !isDocument(f)).forEach((f) => upload(f, rights, handle.trim(), refresh))
+    const doc = all.find(isDocument)
+    if (doc) props.onDocument(doc)
+  }
   const onDrop = (e: DragEvent) => {
     e.preventDefault()
     setOver(false)

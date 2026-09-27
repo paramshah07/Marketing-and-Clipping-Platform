@@ -51,6 +51,30 @@ class ClipFromUrl(BaseModel):
     source_creator_handle: str | None = None
 
 
+class FoundLink(BaseModel):
+    url: str  # without its tracking query
+    platform: str
+    in_library: bool  # a clip of this video exists (whatever its status)
+
+
+class LinksOut(BaseModel):
+    links: list[FoundLink]  # one per video, in document order
+    repeats: int  # how many more times those videos were linked
+    other: list[str]  # links that aren't one video on a known site (the first 20)
+    other_count: int
+
+
+class ClipsFromUrls(BaseModel):
+    urls: list[HttpUrl] = Field(min_length=1, max_length=1000)
+    rights_status: RightsStatus
+
+
+class ClipsFromUrlsOut(BaseModel):
+    created: int
+    skipped: int  # already in the library, or twice in the request
+    ids: list[int]  # the created clips, in request order
+
+
 class ClipPatch(BaseModel):  # omit a field to leave it unchanged
     rights_status: RightsStatus = None
     source_creator_handle: str | None = None
