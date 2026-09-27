@@ -197,21 +197,21 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
           onDrop={onDrop}
           className={cn("flex h-10 items-center gap-3 rounded border border-dashed pr-1 pl-3", over ? "border-accent bg-accent/5" : "border-line-strong")}
         >
-          <CloudUpload className="size-4 text-subtle" />
-          <span className="whitespace-nowrap text-muted">
-            Drop videos here <span className="text-subtle">(mp4, mov, webm)</span> — or paste a URL
+          <CloudUpload className="size-4 shrink-0 text-subtle" />
+          <span className="shrink-0 whitespace-nowrap text-muted">
+            Drop videos here <span className="hidden text-subtle xl:inline">(mp4, mov, webm)</span> — or paste a URL
           </span>
           <input ref={pickRef} type="file" multiple hidden accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
           <form
-            className="ml-auto flex items-center gap-1.5"
+            className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5"
             onSubmit={(e) => {
               e.preventDefault()
               setNotice("")
               fromUrl.mutate({ body: { url, rights_status: rights, source_creator_handle: handle.trim() || null } })
             }}
           >
-            <label className="flex h-7 w-[320px] items-center gap-2 rounded border border-line bg-panel px-2 focus-within:border-muted">
-              <Link2 className="size-3.5 text-subtle" />
+            <label className="flex h-7 max-w-[320px] min-w-[160px] flex-1 items-center gap-2 rounded border border-line bg-panel px-2 focus-within:border-muted">
+              <Link2 className="size-3.5 shrink-0 text-subtle" />
               <input
                 type="url"
                 required
@@ -221,15 +221,15 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                 placeholder="https://www.tiktok.com/@creator/video/…"
               />
             </label>
-            <select title="Rights for new clips (drops and imports)" value={rights} onChange={(e) => setRights(e.target.value as Rights)} className={cn(field, "w-[150px]")}>
+            <select title="Rights for new clips (drops and imports)" value={rights} onChange={(e) => setRights(e.target.value as Rights)} className={cn(field, "w-[140px] shrink-0")}>
               {Object.entries(RIGHTS).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
                 </option>
               ))}
             </select>
-            <input title="Creator handle for new clips (optional)" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle (optional)" className={cn(field, "w-[140px]")} />
-            <button className={btn.secondary} disabled={fromUrl.isPending}>
+            <input title="Creator handle for new clips (optional)" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle (optional)" className={cn(field, "w-[140px] shrink-0")} />
+            <button className={cn(btn.secondary, "shrink-0")} disabled={fromUrl.isPending}>
               Import
             </button>
           </form>
