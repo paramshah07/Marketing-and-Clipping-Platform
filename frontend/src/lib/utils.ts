@@ -64,12 +64,14 @@ export const fillCaption = (template: string | null, link: string | null, creato
     .replaceAll("{link}", link ?? "")
     .replaceAll("{creator}", creator ?? "")
 
-/** "youtube.com/watch?v=…" for an http(s) URL (no scheme, no www); anything else as is. */
+/** "tiktok.com/@creator/video/7612…" for an http(s) URL: no scheme, no www, no tracking query (YouTube's
+ * ?v= is the video, so it stays); anything else as is. */
 export function shortUrl(s: string) {
   if (!/^https?:\/\//i.test(s)) return s
   try {
     const u = new URL(s)
-    return u.host.replace(/^www\./, "") + u.pathname + u.search
+    const v = u.searchParams.get("v")
+    return u.host.replace(/^www\./, "") + u.pathname.replace(/\/$/, "") + (v ? `?v=${v}` : "")
   } catch {
     return s
   }

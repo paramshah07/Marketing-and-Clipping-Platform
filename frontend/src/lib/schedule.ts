@@ -54,7 +54,8 @@ export function weekOf(date: string) {
 }
 
 /** Today's date in the browser's zone. */
-export const today = () => localParts(Date.now(), Intl.DateTimeFormat().resolvedOptions().timeZone).date
+export const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+export const today = () => localParts(Date.now(), BROWSER_TZ).date
 
 /** New scheduled_for for a card dropped on `date`: on a slot -> that slot's time, else the card's own local time. */
 export function dropTime(currentIso: string, tz: string, date: string, slot?: string) {

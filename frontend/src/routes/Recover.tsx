@@ -7,7 +7,7 @@ import type { PostOut, PostRender, Remedy } from "@/api"
 import { cancelPostMutation, getPostOptions, getPostQueryKey, listAccountsOptions, listPostsQueryKey, nextSlotOptions, remedyPostMutation, statusOptions, statusQueryKey } from "@/api/@tanstack/react-query.gen"
 import { ZERNIO_URL } from "@/components/AccountBits"
 import { Chip } from "@/components/bits"
-import { FAILED, STATUS_LABEL, apiError, shortWhen } from "@/lib/schedule"
+import { BROWSER_TZ, FAILED, STATUS_LABEL, apiError, shortWhen } from "@/lib/schedule"
 import { cn, label, mmss, shortUrl } from "@/lib/utils"
 
 const TONE: Partial<Record<PostOut["status"], "accent" | "ok" | "bad" | "warn">> = { DRAFT: "warn", SCHEDULED: "accent", PUBLISHING: "accent", PUBLISHED: "ok", FAILED: "bad", DEAD_LETTER: "bad" }
@@ -45,7 +45,6 @@ const MAX_RESTARTS = 3 // backend publish.MAX_ORPHAN_REDEFERS, then DEAD_LETTER 
 // The Reel may already be live (publish.AMBIGUOUS): a re-render gets a new idempotency key, so ask first.
 const MAYBE_LIVE = new Set(["NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED"])
 
-const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone
 const inFlight = (p?: PostOut) => !!p && (p.status === "PUBLISHING" || (p.status === "SCHEDULED" && Date.parse(p.scheduled_for) < Date.now() + 120_000))
 
 export function Recover() {
@@ -55,7 +54,7 @@ export function Recover() {
   const accounts = useQuery(listAccountsOptions())
   const p = post.data
   const account = accounts.data?.find((a) => a.id === p?.account_id)
-  const tz = account?.timezone ?? browserTz
+  const tz = account?.timezone ?? BROWSER_TZ
   const failed = !!p && FAILED.has(p.status)
   const fix = p?.error_code === "TOO_LONG" ? null : p?.remedy // nothing Clipper can do: the clip itself is too long
   const slot = useQuery({ ...nextSlotOptions({ path: { account_id: p?.account_id ?? 0 } }), enabled: failed && fix?.action === "rerender" })

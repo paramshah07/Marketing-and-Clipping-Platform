@@ -17,14 +17,14 @@ import {
 import { apiError, shortWhen } from "@/lib/schedule"
 import { MAX_REEL_SECONDS, ago, btn, clipName, cn, field, mmss } from "@/lib/utils"
 
-/** Left tray: READY renders with no live post, checkboxes, target account, Auto-schedule. */
-export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
+/** Left tray: READY renders with no live post, checkboxes, target account, Auto-schedule. accounts: undefined while loading. */
+export function ScheduleTray({ accounts }: { accounts?: AccountOut[] }) {
   const qc = useQueryClient()
   const renders = useQuery(listRendersOptions({ query: { status: "READY", unscheduled: true } }))
   const clips = useQuery(listClipsOptions())
   const brands = useQuery(listBrandsOptions())
   const archived = useQuery(listBrandsOptions({ query: { archived: true } }))
-  const targets = accounts.filter((a) => a.connection_status === "connected")
+  const targets = (accounts ?? []).filter((a) => a.connection_status === "connected")
   const [picked, setPicked] = useState<number | null>(null)
   const account = targets.find((a) => a.id === picked) ?? targets[0]
   const [sel, setSel] = useState<Set<number>>(new Set())
@@ -36,7 +36,7 @@ export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
   const list = renders.data ?? []
   const chosen = list.filter((r) => sel.has(r.id)).map((r) => r.id) // keeps the tray (input) order
   const clipOf = (id: number) => clips.data?.find((c) => c.id === id)
-  const brandOf = (id: number | null) => [...(brands.data ?? []), ...(archived.data ?? [])].find((b) => b.id === id)?.name ?? (id == null ? "No brand" : `brand ${id}`)
+  const brandOf = (id: number | null) => [...(brands.data ?? []), ...(archived.data ?? [])].find((b) => b.id === id)?.name ?? (id == null ? "No logo" : `Brand ${id}`)
   const toggle = (id: number) =>
     setSel((s) => {
       const n = new Set(s)
@@ -76,7 +76,7 @@ export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
     <aside className="flex w-[240px] shrink-0 flex-col border-r border-line bg-panel">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
         <span className="font-medium">
-          Ready to schedule <span className="tabular-nums text-subtle">({list.length})</span>
+          Ready to schedule {renders.data && <span className="font-normal tabular-nums text-subtle">{list.length}</span>}
         </span>
         <button className="text-sm text-muted hover:text-fg" onClick={() => setSel(chosen.length === list.length ? new Set() : new Set(list.map((r) => r.id)))}>
           {list.length > 0 && chosen.length === list.length ? "Select none" : "Select all"}
@@ -95,7 +95,9 @@ export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
               <span className={cn("mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-sm", on ? "bg-fg" : "border border-line-strong")}>{on && <Check className="size-2.5 text-bg" strokeWidth={3} />}</span>
               <img src={r.thumbnail_url ?? ""} alt="" className="h-16 w-9 shrink-0 rounded-sm bg-raised object-cover" />
               <div className="flex min-w-0 flex-1 flex-col">
-                <div className="truncate">{clip ? clipName(clip) : `clip ${r.source_clip_id}`}</div>
+                <div className="truncate" title={clip?.source_url ?? clip?.original_filename ?? undefined}>
+                  {clip ? clipName(clip) : `Clip ${r.source_clip_id}`}
+                </div>
                 <div className="truncate text-sm text-muted">{brandOf(r.brand_id)}</div>
                 <div className="mt-auto flex justify-between text-sm tabular-nums text-subtle">
                   <span className={cn(long && "text-warn")} title={long ? `Instagram Reels can be at most ${MAX_REEL_SECONDS / 60} min` : undefined}>
@@ -112,7 +114,7 @@ export function ScheduleTray({ accounts }: { accounts: AccountOut[] }) {
         <label className="flex items-center gap-1.5">
           <span className="text-sm text-subtle">To</span>
           <select aria-label="Account" className={cn(field, "min-w-0 flex-1 bg-raised")} value={account?.id ?? ""} onChange={(e) => setPicked(Number(e.target.value))}>
-            {targets.length === 0 && <option value="">No connected account</option>}
+            {targets.length === 0 && <option value="">{accounts ? "No connected account" : "Loading…"}</option>}
             {targets.map((a) => (
               <option key={a.id} value={a.id}>
                 @{a.username}
