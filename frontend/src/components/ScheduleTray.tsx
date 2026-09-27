@@ -90,7 +90,7 @@ export function ScheduleTray({ accounts }: { accounts?: AccountOut[] }) {
           const clip = clipOf(r.source_clip_id)
           const long = (r.duration_s ?? 0) > MAX_REEL_SECONDS
           return (
-            <label key={r.id} data-render={r.id} className={cn("flex cursor-pointer gap-2 rounded border p-1.5 hover:bg-hover has-[:focus-visible]:border-muted", on ? "border-line-strong bg-raised" : "border-line")}>
+            <label key={r.id} data-render={r.id} className={cn("relative flex cursor-pointer gap-2 rounded border p-1.5 hover:bg-hover has-[:focus-visible]:border-muted", on ? "border-line-strong bg-raised" : "border-line")}>
               <input type="checkbox" className="sr-only" checked={on} onChange={() => toggle(r.id)} />
               <span className={cn("mt-0.5 grid size-3.5 shrink-0 place-items-center rounded-sm", on ? "bg-fg" : "border border-line-strong")}>{on && <Check className="size-2.5 text-bg" strokeWidth={3} />}</span>
               <img src={r.thumbnail_url ?? ""} alt="" className="h-16 w-9 shrink-0 rounded-sm bg-raised object-cover" />
