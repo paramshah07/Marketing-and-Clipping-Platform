@@ -12,3 +12,14 @@ describe("fillCaption", () => {
     expect(fillCaption(null, null, null)).toBe("")
   })
 })
+
+import { shortUrl } from "./utils"
+
+describe("shortUrl", () => {
+  it("drops scheme, www and tracking queries but keeps YouTube's video id", () => {
+    expect(shortUrl("https://www.tiktok.com/@maya.eats/video/7421983301?is_from_webapp=1&sender_device=pc")).toBe("tiktok.com/@maya.eats/video/7421983301")
+    expect(shortUrl("https://www.youtube.com/watch?v=jNQXAC9IVRw&t=4s")).toBe("youtube.com/watch?v=jNQXAC9IVRw")
+    expect(shortUrl("https://www.instagram.com/reel/C9xK2mPqL4z/?igsh=abc")).toBe("instagram.com/reel/C9xK2mPqL4z")
+    expect(shortUrl("IMG_4821.MOV")).toBe("IMG_4821.MOV")
+  })
+})

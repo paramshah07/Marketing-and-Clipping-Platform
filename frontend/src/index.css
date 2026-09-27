@@ -85,3 +85,13 @@
   to { transform: translateX(300%); }
 }
 .indeterminate { animation: indeterminate 1.2s linear infinite; }
+
+/* "Just finished": one soft ok tint that fades when a clip or render turns READY. Re-key the element on
+   status (key={status}) so it plays once per transition. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes settle {
+    from { background-color: color-mix(in srgb, var(--color-ok) 16%, transparent); }
+    to { background-color: transparent; }
+  }
+  .settle { animation: settle 700ms ease-out; }
+}
