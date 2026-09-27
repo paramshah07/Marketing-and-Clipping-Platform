@@ -133,8 +133,8 @@ Dark-first. This is a tool used at night to queue tomorrow's posts, and video th
 on dark surfaces.
 
 Dense, not airy. This is a working surface, not a marketing page. Table rows are 56 px with a 28x50
-9:16 thumbnail so fifteen fit on screen; cards (upload rows, render queue, calendar) use 36x64
-thumbnails. Resist the default shadcn spacing.
+9:16 thumbnail so fifteen fit on screen; cards (upload rows, render queue) use 36x64 thumbnails,
+calendar slot tiles up to 72x128 (36x64 at 5+ slots; see docs/design/BRIEF.md). Resist the default shadcn spacing.
 
 One accent colour (#4F8CFF), used only for primary actions and in-progress/scheduled state. ok / warn /
 bad colours only where state demands it. No gradients, no glassmorphism, no rounded-3xl cards, no hero

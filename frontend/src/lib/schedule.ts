@@ -2,11 +2,14 @@
 // slot times are "HH:MM" wall clock in the account's IANA zone; a DST gap shifts forward and an
 // overlap takes the earlier instant (Python fold=0). Days are "YYYY-MM-DD" calendar dates.
 
-import type { PostOut } from "@/api"
-import { errorText } from "@/lib/utils"
+import type { AccountOut, PostOut } from "@/api"
+import { MAX_REEL_SECONDS, MIN_REEL_SECONDS, errorText } from "@/lib/utils"
 
 const MIN = 60_000
 const DAY = 86_400_000
+export const MIN_LEAD = 5 * MIN // backend MIN_LEAD: no post closer than this
+export const AUTO_LEAD = 10 * MIN // backend slots.AUTO_LEAD: automatic placement skips nearer slots
+const HORIZON = 30 * DAY // backend slots.HORIZON
 
 const fmts = new Map<string, Intl.DateTimeFormat>()
 function fmt(tz: string) {
@@ -47,35 +50,115 @@ export function zonedToUtc(date: string, time: string, tz: string): Date {
 
 export const addDays = (date: string, n: number) => new Date(wallMs(date, "00:00") + n * DAY).toISOString().slice(0, 10)
 
-/** Monday..Sunday containing `date`. */
-export function weekOf(date: string) {
-  const dow = (new Date(wallMs(date, "00:00")).getUTCDay() + 6) % 7 // Mon = 0
-  return Array.from({ length: 7 }, (_, i) => addDays(date, i - dow))
-}
-
-/** Today's date in the browser's zone. */
+/** Today's date in a zone (the browser's by default). */
 export const BROWSER_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
-export const today = () => localParts(Date.now(), BROWSER_TZ).date
+export const today = (tz = BROWSER_TZ) => localParts(Date.now(), tz).date
 
-/** New scheduled_for for a card dropped on `date`: on a slot -> that slot's time, else the card's own local time. */
-export function dropTime(currentIso: string, tz: string, date: string, slot?: string) {
-  return zonedToUtc(date, slot ?? localParts(currentIso, tz).time, tz).toISOString()
+/** New scheduled_for for a post dropped on a day head: the same local time on `date`. */
+export function dropTime(currentIso: string, tz: string, date: string) {
+  return zonedToUtc(date, localParts(currentIso, tz).time, tz).toISOString()
 }
 
-/** Posts closer than minGap (same account). gaps: later post id -> minutes apart; warn: both ends.
- * Only pairs the operator can still fix: at least one side is DRAFT or SCHEDULED. */
+/** Posts closer than minGap (same account). gaps: later post id -> minutes apart; prev: later -> earlier
+ * post id; warn: both ends. Only pairs the operator can still fix: at least one side is DRAFT or SCHEDULED. */
 export function tooClose(posts: { id: number; scheduled_for: string; status: PostOut["status"] }[], minGap: number) {
   const gaps = new Map<number, number>()
+  const prev = new Map<number, number>()
   const warn = new Set<number>()
   const sorted = [...posts].sort((a, b) => Date.parse(a.scheduled_for) - Date.parse(b.scheduled_for))
   for (let i = 1; i < sorted.length; i++) {
     const gap = Math.round((Date.parse(sorted[i].scheduled_for) - Date.parse(sorted[i - 1].scheduled_for)) / MIN)
     if (gap >= minGap || !(MOVABLE.has(sorted[i].status) || MOVABLE.has(sorted[i - 1].status))) continue
     gaps.set(sorted[i].id, gap)
+    prev.set(sorted[i].id, sorted[i - 1].id)
     warn.add(sorted[i].id).add(sorted[i - 1].id)
   }
-  return { gaps, warn }
+  return { gaps, prev, warn }
 }
+
+/** Every "HH:MM" on every local day, as sorted UTC ms in [after, until] (slots.py slot_instants). */
+export function slotInstants(times: string[], tz: string, after: number, until: number) {
+  const out = new Set<number>()
+  const last = addDays(localParts(until, tz).date, 1)
+  for (let d = addDays(localParts(after, tz).date, -1); d <= last; d = addDays(d, 1))
+    for (const t of times) {
+      const ms = zonedToUtc(d, t, tz).getTime()
+      if (ms >= after && ms <= until) out.add(ms)
+    }
+  return [...out].sort((a, b) => a - b)
+}
+
+type Slots = { ms: number; day: string }[]
+const slotsOf = (times: string[], tz: string, after: number, until: number): Slots => slotInstants(times, tz, after, until).map((ms) => ({ ms, day: localParts(ms, tz).date }))
+const countDays = (taken: number[], tz: string) => {
+  const perDay = new Map<string, number>()
+  for (const t of taken) {
+    const d = localParts(t, tz).date
+    perDay.set(d, (perDay.get(d) ?? 0) + 1)
+  }
+  return perDay
+}
+/** The first slot whose local day has < cap posts and that is >= gap from every taken instant (exactly gap apart is
+ * fine; the same instant is never free). */
+const pick = (slots: Slots, cap: number, gapMin: number, taken: number[], perDay: Map<string, number>) =>
+  slots.find((s) => (perDay.get(s.day) ?? 0) < cap && !taken.some((t) => t === s.ms || Math.abs(t - s.ms) < gapMin * MIN))
+
+/** slots.py first_free: the earliest free slot in [after, until]. */
+export function firstFree(times: string[], tz: string, cap: number, gapMin: number, taken: number[], after: number, until = after + HORIZON) {
+  return pick(slotsOf(times, tz, after, until), cap, gapMin, taken, countDays(taken, tz))?.ms ?? null
+}
+
+type Slotted = Pick<AccountOut, "posting_slots" | "timezone" | "daily_cap" | "min_gap_minutes">
+
+/** What POST /posts/auto-schedule will do (scheduling.py auto_schedule): each render, in the order sent, takes
+ * the account's next free slot >= now + 10 min. taken: when the account's non-cancelled posts go (or went) out. */
+export function planFill(renders: { id: number; duration_s: number | null }[], a: Slotted, taken: number[], now: number) {
+  const times = a.posting_slots.times ?? []
+  const slots = slotsOf(times, a.timezone, now + AUTO_LEAD, now + AUTO_LEAD + HORIZON) // once, not per render
+  const busy = [...taken]
+  const perDay = countDays(taken, a.timezone)
+  const placed = new Map<number, number>() // render id -> slot (ms), in placement order
+  const unplaced: { render_id: number; reason: string }[] = []
+  for (const r of renders) {
+    if (placed.has(r.id) || unplaced.some((u) => u.render_id === r.id)) continue // a repeated id is placed once
+    const d = r.duration_s
+    const unfit = d != null && d > MAX_REEL_SECONDS ? `longer than ${MAX_REEL_SECONDS / 60} min` : d != null && d < MIN_REEL_SECONDS ? `shorter than ${MIN_REEL_SECONDS} s` : ""
+    const at = unfit ? undefined : pick(slots, a.daily_cap, a.min_gap_minutes, busy, perDay)
+    if (!at) unplaced.push({ render_id: r.id, reason: unfit || (times.length ? "no free slot within 30 days" : "account has no posting slots") })
+    else {
+      placed.set(r.id, at.ms)
+      busy.push(at.ms)
+      perDay.set(at.day, (perDay.get(at.day) ?? 0) + 1)
+    }
+  }
+  return { placed, unplaced }
+}
+
+export type BoardRow = { key: string; slot?: string; band?: number }
+
+/** Slot-board rows: one per posting slot, plus an "Other times" band wherever off-slot posts fall (band i sits
+ * just before slot i; band times.length after the last), so the board keeps time order. */
+export function boardRows(times: string[], bands: Iterable<number>): BoardRow[] {
+  const b = new Set(bands)
+  const rows: BoardRow[] = []
+  times.forEach((t, i) => {
+    if (b.has(i)) rows.push({ key: `b${i}`, band: i })
+    rows.push({ key: t, slot: t })
+  })
+  if (b.has(times.length)) rows.push({ key: `b${times.length}`, band: times.length })
+  return rows
+}
+
+/** Where a post sits on the slot board: its local day (when it goes or went out), and a slot row when its
+ * scheduled wall-clock time is one of the account's slots, else the band between the slots around it. */
+export function boardSpot(p: Pick<PostOut, "published_at" | "scheduled_for">, times: string[], tz: string) {
+  const date = localParts(postAt(p), tz).date
+  const time = slotTime(p, tz)
+  return times.includes(time) ? { date, time, slot: time } : { date, time, band: times.filter((s) => s <= time).length }
+}
+
+/** "EDT", "GMT+1": the zone's short name at an instant (it changes across DST). */
+export const tzName = (tz: string, at: number) => new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(at).find((x) => x.type === "timeZoneName")?.value ?? tz
 
 /** "UTC+1", "UTC-4", "UTC" at the given instant. */
 export function utcOffset(tz: string, at = Date.now()) {

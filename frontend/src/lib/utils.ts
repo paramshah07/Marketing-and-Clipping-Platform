@@ -17,6 +17,7 @@ export type Rights = keyof typeof RIGHTS
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3 // backend MAX_UPLOAD_BYTES default
 export const MAX_REEL_SECONDS = 900 // backend ZERNIO_MAX_REEL_SECONDS: Instagram's 15 min API Reel limit (Zernio's documented 90 s is not enforced)
+export const MIN_REEL_SECONDS = 3 // backend ZERNIO_MIN_REEL_SECONDS
 
 /** Clip and render error codes in plain words. */
 export const CAUSES: Record<string, string> = {

@@ -1,6 +1,6 @@
 // Same rules as backend/app/services/slots.py (zoneinfo, fold=0, gap shifts forward).
 import { describe, expect, it } from "vitest"
-import { ZONES, addDays, apiError, dayLabel, dropTime, localParts, tooClose, utcOffset, weekOf, zonedToUtc } from "./schedule"
+import { ZONES, addDays, apiError, boardRows, boardSpot, dayLabel, dropTime, firstFree, localParts, planFill, slotInstants, tooClose, tzName, utcOffset, zonedToUtc } from "./schedule"
 
 const iso = (d: Date) => d.toISOString()
 
@@ -39,17 +39,11 @@ describe("zonedToUtc", () => {
 
 describe("dropTime", () => {
   const post = "2026-09-28T08:00:00Z" // 09:00 London
-  it("drop on a slot takes the slot's time that day", () => expect(dropTime(post, "Europe/London", "2026-09-30", "19:00")).toBe("2026-09-30T18:00:00.000Z"))
   it("drop on a cell keeps the local time", () => expect(dropTime(post, "Europe/London", "2026-10-26")).toBe("2026-10-26T09:00:00.000Z"))
   it("keeps local time across the zone's DST change", () => expect(localParts(dropTime(post, "Europe/London", "2026-12-01"), "Europe/London").time).toBe("09:00"))
 })
 
-describe("weeks", () => {
-  it("Monday to Sunday", () => {
-    expect(weekOf("2026-10-01")).toEqual(["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"])
-    expect(weekOf("2026-09-28")[0]).toBe("2026-09-28")
-    expect(weekOf("2026-10-04")[0]).toBe("2026-09-28")
-  })
+describe("days", () => {
   it("addDays crosses months and DST", () => {
     expect(addDays("2026-10-25", 1)).toBe("2026-10-26")
     expect(addDays("2026-03-01", -1)).toBe("2026-02-28")
@@ -63,8 +57,9 @@ describe("tooClose", () => {
       { id: 1, scheduled_for: "2026-09-30T18:00:00Z", status: "PUBLISHED" as const },
       { id: 3, scheduled_for: "2026-09-30T20:00:00Z", status: "DRAFT" as const },
     ]
-    const { gaps, warn } = tooClose(posts, 45)
+    const { gaps, prev, warn } = tooClose(posts, 45)
     expect([...gaps]).toEqual([[2, 18]])
+    expect([...prev]).toEqual([[2, 1]])
     expect([...warn].sort()).toEqual([1, 2])
     expect(tooClose(posts, 0).warn.size).toBe(0)
   })
@@ -76,6 +71,83 @@ describe("tooClose", () => {
       { id: 3, scheduled_for: "2026-09-26T18:19:00Z", status: "FAILED" as const },
     ]
     expect(tooClose(posts, 30).warn.size).toBe(0)
+  })
+})
+
+// Same cases as backend/tests (slots.first_free): New York, slots 09/13/19, Sat 26 Sep 2026 23:40 EDT.
+const NY = "America/New_York"
+const T3 = ["09:00", "13:00", "19:00"]
+const ms = (s: string) => Date.parse(s)
+const at = (date: string, time: string) => zonedToUtc(date, time, NY).getTime()
+const NOW = ms("2026-09-27T03:40:00Z")
+
+describe("slot engine (mirrors slots.py)", () => {
+  it("slotInstants: sorted, inside [after, until], wall clock across the DST change", () => {
+    expect(slotInstants(T3, NY, NOW, ms("2026-09-28T00:00:00Z")).map((t) => new Date(t).toISOString())).toEqual(["2026-09-27T13:00:00.000Z", "2026-09-27T17:00:00.000Z", "2026-09-27T23:00:00.000Z"])
+    expect(slotInstants(["09:00"], NY, ms("2026-10-31T00:00:00Z"), ms("2026-11-02T00:00:00Z")).map((t) => localParts(t, NY))).toEqual([
+      { date: "2026-10-31", time: "09:00" },
+      { date: "2026-11-01", time: "09:00" },
+    ])
+  })
+  it("firstFree: next slot, min gap both sides, exact gap ok, same instant never free", () => {
+    expect(firstFree(T3, NY, 10, 30, [], NOW)).toBe(at("2026-09-27", "09:00"))
+    expect(firstFree(T3, NY, 10, 30, [at("2026-09-27", "08:40")], NOW)).toBe(at("2026-09-27", "13:00")) // 20 min before
+    expect(firstFree(T3, NY, 10, 30, [at("2026-09-27", "09:20")], NOW)).toBe(at("2026-09-27", "13:00")) // 20 min after
+    expect(firstFree(T3, NY, 10, 30, [at("2026-09-27", "08:30")], NOW)).toBe(at("2026-09-27", "09:00")) // exactly 30
+    expect(firstFree(T3, NY, 10, 0, [at("2026-09-27", "09:00")], NOW)).toBe(at("2026-09-27", "13:00"))
+  })
+  it("firstFree: the daily cap counts every post that day, off-slot ones too", () => {
+    const sunday = ["06:00", "07:00"].map((t) => at("2026-09-27", t))
+    expect(firstFree(T3, NY, 2, 30, sunday, NOW)).toBe(at("2026-09-28", "09:00"))
+    expect(firstFree(T3, NY, 3, 30, sunday, NOW)).toBe(at("2026-09-27", "09:00"))
+  })
+  it("firstFree: nothing inside the horizon, or no slots", () => {
+    expect(firstFree(T3, NY, 0, 30, [], NOW)).toBeNull()
+    expect(firstFree([], NY, 10, 30, [], NOW)).toBeNull()
+  })
+  it("planFill: input order, each placement blocks the next, unfit renders skipped", () => {
+    const a = { posting_slots: { times: T3 }, timezone: NY, daily_cap: 10, min_gap_minutes: 30 }
+    const out = planFill(
+      [
+        { id: 30, duration_s: 22 },
+        { id: 6, duration_s: 901 },
+        { id: 25, duration_s: 8 },
+        { id: 30, duration_s: 22 },
+        { id: 20, duration_s: 5 },
+      ],
+      a,
+      [at("2026-09-27", "13:10")],
+      NOW
+    )
+    expect([...out.placed].map(([id, t]) => [id, localParts(t, NY)])).toEqual([
+      [30, { date: "2026-09-27", time: "09:00" }],
+      [25, { date: "2026-09-27", time: "19:00" }], // 13:00 is 10 min from the 13:10 post
+      [20, { date: "2026-09-28", time: "09:00" }],
+    ])
+    expect(out.unplaced).toEqual([{ render_id: 6, reason: "longer than 15 min" }])
+    expect(planFill([{ id: 1, duration_s: 8 }], { ...a, posting_slots: { times: [] } }, [], NOW).unplaced[0].reason).toBe("account has no posting slots")
+  })
+  it("planFill: skips slots inside the 10 min lead", () => {
+    const a = { posting_slots: { times: ["23:45"] }, timezone: NY, daily_cap: 10, min_gap_minutes: 0 }
+    expect(localParts(planFill([{ id: 1, duration_s: 8 }], a, [], NOW).placed.get(1)!, NY)).toEqual({ date: "2026-09-27", time: "23:45" })
+  })
+})
+
+describe("slot board", () => {
+  it("boardSpot: slot row by scheduled wall clock, day by when it went out, off-slot posts to the band between slots", () => {
+    expect(boardSpot({ scheduled_for: "2026-09-27T13:00:00Z", published_at: "2026-09-27T13:03:00Z" }, T3, NY)).toEqual({ date: "2026-09-27", time: "09:00", slot: "09:00" })
+    expect(boardSpot({ scheduled_for: "2026-09-26T19:46:05Z", published_at: "2026-09-26T19:49:10Z" }, T3, NY)).toEqual({ date: "2026-09-26", time: "15:46", band: 2 })
+    expect(boardSpot({ scheduled_for: "2026-09-27T12:00:00Z", published_at: null }, T3, NY).band).toBe(0) // 08:00
+    expect(boardSpot({ scheduled_for: "2026-09-28T02:00:00Z", published_at: null }, T3, NY).band).toBe(3) // 22:00
+  })
+  it("boardRows: bands only where needed, in time order", () => {
+    expect(boardRows(T3, []).map((r) => r.key)).toEqual(["09:00", "13:00", "19:00"])
+    expect(boardRows(T3, [2, 0, 3]).map((r) => r.key)).toEqual(["b0", "09:00", "13:00", "b2", "19:00", "b3"])
+    expect(boardRows([], [0]).map((r) => r.key)).toEqual(["b0"])
+  })
+  it("tzName follows DST", () => {
+    expect(tzName(NY, ms("2026-09-27T12:00:00Z"))).toBe("EDT")
+    expect(tzName(NY, ms("2026-11-02T12:00:00Z"))).toBe("EST")
   })
 })
 
