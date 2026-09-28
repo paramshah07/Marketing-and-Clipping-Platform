@@ -179,6 +179,7 @@ class RenderOut(BaseModel):
     completed_at: datetime | None
     output_key: str | None = Field(exclude=True)
     thumbnail_key: str | None = Field(exclude=True)
+    cover_key: str | None = Field(exclude=True)
 
     @computed_field
     def output_url(self) -> str | None:
@@ -187,6 +188,10 @@ class RenderOut(BaseModel):
     @computed_field
     def thumbnail_url(self) -> str | None:
         return _url(self.thumbnail_key)
+
+    @computed_field
+    def cover_url(self) -> str | None:  # the Reel cover (JPEG, 1080x1920 from the Editor); None: Instagram's pick
+        return _url(self.cover_key)
 
 
 class RenderDetail(RenderOut):

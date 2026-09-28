@@ -79,17 +79,18 @@ async def _chunks(path: Path) -> AsyncIterator[bytes]:
             yield chunk
 
 
-async def upload(c: httpx.AsyncClient, path: Path) -> str:
-    """Presign, PUT the file (streamed, never read into memory), return the publicUrl for mediaItems."""
+async def upload(c: httpx.AsyncClient, path: Path, content_type: str = "video/mp4") -> str:
+    """Presign, PUT the file (streamed, never read into memory), return its publicUrl (mediaItems, or the
+    cover's instagramThumbnail)."""
     size = (await anyio.Path(path).stat()).st_size
     pre = await _call(
-        c, "POST", "/media/presign", json={"filename": path.name, "contentType": "video/mp4", "size": size}
+        c, "POST", "/media/presign", json={"filename": path.name, "contentType": content_type, "size": size}
     )
     req = c.build_request(
         "PUT",
         pre["uploadUrl"],
         content=_chunks(path),
-        headers={"Content-Type": "video/mp4", "Content-Length": str(size)},
+        headers={"Content-Type": content_type, "Content-Length": str(size)},
     )
     req.headers.pop("Authorization", None)  # a presigned URL is its own credential: never hand our key to the bucket
     r = await _send(c, req)
@@ -98,15 +99,16 @@ async def upload(c: httpx.AsyncClient, path: Path) -> str:
     return pre["publicUrl"]
 
 
-async def create_post(c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str) -> dict:
+async def create_post(
+    c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str, cover_url: str | None = None
+) -> dict:
     """POST /v1/posts with publishNow and the post's Idempotency-Key. A 409 duplicate resolves to the
-    existing post (GET details.existingPostId)."""
+    existing post (GET details.existingPostId). cover_url: the Reel cover (instagramThumbnail), sent only when set."""
+    ig = {"shareToFeed": True} | ({"instagramThumbnail": cover_url} if cover_url else {})
     body = {
         "content": caption,
         "mediaItems": [{"type": "video", "url": media_url}],
-        "platforms": [
-            {"platform": "instagram", "accountId": zernio_account_id, "platformSpecificData": {"shareToFeed": True}}
-        ],
+        "platforms": [{"platform": "instagram", "accountId": zernio_account_id, "platformSpecificData": ig}],
         "publishNow": True,
     }
     try:

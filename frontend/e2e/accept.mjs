@@ -194,7 +194,7 @@ await page.evaluate(() => {
 })
 await shot("editor-preview")
 out.previewDecoded = true
-out.previewLabel = await page.locator("span", { hasText: new RegExp(`^Render ${render.id} · `) }).last().innerText()
+out.previewLabel = await page.locator("span", { hasText: new RegExp(`^Render #${render.id} · `) }).last().innerText()
 await page.goto(`${BASE}/calendar`)
 await shot("calendar")
 await browser.close()

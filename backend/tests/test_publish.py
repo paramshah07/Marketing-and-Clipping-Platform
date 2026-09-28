@@ -29,6 +29,8 @@ from app.tasks.queue import app
 FIX = Path(__file__).parent / "fixtures" / "zernio"
 PRESIGN = json.loads((FIX / "presign.json").read_text())["body"]
 ZPOST = "65f1c0a9e2b5af0012ab34cd"  # the docs examples' post id
+COVER = b"\xff\xd8\xff\xe0" + bytes(1000)  # the JPEG magic bytes are all the api checks
+COVER_URL = PRESIGN["publicUrl"].removesuffix(".mp4") + ".jpg"  # cover_presign()'s publicUrl
 SLOT = datetime(2031, 3, 3, 9, 0, tzinfo=UTC)  # the stubbed next free slot
 
 
@@ -207,7 +209,7 @@ def test_publish_happy_path(db, env, monkeypatch):
     assert post.headers["Idempotency-Key"] == p.idempotency_key and post.headers["Authorization"] == "Bearer sk_test"
     with Session(db) as s:
         zid = s.get(Account, p.account_id).zernio_account_id
-    assert json.loads(post.content) == {
+    assert json.loads(post.content) == {  # no cover: one presign, no instagramThumbnail
         "content": "caption #reel",
         "mediaItems": [{"type": "video", "url": PRESIGN["publicUrl"]}],
         "platforms": [{"platform": "instagram", "accountId": zid, "platformSpecificData": {"shareToFeed": True}}],
@@ -620,17 +622,13 @@ def test_remedy_retry_after_ambiguous_failure_past_20h_never_posts(db, env, monk
 
 def test_remedy_retry_when_nothing_reached_zernio(db, env, monkeypatch):
     pid = make_post(db, env, status="FAILED", at=now() - timedelta(days=9), error_code="UNKNOWN",
-                    error_detail={"error": "bad"}, zernio_media_url=PRESIGN["publicUrl"])  # fmt: skip
+                    error_detail={"error": "bad"}, zernio_media_url=PRESIGN["publicUrl"],
+                    zernio_cover_url=COVER_URL)  # fmt: skip
     key = row(db, pid).idempotency_key
     r = remedy(pid)
     p = row(db, pid)
-    assert (r.json()["status"], p.zernio_media_url, p.error_code, p.error_detail, p.idempotency_key) == (
-        "SCHEDULED",
-        None,
-        None,
-        None,
-        key,
-    )
+    assert (r.json()["status"], p.zernio_media_url, p.zernio_cover_url, p.error_code, p.error_detail,
+            p.idempotency_key) == ("SCHEDULED", None, None, None, None, key)  # fmt: skip
     assert abs(p.scheduled_for - now()) < timedelta(minutes=1)
 
 
@@ -921,3 +919,133 @@ def test_delete_render_takes_its_cancelled_posts_but_not_a_live_one(db, env):
     with Session(db) as s:
         assert (s.get(Render, rid_gone), s.get(Post, gone)) == (None, None)
         assert s.get(Render, rid_kept) is not None and s.get(Post, kept).status == "CANCELLED"
+
+
+# ---------------------------------------------------------------- cover
+
+
+def cover_presign() -> dict:
+    d = fx("presign")  # the recorded presign, its publicUrl renamed so the cover's URL differs from the video's
+    d["body"]["publicUrl"] = COVER_URL
+    return d
+
+
+def add_cover(db, env, post_id: int) -> str:
+    """Give the post's render a cover the way PUT /api/renders/{id}/cover stores one (the api refuses while
+    the post is live)."""
+    with Session(db) as s:
+        r = s.get(Render, s.get(Post, post_id).render_id)
+        r.cover_key = f"covers/{r.id}-0000abcd.jpg"
+        (env.dir / "covers").mkdir(exist_ok=True)
+        (env.dir / r.cover_key).write_bytes(COVER)
+        s.commit()
+        return r.cover_key
+
+
+def put_cover(c, render_id: int, data: bytes = COVER) -> httpx.Response:
+    return c.put(f"/api/renders/{render_id}/cover", files={"file": ("cover.jpg", data)})
+
+
+def test_cover_api(db, env):
+    rid = row(db, make_post(db, env, status="CANCELLED")).render_id  # a CANCELLED post doesn't pin the cover
+    pinned = row(db, make_post(db, env, at=now() + timedelta(days=1))).render_id
+    with Session(db) as s:  # make_post's stub configs don't serialise as RenderOut
+        s.execute(update(Render).where(Render.id == rid).values(overlay_config=None, crop_config=None))
+        s.commit()
+
+    def covers():
+        return sorted(f"/media/covers/{p.name}" for p in (env.dir / "covers").iterdir())
+
+    with TestClient(api_app) as c:
+        assert put_cover(c, rid, b"\x89PNG\r\n\x1a\n").status_code == 415
+        assert put_cover(c, rid, COVER + bytes(8 * 1024**2)).status_code == 413
+        assert (put_cover(c, 10**9).status_code, c.delete(f"/api/renders/{10**9}/cover").status_code) == (404, 404)
+        assert (put_cover(c, pinned).status_code, c.delete(f"/api/renders/{pinned}/cover").status_code) == (409, 409)
+        assert covers() == []  # refused uploads leave no file
+        first = put_cover(c, rid).json()["cover_url"]
+        second = put_cover(c, rid).json()["cover_url"]
+        assert first != second and second.startswith(f"/media/covers/{rid}-") and covers() == [second]
+        assert c.delete(f"/api/renders/{rid}/cover").json()["cover_url"] is None and covers() == []
+        assert put_cover(c, rid).status_code == 200
+        assert c.delete(f"/api/renders/{rid}").status_code == 204 and covers() == []
+        c.portal.call(engine.dispose)
+
+
+def test_publish_with_a_cover(db, env, monkeypatch):
+    pid = make_post(db, env)
+    key = add_cover(db, env, pid)
+    z = use(monkeypatch, Zernio(routes(httpx.ReadTimeout("slow"), "docs_replay_published")
+                                | {PRESIGN_: ["presign", cover_presign()], PUT_: [None, None]}))  # fmt: skip
+    with pytest.raises(publisher.NetworkError):
+        go(pid)
+    p = row(db, pid)
+    assert (p.status, p.zernio_media_url, p.zernio_cover_url) == ("PUBLISHING", PRESIGN["publicUrl"], COVER_URL)
+    go(pid, attempts=1)  # the retry reuses both URLs: no new presign
+    assert row(db, pid).status == "PUBLISHED"
+    [_, presign], [_, put], [first, second] = z.sent(PRESIGN_), z.sent(PUT_), z.sent(POST_)
+    assert json.loads(presign.content) == {"filename": Path(key).name, "contentType": "image/jpeg", "size": len(COVER)}
+    assert put.content == COVER and put.headers["content-type"] == "image/jpeg" and "authorization" not in put.headers
+    assert first.content == second.content and first.headers["Idempotency-Key"] == second.headers["Idempotency-Key"]
+    ig = json.loads(first.content)["platforms"][0]["platformSpecificData"]
+    assert ig == {"shareToFeed": True, "instagramThumbnail": COVER_URL}
+
+
+def test_crash_after_cover_upload_before_its_commit(db, env, monkeypatch):
+    pid = make_post(db, env)
+    add_cover(db, env, pid)
+    z = use(monkeypatch, Zernio(routes() | {PRESIGN_: ["presign", cover_presign(), cover_presign()], PUT_: [None] * 3}))
+    real = publisher.upload
+
+    async def upload(c, path, content_type="video/mp4"):
+        url = await real(c, path, content_type)
+        if content_type == "image/jpeg" and len(z.sent(PRESIGN_)) == 2:
+            raise Crash("after the cover upload")
+        return url
+
+    monkeypatch.setattr(publisher, "upload", upload)
+    with pytest.raises(Crash):
+        go(pid)
+    p = row(db, pid)
+    assert (p.status, p.zernio_media_url, p.zernio_cover_url, p.first_post_at) == (
+        "PUBLISHING", PRESIGN["publicUrl"], None, None)  # fmt: skip
+    go(pid)  # the committed video URL is reused; the cover, never committed, is uploaded again
+    assert (row(db, pid).status, row(db, pid).zernio_cover_url) == ("PUBLISHED", COVER_URL)
+    types = [json.loads(r.content)["contentType"] for r in z.sent(PRESIGN_)]
+    assert types == ["video/mp4", "image/jpeg", "image/jpeg"] and len(z.sent(POST_)) == 1
+
+
+def test_a_post_that_went_out_never_gets_a_cover(db, env, monkeypatch):
+    """Once a POST went out its body never changes: no cover is uploaded, even if the render has one."""
+    pid = make_post(db, env, status="PUBLISHING", zernio_media_url=PRESIGN["publicUrl"],
+                    first_post_at=now() - timedelta(hours=1))  # fmt: skip
+    add_cover(db, env, pid)
+    z = use(monkeypatch, Zernio({POST_: ["docs_replay_published"]}))
+    go(pid)
+    [post] = z.sent(POST_)
+    assert row(db, pid).status == "PUBLISHED" and "instagramThumbnail" not in post.content.decode()
+
+
+def test_reslot_before_any_post_drops_the_cover_url(db, env):
+    urls = {"zernio_media_url": PRESIGN["publicUrl"], "zernio_cover_url": COVER_URL}
+    fresh = make_post(db, env, at=now() - timedelta(hours=2), **urls)
+    posted = make_post(db, env, at=now() - timedelta(hours=2), first_post_at=now() - timedelta(hours=1), **urls)
+    for pid in (fresh, posted):
+        go(pid)  # missed: next free slot
+    assert [(row(db, p).status, row(db, p).zernio_media_url, row(db, p).zernio_cover_url) for p in (fresh, posted)] == [
+        ("SCHEDULED", None, None), ("SCHEDULED", PRESIGN["publicUrl"], COVER_URL)]  # fmt: skip
+
+
+def test_rerender_copies_the_cover(db, env):
+    pid = make_post(db, env, status="FAILED", error_code="CONTENT_REJECTED", zernio_media_url=PRESIGN["publicUrl"],
+                    zernio_cover_url=COVER_URL)  # fmt: skip
+    old_key, old = add_cover(db, env, pid), row(db, pid).render_id
+    assert remedy(pid, "rerender").status_code == 200
+    p = row(db, pid)
+    with Session(db) as s:
+        new_key = s.get(Render, p.render_id).cover_key
+    assert new_key.startswith(f"covers/{p.render_id}-") and (env.dir / new_key).read_bytes() == COVER
+    assert (p.zernio_media_url, p.zernio_cover_url) == (None, None)
+    with TestClient(api_app) as c:
+        assert c.delete(f"/api/renders/{old}").status_code == 204
+        c.portal.call(engine.dispose)
+    assert not (env.dir / old_key).exists() and (env.dir / new_key).read_bytes() == COVER

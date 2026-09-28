@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarPlus, Camera, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Volume2, VolumeX, X } from "lucide-react"
+import { CalendarPlus, Camera, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 
@@ -15,6 +15,7 @@ import {
   listRendersOptions,
   listRendersQueryKey,
   retryRenderMutation,
+  setRenderCoverMutation,
   updateBrandMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { FracBox } from "@/components/FracBox"
@@ -22,7 +23,7 @@ import { SchedulePopover } from "@/components/SchedulePopover"
 import { Chip, Empty, Header } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { IG, OUT_H, OUT_W, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
+import { GRID, IG, OUT_H, OUT_W, type Box, clamp, coverFit, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
 import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, RIGHTS, btn, label } from "@/lib/utils"
 
 const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.16, w: 0.22, opacity: 1 } // backend brands default (below the IG top bar)
@@ -97,7 +98,10 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
   const [logoAR, setLogoAR] = useState<number | null>(null) // logo natural h/w
   const [cropOn, setCropOn] = useState(false)
   const [crop, setCrop] = useState<Box>(() => crop916(W, H))
-  const [mode, setMode] = useState<"output" | "crop">("output")
+  const [mode, setMode] = useState<"output" | "crop" | "cover">("output")
+  const [cover, setCover] = useState<{ jpeg: Blob; url: string } | null>(null) // the Reel cover exactly as uploaded
+  useEffect(() => () => void (cover && URL.revokeObjectURL(cover.url)), [cover]) // on replace and unmount
+  const pickCover = useRef<HTMLInputElement>(null)
   const [ig, setIg] = useState(true)
   const [previewId, setPreview] = useState<number | null>(null)
   const [logFor, setLogFor] = useState<number | null>(null)
@@ -137,6 +141,11 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
     onSuccess: () => (setError(""), qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clip.id } }) })),
     onError: (e) => setError(errorText(e)),
   })
+  const coverUpload = useMutation({
+    ...setRenderCoverMutation(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clip.id } }) }),
+    onError: (e, v) => setError(`Render #${v.path.render_id} queued without its cover: ${errorText(e)}`),
+  })
   const saveDefault = useMutation({
     ...updateBrandMutation(),
     onSuccess: () => qc.invalidateQueries({ queryKey: listBrandsQueryKey() }),
@@ -148,15 +157,30 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
   function submit() {
     if (Date.now() < busyUntil.current || tooLong || !chosen) return
     busyUntil.current = Infinity
-    render.mutate({
-      body: {
-        clip_id: clip.id,
-        brand_id: brand?.id ?? null,
-        overlay_config: brand ? overlay : null,
-        crop_config: cropOn ? { x: crop.x, y: crop.y, w: Math.min(1, crop.w), h: Math.min(1, crop.h) } : null,
-        caption: caption.trim() || null,
-      },
-    })
+    const jpeg = cover?.jpeg
+    // the promise, not mutate's per-call onSuccess: that is dropped when the Editor unmounts first, and the cover with it
+    render
+      .mutateAsync({
+        body: {
+          clip_id: clip.id,
+          brand_id: brand?.id ?? null,
+          overlay_config: brand ? overlay : null,
+          crop_config: cropOn ? { x: crop.x, y: crop.y, w: Math.min(1, crop.w), h: Math.min(1, crop.h) } : null,
+          caption: caption.trim() || null,
+        },
+      })
+      .then((r) => jpeg && coverUpload.mutate({ path: { render_id: r.id }, body: { file: jpeg } }), () => {}) // render's onError reports
+  }
+  async function chooseCover(file: File) {
+    try {
+      const jpeg = await coverJpeg(file)
+      setCover({ jpeg, url: URL.createObjectURL(jpeg) })
+      setMode("cover")
+      setPreview(null)
+      setError("")
+    } catch (e) {
+      setError(errorText(e))
+    }
   }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -208,6 +232,8 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
           clip={clip}
           mode={preview ? "preview" : mode}
           previewSrc={preview?.output_url ?? null}
+          previewPoster={preview?.cover_url ?? null}
+          cover={cover?.url ?? null}
           previewLabel={preview ? `#${preview.id} · ${brandName(preview.brand_id)} · 1080x1920` : ""}
           onExitPreview={() => setPreview(null)}
           view={outputView(W, H, cropOn ? crop : null)}
@@ -387,6 +413,28 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
 
             <div className="space-y-2 px-4 py-3">
               <div className="flex items-center justify-between">
+                <span className={label}>Cover</span>
+                {cover && (
+                  <button className="text-sm text-muted hover:text-fg" onClick={() => (setCover(null), setMode((m) => (m === "cover" ? "output" : m)))}>
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                {cover ? <img src={cover.url} alt="" className="h-16 w-9 shrink-0 rounded-sm object-cover" /> : <span className="h-16 w-9 shrink-0 rounded-sm border border-dashed border-line-strong" />}
+                <div className="min-w-0 space-y-1.5">
+                  <input ref={pickCover} type="file" accept="image/*" hidden onChange={(e) => (e.target.files?.[0] && chooseCover(e.target.files[0]), (e.target.value = ""))} />
+                  <button className={cn(btn.secondary, "px-2.5 font-normal")} onClick={() => pickCover.current?.click()}>
+                    <Upload className="size-3.5" />
+                    Choose image…
+                  </button>
+                  <p className="text-balance text-sm leading-4 tabular-nums text-subtle">{cover ? "1080x1920 JPEG · grid shows the middle 3:4" : "None: Instagram picks a frame."}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2 px-4 py-3">
+              <div className="flex items-center justify-between">
                 <span className={label}>Caption</span>
                 <button className="text-sm text-muted hover:text-fg" onClick={() => setCaption(template(brand))}>
                   Reset to template
@@ -460,16 +508,19 @@ function Labeled({ name, value, children }: { name: string; value: ReactNode; ch
 }
 
 /** The 9:16 stage. Output: the source placed exactly as the render will (outputView), the logo and the Reels
- * chrome on top. Crop: the whole source (contain) with the 9:16 crop box. Preview: a rendered MP4.
- * One <video> element across all three, so switching never reloads the source. */
+ * chrome on top. Crop: the whole source (contain) with the 9:16 crop box. Cover: the chosen Reel cover, the
+ * profile-grid guide on top. Preview: a rendered MP4. One <video> element across all four (hidden under the
+ * cover), so switching never reloads the source. */
 function Stage(props: {
   clip: ClipOut
-  mode: "output" | "crop" | "preview"
+  mode: "output" | "crop" | "cover" | "preview"
   previewSrc: string | null
+  previewPoster: string | null
+  cover: string | null
   previewLabel: string
   onExitPreview: () => void
   view: ReturnType<typeof outputView>
-  setMode: (m: "output" | "crop") => void
+  setMode: (m: "output" | "crop" | "cover") => void
   ig: boolean
   setIg: (v: boolean) => void
   caption: string
@@ -486,6 +537,7 @@ function Stage(props: {
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
   const [broken, setBroken] = useState<string | null>(null)
+  useEffect(() => void (mode === "cover" && video.current?.pause()), [mode]) // its transport is disabled there
 
   const src = mode === "preview" ? props.previewSrc! : clip.raw_url!
   // 420-576 px tall as the height allows, but never wider than the column (size is the content box, padding excluded)
@@ -501,6 +553,7 @@ function Stage(props: {
       ? { left: `${view.left * 100}%`, top: `${view.top * 100}%`, width: `${view.width * 100}%`, height: `${view.height * 100}%` }
       : full
   const failed = broken === src
+  const igOk = mode === "output" || mode === "cover"
 
   return (
     <div ref={col} className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 px-6">
@@ -526,7 +579,7 @@ function Stage(props: {
               <video
                 ref={video}
                 src={src}
-                poster={mode === "preview" ? undefined : (clip.thumbnail_url ?? undefined)}
+                poster={(mode === "preview" ? props.previewPoster : clip.thumbnail_url) ?? undefined}
                 muted={muted}
                 playsInline
                 loop
@@ -549,13 +602,19 @@ function Stage(props: {
                 <ReelsChrome scale={frameW / 324} caption={props.caption} handle={props.handle} />
               </>
             )}
+            {mode === "cover" && <img src={props.cover!} alt="" className="absolute inset-0 size-full" />}
+            {mode === "cover" && props.ig && (
+              <div className="pointer-events-none absolute inset-x-0 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]" style={{ top: `${GRID * 100}%`, bottom: `${GRID * 100}%` }}>
+                <span className="absolute bottom-full left-3 mb-2 text-xs uppercase tracking-wider text-white/60">Profile grid 3:4</span>
+              </div>
+            )}
             {mode === "crop" && (
               <div
                 className="pointer-events-none absolute shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]"
                 style={{ left: `${props.crop.x * 100}%`, top: `${props.crop.y * 100}%`, width: `${props.crop.w * 100}%`, height: `${props.crop.h * 100}%` }}
               />
             )}
-            {failed && (
+            {failed && mode !== "cover" && (
               <div className="absolute inset-x-0 bottom-0 bg-black/80 px-3 py-2 text-sm text-muted">Preview unavailable in this browser; render still works.</div>
             )}
           </div>
@@ -568,17 +627,17 @@ function Stage(props: {
       <div className="flex h-7 items-center gap-2" style={{ width: frameW }}>
         <button
           aria-label={playing ? "Pause" : "Play"}
-          disabled={failed}
+          disabled={failed || mode === "cover"}
           className="-ml-1.5 inline-grid size-7 place-items-center rounded text-fg hover:bg-hover disabled:text-subtle"
           onClick={() => (video.current?.paused ? video.current.play() : video.current?.pause())}
         >
           {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
         </button>
-        <Slider aria-label="Seek" disabled={failed} min={0} max={dur || 1} step={0.01} value={[t]} onValueChange={([v]) => video.current && (video.current.currentTime = v)} className="flex-1" />
+        <Slider aria-label="Seek" disabled={failed || mode === "cover"} min={0} max={dur || 1} step={0.01} value={[t]} onValueChange={([v]) => video.current && (video.current.currentTime = v)} className="flex-1" />
         <span className="whitespace-nowrap text-sm tabular-nums text-muted">
           <span className="text-fg">{mmss(t)}</span> / {mmss(dur)}
         </span>
-        <button aria-label={muted ? "Unmute" : "Mute"} className="-mr-1.5 inline-grid size-7 place-items-center rounded text-muted hover:bg-hover" onClick={() => setMuted(!muted)}>
+        <button aria-label={muted ? "Unmute" : "Mute"} disabled={mode === "cover"} className="-mr-1.5 inline-grid size-7 place-items-center rounded text-muted hover:bg-hover disabled:text-subtle" onClick={() => setMuted(!muted)}>
           {muted ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
         </button>
       </div>
@@ -591,8 +650,15 @@ function Stage(props: {
           </button>
         ) : (
           <div className="inline-flex h-7 rounded border border-line bg-panel p-0.5 text-sm">
-            {(["output", "crop"] as const).map((m) => (
-              <button key={m} aria-pressed={mode === m} className={cn("rounded-sm px-3 capitalize", mode === m ? "bg-raised font-medium text-fg" : "text-muted hover:text-fg")} onClick={() => props.setMode(m)}>
+            {(["output", "crop", "cover"] as const).map((m) => (
+              <button
+                key={m}
+                aria-pressed={mode === m}
+                disabled={m === "cover" && !props.cover}
+                title={m === "cover" && !props.cover ? "Choose a cover image first" : undefined}
+                className={cn("rounded-sm px-3 capitalize", mode === m ? "bg-raised font-medium text-fg" : "text-muted enabled:hover:text-fg disabled:opacity-40")}
+                onClick={() => props.setMode(m)}
+              >
                 {m}
               </button>
             ))}
@@ -600,8 +666,8 @@ function Stage(props: {
         )}
         <button
           aria-pressed={props.ig}
-          disabled={mode !== "output"}
-          title={mode !== "output" ? "Only drawn in Output mode" : undefined}
+          disabled={!igOk}
+          title={igOk ? undefined : "Only drawn in Output and Cover mode"}
           className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded border border-line bg-raised px-2 text-sm text-fg hover:bg-hover disabled:opacity-40"
           onClick={() => props.setIg(!props.ig)}
         >
@@ -691,7 +757,10 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
           </span>
           <span className="whitespace-nowrap text-sm tabular-nums text-subtle">{ago(r.created_at)}</span>
         </div>
-        <div className="truncate text-sm text-muted">{placement(r)}</div>
+        <div className="truncate text-sm text-muted">
+          {placement(r)}
+          {r.cover_url && " · cover"}
+        </div>
         {live && (
           <>
             <div className="flex items-center gap-2">
@@ -774,6 +843,22 @@ function placement(r: RenderOut) {
   const col = clamp(Math.floor((o.x + o.w / 2) * 3), 0, 2)
   const row = clamp(Math.floor(((cy - IG.top) / (1 - IG.top - IG.bottom)) * 3), 0, 2)
   return `${SNAPS[row * 3 + col]} · ${Math.round(o.w * 100)}% · ${crop}`
+}
+
+/** Any image the browser can decode -> the 1080x1920 JPEG that gets published: cover-fit, centre-cropped, black
+ * under transparency. createImageBitmap applies the EXIF orientation. */
+async function coverJpeg(file: File): Promise<Blob> {
+  const img = await createImageBitmap(file).catch(() => null)
+  if (!img) throw new Error(`Can't read ${file.name} as an image in this browser`)
+  const c = new OffscreenCanvas(OUT_W, OUT_H)
+  const g = c.getContext("2d")!
+  g.fillStyle = "#000"
+  g.fillRect(0, 0, OUT_W, OUT_H)
+  g.imageSmoothingQuality = "high" // photos are usually downscaled a lot
+  const { sx, sy, sw, sh } = coverFit(img.width, img.height)
+  g.drawImage(img, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H)
+  img.close()
+  return c.convertToBlob({ type: "image/jpeg", quality: 0.9 })
 }
 
 function LogDialog({ id, onClose }: { id: number; onClose: () => void }) {

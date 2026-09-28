@@ -134,6 +134,16 @@ export type BodyFindLinks = {
 };
 
 /**
+ * Body_set_render_cover
+ */
+export type BodySetRenderCover = {
+    /**
+     * File
+     */
+    file: Blob | File;
+};
+
+/**
  * Body_upload_brand_logo
  */
 export type BodyUploadBrandLogo = {
@@ -818,6 +828,10 @@ export type RenderDetail = {
      * Thumbnail Url
      */
     readonly thumbnail_url: string | null;
+    /**
+     * Cover Url
+     */
+    readonly cover_url: string | null;
 };
 
 /**
@@ -878,6 +892,10 @@ export type RenderOut = {
      * Thumbnail Url
      */
     readonly thumbnail_url: string | null;
+    /**
+     * Cover Url
+     */
+    readonly cover_url: string | null;
 };
 
 /**
@@ -1706,6 +1724,66 @@ export type RetryRenderResponses = {
 };
 
 export type RetryRenderResponse = RetryRenderResponses[keyof RetryRenderResponses];
+
+export type DeleteRenderCoverData = {
+    body?: never;
+    path: {
+        /**
+         * Render Id
+         */
+        render_id: number;
+    };
+    query?: never;
+    url: '/api/renders/{render_id}/cover';
+};
+
+export type DeleteRenderCoverErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteRenderCoverError = DeleteRenderCoverErrors[keyof DeleteRenderCoverErrors];
+
+export type DeleteRenderCoverResponses = {
+    /**
+     * Successful Response
+     */
+    200: RenderOut;
+};
+
+export type DeleteRenderCoverResponse = DeleteRenderCoverResponses[keyof DeleteRenderCoverResponses];
+
+export type SetRenderCoverData = {
+    body: BodySetRenderCover;
+    path: {
+        /**
+         * Render Id
+         */
+        render_id: number;
+    };
+    query?: never;
+    url: '/api/renders/{render_id}/cover';
+};
+
+export type SetRenderCoverErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SetRenderCoverError = SetRenderCoverErrors[keyof SetRenderCoverErrors];
+
+export type SetRenderCoverResponses = {
+    /**
+     * Successful Response
+     */
+    200: RenderOut;
+};
+
+export type SetRenderCoverResponse = SetRenderCoverResponses[keyof SetRenderCoverResponses];
 
 export type ListAccountsData = {
     body?: never;

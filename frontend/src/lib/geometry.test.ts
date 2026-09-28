@@ -1,6 +1,6 @@
 // The preview-vs-render contract: numbers here are the backend's (backend/app/services/render.py).
 import { describe, expect, it } from "vitest"
-import { IG, OUT_H, OUT_W, clamp, crop916, cropAspect, cropPx, logoAspect, moveBox, outputView, resizeBox, snapPosition } from "./geometry"
+import { GRID, IG, OUT_H, OUT_W, clamp, coverFit, crop916, cropAspect, cropPx, logoAspect, moveBox, outputView, resizeBox, snapPosition } from "./geometry"
 
 const close = (a: object, b: object, digits = 6) =>
   Object.entries(b).forEach(([k, v]) => expect((a as Record<string, number>)[k], k).toBeCloseTo(v, digits))
@@ -86,5 +86,18 @@ describe("crop = backend crop_px + cover", () => {
     expect(v.left * OUT_W + 656 * s).toBeCloseTo(0, 9) // crop's left edge at output x = 0
     expect(v.left * OUT_W + (656 + 606) * s).toBeCloseTo(OUT_W, 9) // right edge at 1080
     expect(Math.abs(v.top * OUT_H)).toBeLessThan(2.5) // ffmpeg: 1080x1924 centre-cropped to 1920 -> 2 px
+  })
+})
+
+describe("Reel cover = the 1080x1920 JPEG the Editor uploads", () => {
+  it("cover-fits and centre-crops any image", () => {
+    close(coverFit(1600, 1200), { sx: 462.5, sy: 0, sw: 675, sh: 1200 }, 12) // wide: the sides go
+    close(coverFit(1000, 3000), { sx: 0, sy: 3000 / 2 - 1000 * (16 / 9) / 2, sw: 1000, sh: 1000 * (16 / 9) }, 9) // tall: top and bottom go
+    close(coverFit(OUT_W, OUT_H), { sx: 0, sy: 0, sw: OUT_W, sh: OUT_H }, 12)
+    close(coverFit(540, 960), { sx: 0, sy: 0, sw: 540, sh: 960 }, 12) // 9:16, upscaled 2x, nothing cut
+  })
+
+  it("the profile grid keeps the middle 3:4", () => {
+    expect(OUT_H * (1 - 2 * GRID)).toBe((OUT_W * 4) / 3) // 1440
   })
 })
