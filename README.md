@@ -1,78 +1,99 @@
 # Clipper
 
-Internal tool: takes video clips, overlays an advertiser logo, publishes them as Instagram Reels via
-Zernio on a schedule. Localhost only. See `CLAUDE.md` and `docs/PLAN.md`.
+Clipper takes video clips, puts an advertiser's logo on them and publishes them as Instagram Reels on a
+schedule, through [Zernio](https://zernio.com). One operator runs it.
 
-## Run
+> **Live app:** [https://145-241-239-46.sslip.io](https://145-241-239-46.sslip.io)
+>
+> For the username and password, reach out to pjsrsns@gmail.com.
 
-Needs Docker. Settings live in `.env` at the repo root (gitignored); `.env.example` says where each value
-comes from. `ZERNIO_API_KEY` is required; `PUBLISHING_ENABLED` defaults to `false`, so scheduled posts never
-go out until you set it to `true` (real Reels, which Zernio cannot delete). Telegram is optional: with a bot
-token and chat id you get failure alerts and a bot that does everything the web app does
-(`docs/telegram-bot.md`).
-Other settings and their defaults: `backend/app/core/config.py`.
+![Clipper's calendar: a week of Instagram Reels scheduled across three daily slots, with finished renders waiting in the Ready to schedule tray](docs/images/hero.png)
 
-```sh
-cp .env.example .env                  # then fill in ZERNIO_API_KEY
-docker compose up -d --build          # postgres, migrate (one-shot), api, worker, bot
-curl http://127.0.0.1:8000/api/health # {"status":"ok"}
-curl http://127.0.0.1:8000/api/status # db, worker heartbeat, job counts
+*The Calendar, on a review copy of production's data (so the footer reads **Publishing off**).*
+
+## What it does
+
+- **Import clips.** Upload video files, paste a link, or pull every video link out of a document. [Library](docs/guide/02-library.md)
+- **Brand and render.** Place the logo, crop to 9:16, pick a cover and a caption, render a 1080x1920 Reel. [Editor](docs/guide/03-editor.md)
+- **Keep defaults.** Brands, saved captions and saved covers, each with a default the Editor starts from. [Customizations](docs/guide/04-customizations.md)
+- **Schedule.** A week board per account with posting slots, drag and drop, and **Auto-schedule**. [Calendar](docs/guide/05-calendar.md) · [Accounts](docs/guide/06-accounts.md)
+- **Publish once, recover fast.** Each post goes out at its slot and never twice; a failed post gets one clear remedy. [Publishing and recovery](docs/guide/07-publishing-and-recovery.md)
+- **Work from Telegram.** A bot does almost everything the web app does, and sends failure alerts. [Telegram bot](docs/guide/08-telegram-bot.md)
+
+## How it works
+
+```mermaid
+flowchart LR
+  you(["You, in a browser"]) -->|"HTTPS + password"| caddy["Caddy"]
+  tg(["Telegram"]) <-->|"long polling"| bot["Telegram bots"]
+  caddy --> api["api<br/>FastAPI, serves the app"]
+  bot -->|"same HTTP API"| api
+  api --> db[("Postgres<br/>data + job queue")]
+  db --> worker["worker<br/>ffmpeg, yt-dlp,<br/>dispatcher every minute"]
+  worker -->|"upload + publish"| zernio["Zernio API"]
+  zernio --> ig(["Instagram Reels"])
+  worker -.->|"failure alerts"| tg
 ```
 
-Then the UI (needs Node 22 on the host):
+Everything runs as one Docker Compose stack on an Oracle Cloud VM. Caddy is the only public entry point: it
+adds HTTPS and the shared password, because Clipper has no login of its own. The api queues renders and
+downloads as jobs in Postgres; the worker runs them and, every minute, publishes the posts that are due. The
+bots sit inside the stack and call the api like the browser does, so every rule applies once. Details:
+[docs/deploy.md](docs/deploy.md) and [docs/PLAN.md](docs/PLAN.md).
+
+## Documentation
+
+- [User guide](docs/guide/README.md): every page of the app, with annotated screenshots. Start with [Getting started](docs/guide/01-getting-started.md).
+- [Workflows](docs/workflows.md): the nightly routine, a failed post, adding an account, shipping a change, backups.
+- [Deploy runbook](docs/deploy.md): the VM, the automatic deploy, backups and restore, trying a pull request.
+- [All documentation](docs/README.md): the full index, with reference and historical records.
+
+## Development
+
+> [!WARNING]
+> Never run `docker compose up` on the Mac. Its `.env` holds the production Zernio key and bot tokens, so a
+> local stack would publish the same schedule as the VM and fight its bots. Use `./review.sh` instead.
+
+You need Docker, Node 22 and SSH access to the production VM. `./review.sh` copies production's database and
+files to the Mac (it only reads from the VM) and runs your branch as a separate `clipper-review` stack with
+publishing off and no bots.
 
 ```sh
-cd frontend && npm install && npm run dev   # http://localhost:5173 (proxies /api and /media to :8000)
+./review.sh                                   # api on http://127.0.0.1:8000
+cd frontend && npm install && npm run dev     # the app on http://localhost:5173
+./review.sh down                              # remove the review stack and its database
 ```
 
-- API: http://127.0.0.1:8000 (docs at `/docs`), reloads on code changes in `backend/`.
-- Files under `./data` are served at `/media/...`.
-- Postgres: `127.0.0.1:5432`, user/password/db `clipper`.
-- Worker code changes need `docker compose kill worker && docker compose start worker` (a running job
-  re-runs from the start; `restart worker` does the same after waiting up to 90 s).
-- The Telegram bot: open your bot in Telegram and send /help. It answers only `TELEGRAM_CHAT_ID`; without
-  it the `bot` service exits at once (`docker compose logs bot` says why). Bot code changes need
-  `docker compose restart bot`.
-
-First run:
-
-1. Connect the Instagram account in the Zernio dashboard (Clipper never talks to Meta directly).
-2. Accounts → Sync accounts, then set the account's timezone, posting slots, daily cap and min gap.
-3. Brands → New brand, with a transparent PNG logo.
-4. Library → upload a clip (3 s to 15 min), open it in the Editor, render, then schedule the render.
-
-## Test
+Tests:
 
 ```sh
-docker compose run --rm worker pytest
+docker compose run --rm worker pytest                    # backend, in its own clipper_test database
+cd frontend && npm test && npm run typecheck && npm run lint
 ```
 
-Runs in the worker container (it has ffmpeg; in the api container the ffmpeg tests are skipped) against
-the compose postgres, in a separate `clipper_test` database that is dropped and recreated on every run.
+Shipping a change:
 
-Frontend (from `frontend/`):
+1. Work on a branch and open a pull request.
+2. Try it on a copy of production: `gh pr checkout <number> && ./review.sh`, then `npm run dev`.
+3. Merge to `master`. The **Deploy** workflow SSHes into the VM and runs `deploy.sh`, which rebuilds what
+   changed and waits for the api to answer.
+4. Open the live app and check your change.
 
-```sh
-npm test                 # vitest: the preview-vs-render geometry (src/lib/geometry.test.ts)
-npm run typecheck        # tsc -b
-npm run build            # typecheck + production bundle in dist/
-npm run lint
-node e2e/accept.mjs      # stack + `npm run dev` up: drives the real UI in Google Chrome, renders,
-                         # and checks the rendered frame against the preview (docs/phase-3.md)
+Step by step, with a diagram: [docs/workflows.md](docs/workflows.md). Every command, and the rules the code
+must follow: [CLAUDE.md](CLAUDE.md).
+
+## Project layout
+
 ```
-
-## Common tasks
-
-```sh
-docker compose run --rm migrate                                          # apply migrations (idempotent)
-docker compose run --rm --no-deps api alembic revision --autogenerate -m "..."
-docker compose exec api procrastinate defer ping                          # no-op job, proves the worker runs
-docker compose run --rm --no-deps api python scripts/dump_openapi.py      # refresh backend/openapi.json
-docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # render without the queue (--x --y --w --opacity)
-(cd backend && uv lock --upgrade-package yt-dlp) && docker compose up -d --build worker  # yt-dlp breaks often: update it
-docker compose down -v                                                    # stop and delete the database
-(cd frontend && npm run gen:api)                                          # regenerate src/api after dump_openapi.py
+backend/            FastAPI api, Procrastinate worker (app/tasks), Telegram bot (app/bot), Alembic, tests
+  openapi.json      the API schema; the frontend client is generated from it
+frontend/           React app: routes/, components/, lib/, api/ (generated, never edited by hand)
+  e2e/              Playwright scripts: acceptance run and the documentation screenshots
+docs/               user guide, workflows, runbooks, reference, historical records
+compose.yml         the stack: postgres, migrate, api, worker, bots
+compose.prod.yml    production overlay: Caddy, code baked into the images
+compose.review.yml  review overlay: publishing off, keys blanked, no bots
+Caddyfile           HTTPS and the shared password in front of production
+deploy.sh           run on the VM by the Deploy workflow
+review.sh           your branch on the Mac against a copy of production
 ```
-
-Procrastinate upgrades that ship SQL migrations (`procrastinate schema --migrations-path`) need that SQL
-applied by hand or wrapped in an Alembic revision; `migrate` only applies the full schema to an empty DB.

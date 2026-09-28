@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Clipper: Build Prompts
 
 How to use this: paste section 1 into `CLAUDE.md` at the repo root so it persists across every session. Then run sections 2 through 7 one at a time, in order, as individual prompts. Do not skip ahead. Each phase has acceptance criteria and you should not move on until they pass.

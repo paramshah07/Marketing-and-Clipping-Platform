@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Phase 5: publish + recovery
 
 **Status: live acceptance PASSED (2026-09-26, operator approved normal Reels on @i.cant.de).** A post
