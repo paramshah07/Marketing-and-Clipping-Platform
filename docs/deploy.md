@@ -76,7 +76,7 @@ removes it), then copy the secrets straight over SSH:
 
 ```sh
 scp ubuntu@<vm>:.ssh/github.pub /tmp/clipper-vm.pub && gh repo deploy-key add /tmp/clipper-vm.pub -t clipper-vm
-ssh ubuntu@<vm> git clone git@github.com:paramshah07/bajjo-marketing-clipping-platform.git clipper
+ssh ubuntu@<vm> git clone git@github.com:paramshah07/Marketing-and-Clipping-Platform.git clipper
 scp .env ubuntu@<vm>:clipper/.env
 ```
 
