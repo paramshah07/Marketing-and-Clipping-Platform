@@ -1,0 +1,19 @@
+# Review a branch on the Mac with a copy of production's data, without touching production (./review.sh).
+# Its own project (clipper-review) and database volume; publishing off, no Zernio key, no bot tokens, and the
+# bots sit behind a profile nothing enables: this stack can't publish or poll Telegram, whatever .env says.
+x-safe: &safe
+  environment:
+    PUBLISHING_ENABLED: "false"
+    ZERNIO_API_KEY: ""
+    TELEGRAM_BOT_TOKEN: ""
+    TELEGRAM_CHAT_ID: ""
+
+services:
+  postgres:
+    ports: !reset [] # no host port: `docker compose run --rm worker pytest` keeps 5432 for the dev project
+  migrate: *safe
+  api: *safe
+  worker: *safe
+  bot: { <<: *safe, profiles: [never] } # blank tokens too: naming a bot on the command line enables its profile
+  bot2: { <<: *safe, profiles: [never] }
+  bot3: { <<: *safe, profiles: [never] }

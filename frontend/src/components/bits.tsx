@@ -11,7 +11,7 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="grid flex-1 place-items-center p-8 text-center text-muted">{children}</div>
 }
 
-const TONES = { accent: "bg-accent/10 text-accent", ok: "bg-ok/10 text-ok", bad: "bg-bad/10 text-bad", warn: "bg-warn/10 text-warn" }
+const TONES = { accent: "bg-accent/10 text-accent", ok: "bg-ok/10 text-ok", bad: "bg-bad/10 text-bad", warn: "bg-warn/10 text-warn", neutral: "border border-line-strong text-muted" }
 
 export function Chip({ tone, spin, dot, children }: { tone: keyof typeof TONES; spin?: boolean; dot?: boolean; children: ReactNode }) {
   return (

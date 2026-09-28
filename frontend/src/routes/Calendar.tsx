@@ -252,17 +252,6 @@ export function Calendar() {
   const first = chosen.find((r) => !inView.has(r.id)) ?? chosen[chosen.length - 1]
 
   // ---- actions
-  async function withRights<T>(call: (override: boolean) => Promise<T>): Promise<T | null> {
-    try {
-      return await call(false)
-    } catch (e) {
-      if (apiError(e).code !== "RIGHTS_NONE") throw e
-      const ids = (e as { detail?: { render_ids?: number[] } }).detail?.render_ids ?? []
-      const names = ids.map((id) => `  ${nameOf(renders.data?.find((r) => r.id === id)?.source_clip_id ?? -1, `render ${id}`)} #${id}`)
-      return confirm(`No rights recorded for:\n${names.join("\n")}\n\nSchedule anyway?`) ? call(true) : null
-    }
-  }
-
   async function fill() {
     if (!target || !chosen.length || busy || placing.current) return
     const acc = target
@@ -270,12 +259,10 @@ export function Calendar() {
     setUnplaced([])
     setNotice(null)
     try {
-      const out = await withRights((o) => autoSchedule({ body: { render_ids: chosen.map((r) => r.id), account_id: acc.id, rights_override: o }, throwOnError: true }).then((x) => x.data))
-      if (out) {
-        setUnplaced(out.unplaced)
-        setSel(new Set(out.unplaced.map((u) => u.render_id)))
-        setNotice({ ok: true, text: `Placed ${out.placed.length} on @${acc.username}${out.unplaced.length ? `, ${out.unplaced.length} not placed` : ""}` })
-      }
+      const { data: out } = await autoSchedule({ body: { render_ids: chosen.map((r) => r.id), account_id: acc.id }, throwOnError: true })
+      setUnplaced(out.unplaced)
+      setSel(new Set(out.unplaced.map((u) => u.render_id)))
+      setNotice({ ok: true, text: `Placed ${out.placed.length} on @${acc.username}${out.unplaced.length ? `, ${out.unplaced.length} not placed` : ""}` })
     } catch (e) {
       fail("Couldn't auto-schedule", e)
     } finally {
@@ -292,11 +279,9 @@ export function Calendar() {
     setPending({ key: `${date}|${slot}`, r })
     try {
       const body = { render_id: r.id, account_id: acc.id, scheduled_for: zonedToUtc(date, slot, acc.timezone).toISOString() }
-      const out = await withRights((o) => createPost({ body: { ...body, rights_override: o }, throwOnError: true }).then((x) => x.data))
-      if (out) {
-        select([r.id], false)
-        setNotice({ ok: true, text: `${out.status === "DRAFT" ? "Draft" : "Scheduled"} for ${shortWhen(out.scheduled_for, acc.timezone)} on @${acc.username}` })
-      }
+      const { data: out } = await createPost({ body, throwOnError: true })
+      select([r.id], false)
+      setNotice({ ok: true, text: `${out.status === "DRAFT" ? "Draft" : "Scheduled"} for ${shortWhen(out.scheduled_for, acc.timezone)} on @${acc.username}` })
     } catch (e) {
       fail(`Couldn't schedule render ${r.id}`, e)
     } finally {
@@ -826,7 +811,7 @@ export function Calendar() {
         groups={groups}
         clip={(id) => {
           const c = clipOf(id)
-          return { name: nameOf(id), title: c ? (c.source_url ?? c.original_filename ?? undefined) : undefined, noRights: c?.rights_status === "none" }
+          return { name: nameOf(id), title: c ? (c.source_url ?? c.original_filename ?? undefined) : undefined }
         }}
         brand={(id) => (id == null ? "No logo" : (brandOf(id)?.name ?? `Brand ${id}`))}
         sel={sel}

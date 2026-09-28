@@ -59,7 +59,7 @@ class Telegram:
 
 
 class ApiError(Exception):
-    """A refused api call: message is what the web app would show; code is e.g. RIGHTS_NONE, detail the body."""
+    """A refused api call: message is what the web app would show; code is e.g. STATE_CONFLICT, detail the body."""
 
     def __init__(self, status: int, message: str, code: str | None = None, detail: dict | None = None):
         super().__init__(message)

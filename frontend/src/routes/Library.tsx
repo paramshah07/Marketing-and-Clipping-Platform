@@ -17,12 +17,11 @@ import {
   listRendersOptions,
   listRendersQueryKey,
   retryClipMutation,
-  updateClipMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { Chip, Header } from "@/components/bits"
 import { ImportLinks } from "@/components/ImportLinks"
 import { BROWSER_TZ as TZ, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
-import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, RIGHTS, btn, type Rights } from "@/lib/utils"
+import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, btn } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -32,7 +31,7 @@ const polled = (c: ClipOut) => !TERMINAL.has(c.status) && (c.status !== "UPLOADI
 const FINAL = new Set(["PRIVATE", "REMOVED", "GEO_BLOCKED", "DURATION_OUT_OF_RANGE", "PROBE_FAILED", "UPLOAD_ABANDONED"])
 
 /** A file on its way up; the server row replaces it when the POST returns. */
-type Upload = { key: string; file: File; rights: Rights; handle: string; loaded: number; rate: number; error?: string; fatal?: boolean; xhr?: XMLHttpRequest }
+type Upload = { key: string; file: File; handle: string; loaded: number; rate: number; error?: string; fatal?: boolean; xhr?: XMLHttpRequest }
 
 // Module state, not component state: switching tabs or pages keeps the rows with their progress, Cancel and
 // Retry (the XHRs run on regardless). A reload loses them, hence the beforeunload prompt while any is in flight.
@@ -45,7 +44,7 @@ const set = (key: string, p: Partial<Upload>) => setUploads((us) => us.map((u) =
 const drop = (key: string) => setUploads((us) => us.filter((u) => u.key !== key))
 addEventListener("beforeunload", (e) => uploads.some((u) => !u.error) && e.preventDefault())
 
-function upload(file: File, rights: Rights, handle: string, refresh: () => Promise<unknown>, key: string = crypto.randomUUID()) {
+function upload(file: File, handle: string, refresh: () => Promise<unknown>, key: string = crypto.randomUUID()) {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
   // checked here because the api's early 415/413 can reach a browser as a bare network error
   const bad = !EXTENSIONS.includes(ext)
@@ -55,11 +54,10 @@ function upload(file: File, rights: Rights, handle: string, refresh: () => Promi
       : file.size > MAX_UPLOAD_BYTES
         ? `Too large: ${(file.size / 1024 ** 3).toFixed(1)} GB (max 2 GB)`
         : undefined
-  const row: Upload = { key, file, rights, handle, loaded: 0, rate: 0, error: bad, fatal: !!bad }
+  const row: Upload = { key, file, handle, loaded: 0, rate: 0, error: bad, fatal: !!bad }
   setUploads((us) => (us.some((u) => u.key === key) ? us.map((u) => (u.key === key ? row : u)) : [row, ...us]))
   if (bad) return
   const form = new FormData()
-  form.append("rights_status", rights)
   if (handle) form.append("source_creator_handle", handle)
   form.append("file", file)
   const xhr = new XMLHttpRequest()
@@ -164,7 +162,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const { clips, loading, search, pickRef } = props
   const qc = useQueryClient()
   const uploads = useSyncExternalStore(subscribe, getUploads)
-  const [rights, setRights] = useState<Rights>("own_content")
   const [handle, setHandle] = useState("")
   const [url, setUrl] = useState("")
   const [over, setOver] = useState(false)
@@ -175,13 +172,12 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const fromUrl = useMutation({ ...createClipFromUrlMutation(), onSuccess: () => (setUrl(""), setHandle(""), refresh()), onError })
   const remove = useMutation({ ...deleteClipMutation(), onSuccess: refresh, onError })
   const retry = useMutation({ ...retryClipMutation(), onSuccess: refresh, onError })
-  const patch = useMutation({ ...updateClipMutation(), onSuccess: refresh, onError })
 
   // a document is a list of links to import, not a video
   const isDocument = (f: File) => DOCUMENTS.includes(f.name.split(".").pop()?.toLowerCase() ?? "")
   const addFiles = (files: FileList | null) => {
     const all = [...(files ?? [])]
-    all.filter((f) => !isDocument(f)).forEach((f) => upload(f, rights, handle.trim(), refresh))
+    all.filter((f) => !isDocument(f)).forEach((f) => upload(f, handle.trim(), refresh))
     const doc = all.find(isDocument)
     if (doc) props.onDocument(doc)
   }
@@ -221,7 +217,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
             onSubmit={(e) => {
               e.preventDefault()
               setNotice("")
-              fromUrl.mutate({ body: { url, rights_status: rights, source_creator_handle: handle.trim() || null } })
+              fromUrl.mutate({ body: { url, source_creator_handle: handle.trim() || null } })
             }}
           >
             <label className="flex h-7 max-w-[320px] min-w-[160px] flex-1 items-center gap-2 rounded border border-line bg-panel px-2 focus-within:border-muted">
@@ -235,13 +231,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                 placeholder="https://www.tiktok.com/@creator/video/…"
               />
             </label>
-            <select title="Rights for new clips (drops and imports)" value={rights} onChange={(e) => setRights(e.target.value as Rights)} className={cn(field, "w-[140px] shrink-0")}>
-              {Object.entries(RIGHTS).map(([k, v]) => (
-                <option key={k} value={k}>
-                  {v}
-                </option>
-              ))}
-            </select>
             <input title="Creator handle for new clips (optional)" value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle (optional)" className={cn(field, "w-[140px] shrink-0")} />
             <button className={cn(btn.secondary, "shrink-0")} disabled={fromUrl.isPending}>
               Import
@@ -266,7 +255,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
             <col />
             <col className="w-[84px]" />
             <col className="w-[156px]" />
-            <col className="w-[136px]" />
             <col className="w-[212px]" />
             <col className="w-[80px]" />
             <col className="w-[84px]" />
@@ -278,7 +266,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
               <th>Name</th>
               <th className="text-right">Duration</th>
               <th className="!pl-6">Size</th>
-              <th>Rights</th>
               <th>Status</th>
               <th className="text-right">Renders</th>
               <th className="text-muted" aria-sort="descending">
@@ -304,7 +291,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                 </td>
                 <td className="text-right text-subtle">—</td>
                 <td className="!pl-6 text-subtle">—</td>
-                <td>{u.fatal ? <span className="text-subtle">—</span> : <RightsChip value={u.rights} />}</td>
                 <td>
                   {u.error ? (
                     <Failed cause={u.error} />
@@ -340,7 +326,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                       </>
                     ) : (
                       <>
-                        <button className={cn(btn.secondary, "px-2 font-normal")} onClick={() => upload(u.file, u.rights, u.handle, refresh, u.key)}>
+                        <button className={cn(btn.secondary, "px-2 font-normal")} onClick={() => upload(u.file, u.handle, refresh, u.key)}>
                           <RotateCw className="size-3.5" />
                           Retry
                         </button>
@@ -358,7 +344,6 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                 key={c.id}
                 c={c}
                 renders={counts.get(c.id) ?? 0}
-                onRights={(v) => patch.mutate({ path: { clip_id: c.id }, body: { rights_status: v } })}
                 onRetry={() => retry.mutate({ path: { clip_id: c.id } })}
                 onRemove={() => confirm(`Remove ${clipName(c)}? Its file is deleted too.`) && remove.mutate({ path: { clip_id: c.id } })}
               />
@@ -377,7 +362,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   )
 }
 
-function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; renders: number; onRights: (v: Rights) => void; onRetry: () => void; onRemove: () => void }) {
+function ClipRow({ c, renders, onRetry, onRemove }: { c: ClipOut; renders: number; onRetry: () => void; onRemove: () => void }) {
   const ready = c.status === "READY"
   // a retry can't fix these: Remove instead (as in the mockup)
   const retryable = c.status === "FAILED" && !FINAL.has(c.error_code ?? "") && (c.origin === "url" || !!c.raw_url)
@@ -412,9 +397,6 @@ function ClipRow({ c, renders, onRights, onRetry, onRemove }: { c: ClipOut; rend
       <td className={cn("text-right tabular-nums", c.duration_s == null && "text-subtle")}>{mmss(c.duration_s)}</td>
       <td className="!pl-6 whitespace-nowrap text-sm tabular-nums text-muted" title={c.size_bytes ? `${(c.size_bytes / 1e6).toFixed(1)} MB` : undefined}>
         {c.width ? `${c.width}x${c.height} · ${fps}` : <span className="text-subtle">—</span>}
-      </td>
-      <td>
-        <RightsChip value={c.rights_status} onChange={onRights} />
       </td>
       <td>
         {c.status === "FAILED" ? (
@@ -524,26 +506,6 @@ function Failed({ cause, code, detail }: { cause: string; code?: string | null; 
         {cause}
       </div>
     </>
-  )
-}
-
-/** Rights as plain text (a warn chip for "none"); a native select in that clothing where it can be changed. */
-function RightsChip({ value, onChange }: { value: Rights; onChange?: (v: Rights) => void }) {
-  const cls = cn(
-    "h-5 appearance-none rounded border bg-transparent px-1.5 outline-none [field-sizing:content] focus-visible:border-muted",
-    // plain text lines up with the column; the bordered warn chip sits inside it, like Status's chips
-    value === "none" ? "border-warn/40 text-xs text-warn" : "-ml-[7px] border-transparent text-sm text-muted",
-    onChange && "cursor-pointer hover:border-line-strong"
-  )
-  if (!onChange) return <span className={cn(cls, "inline-flex items-center")}>{RIGHTS[value]}</span>
-  return (
-    <select value={value} onChange={(e) => onChange(e.target.value as Rights)} className={cls} title="Change rights">
-      {Object.entries(RIGHTS).map(([k, v]) => (
-        <option key={k} value={k}>
-          {v}
-        </option>
-      ))}
-    </select>
   )
 }
 

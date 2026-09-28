@@ -12,7 +12,7 @@ type Props = {
   loading: boolean
   error?: string
   groups: Group[] // renders of one source clip, in queue order
-  clip: (clipId: number) => { name: string; title?: string; noRights: boolean }
+  clip: (clipId: number) => { name: string; title?: string }
   brand: (id: number | null) => string
   sel: Set<number>
   onSelect: (ids: number[], on: boolean) => void
@@ -95,10 +95,7 @@ export function ScheduleTray(props: Props) {
               <span className="block truncate" title={c.title}>
                 {c.name}
               </span>
-              <span className="block truncate text-sm text-muted">
-                {props.brand(r.brand_id)}
-                {c.noRights && <span className="text-warn"> · No rights</span>}
-              </span>
+              <span className="block truncate text-sm text-muted">{props.brand(r.brand_id)}</span>
             </>
           )}
         </span>
@@ -141,10 +138,7 @@ export function ScheduleTray(props: Props) {
               <span className="block truncate" title={c.title}>
                 {c.name}
               </span>
-              <span className="block truncate text-sm text-muted">
-                {brands.length > 1 ? `${brands.length} brands` : brands[0]}
-                {c.noRights && <span className="text-warn"> · No rights</span>}
-              </span>
+              <span className="block truncate text-sm text-muted">{brands.length > 1 ? `${brands.length} brands` : brands[0]}</span>
             </span>
           </label>
           <span className="flex shrink-0 flex-col items-end leading-4">

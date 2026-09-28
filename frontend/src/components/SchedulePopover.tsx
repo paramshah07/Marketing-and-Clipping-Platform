@@ -52,22 +52,17 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   const st = useQuery(statusOptions()) // the sidebar's query; shares its cache
   const long = (r.duration_s ?? 0) > MAX_REEL_SECONDS
 
-  async function submit(now = false, override = false) {
+  async function submit(now = false) {
     if (!a || (!now && (!date || !time))) return
     setError("")
     try {
       const scheduled_for = now ? nowIso() : zonedToUtc(date, time, a.timezone).toISOString()
-      let post = await create.mutateAsync({ body: { render_id: r.id, account_id: a.id, scheduled_for, caption, rights_override: override } })
+      let post = await create.mutateAsync({ body: { render_id: r.id, account_id: a.id, scheduled_for, caption } })
       if (now && post.status === "DRAFT") post = await approve.mutateAsync({ path: { post_id: post.id } }) // Post now is the approval
       setNow(now)
       setDone(post)
     } catch (e) {
-      const { code, message } = apiError(e)
-      if (code === "RIGHTS_NONE" && !override) {
-        if (confirm(`${message}\n\nThis clip has no rights recorded. ${now ? "Post" : "Schedule"} it anyway?`)) await submit(now, true)
-        return
-      }
-      setError(message)
+      setError(apiError(e).message)
     } finally {
       // also after a failure: the post may exist as a draft (created, approve refused)
       qc.invalidateQueries({ queryKey: listPostsQueryKey() })

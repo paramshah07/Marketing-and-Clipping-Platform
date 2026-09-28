@@ -179,9 +179,8 @@ async def post_line(bot, p: dict, extra: str = "") -> str:
     return " · ".join(bits) + extra
 
 
-def rights_rows(prefix: str) -> list:
-    return [[("Own content", f"{prefix}:o"), ("Permission granted", f"{prefix}:p")],
-            [("No rights", f"{prefix}:n"), ("Cancel", f"{prefix}:x")]]  # fmt: skip
+def import_rows(prefix: str) -> list:
+    return [[("Import", f"{prefix}:go"), ("Cancel", f"{prefix}:x")]]
 
 
 def send_video(bot, url: str | None, size: int | None, caption: str, dims: tuple = ()) -> str:
@@ -280,7 +279,6 @@ async def clips_list(bot, v):
         bits = [f"/c{c['id']}", state, h(fmt.cut(fmt.clip_name(c), 44))]
         bits += [h(c["source_creator_handle"])] if c["source_creator_handle"] else []
         bits += [fmt.plural(n[c["id"]], "render")] if s == "READY" else []
-        bits += ["<b>no rights</b>"] if c["rights_status"] == "none" else []
         lines.append(" · ".join(bits))
     if not shown:
         lines.append("No clips match." if q else "No clips yet. Send a video, a link or a document to import.")
@@ -526,8 +524,7 @@ async def ready_list(bot, v):
     for r in items:
         c = clips.get(r["source_clip_id"])
         name, brand = fmt.clip_name(c) if c else f"Clip {r['source_clip_id']}", brand_name(brands, r["brand_id"])
-        flags = (" · <b>no rights</b>" if c and c["rights_status"] == "none" else "") + (
-            " · <b>too long</b>" if (r["duration_s"] or 0) > settings.ZERNIO_MAX_REEL_SECONDS else "")
+        flags = " · <b>too long</b>" if (r["duration_s"] or 0) > settings.ZERNIO_MAX_REEL_SECONDS else ""
         lines.append(f"/r{r['id']} · {h(brand)} · {h(fmt.cut(name, 36))} · {fmt.mmss(r['duration_s'])}{flags}")
         rows.append([(("☑ " if r["id"] in v["sel"] else "☐ ") + f"#{r['id']} {fmt.cut(brand, 16)} · {fmt.cut(name, 22)}", f"q:t:{r['id']}")])
     rows += [[("Select all", "q:all"), ("Clear", "q:none")]] + nav
@@ -550,24 +547,16 @@ async def ready_op(bot, msg, op, arg=""):
         v["sel"] = list(v.get("ids", []))
     elif op == "none":
         v["sel"] = []
-    elif op in ("go", "go!"):
-        return await auto_schedule(bot, msg, v, override=op == "go!")
+    elif op == "go":
+        return await auto_schedule(bot, msg, v)
     await show_list(bot, msg, v)
 
 
-async def auto_schedule(bot, msg, v, override: bool):
+async def auto_schedule(bot, msg, v):
     a = pick_account(usable(await bot.accounts()), v["acc"] or bot.last_account)
     if a is None or not v["sel"]:
         raise Alert("Select renders first.")
-    body = {"render_ids": v["sel"], "account_id": a["id"], "rights_override": override}
-    try:
-        out = await bot.api.post("/api/posts/auto-schedule", json=body)
-    except ApiError as e:
-        if e.code != "RIGHTS_NONE" or override:
-            raise
-        ids = ", ".join(f"#{i}" for i in e.detail.get("render_ids", []))
-        await bot.edit(msg, f"<b>No rights recorded</b> for render {ids}. Schedule anyway?", [[("Schedule anyway", "q:go!"), ("Back", "pg:0")]])
-        return None
+    out = await bot.api.post("/api/posts/auto-schedule", json={"render_ids": v["sel"], "account_id": a["id"]})
     bot.views.pop(msg["message_id"], None)
     tz, placed, unplaced = a["timezone"], out["placed"], out["unplaced"]
     lines = [f"<b>Placed {len(placed)} on @{h(a['username'])}</b>" + (f", {len(unplaced)} not placed" if unplaced else "")]
@@ -653,33 +642,18 @@ async def clip_card(bot, cid):
     if s == "READY":
         fps = f"{round(c['fps'], 2):g}fps" if c["fps"] else "?fps"
         lines.append(f"{fmt.mmss(c['duration_s'])} · {c['width']}x{c['height']} · {fps} · "
-                     f"{'audio' if c['has_audio'] else 'no audio'} · {fmt.mb(c['size_bytes'])}")  # fmt: skip
+                     f"{'audio' if c['has_audio'] else 'no audio'} · {fmt.mb(c['size_bytes'])} · {fmt.plural(n, 'render')}")  # fmt: skip
     elif s == "FAILED":
         lines.append(f"<b>Failed</b>: {h(fmt.CAUSES.get(c['error_code'], 'failed'))} <code>{h(c['error_code'] or '')}</code>")
         lines += [f"<i>{h(fmt.cut(c['error_detail'], 200))}</i>"] if c["error_detail"] else []
     else:
         lines.append(f"{s.capitalize()}…")
-    lines.append(f"Rights: {fmt.RIGHTS[c['rights_status']]}" + (" (scheduling asks to confirm)" if c["rights_status"] == "none" else "")
-                 + (f" · {fmt.plural(n, 'render')}" if s == "READY" else ""))  # fmt: skip
     rows = [[("Render…", f"ce:{cid}"), (f"Renders ({n})", f"crl:{cid}")]] if s == "READY" else []
-    rows.append([("Rights", f"crp:{cid}"), ("Creator", f"ch:{cid}")] + ([("Watch", f"cv:{cid}")] if s == "READY" else []))
+    rows.append([("Creator", f"ch:{cid}")] + ([("Watch", f"cv:{cid}")] if s == "READY" else []))
     retryable = s == "FAILED" and c["error_code"] not in fmt.FINAL and (c["origin"] == "url" or c["raw_url"])
     last = ([("Retry", f"cy:{cid}")] if retryable else []) + ([("Remove", f"cd:{cid}")] if s in ("READY", "FAILED") and not n else [])
     rows += ([last] if last else []) + (web(f"/editor/{cid}") if s == "READY" else [])
     return "\n".join(lines), rows, c["thumbnail_url"]
-
-
-@button("crp")
-async def clip_rights_pick(bot, msg, cid):
-    rows = [[(label.capitalize(), f"cr:{cid}:{code[0]}")] for code, label in fmt.RIGHTS.items()]
-    await bot.buttons(msg, rows + [[("Back", f"re:c:{cid}")]])
-
-
-@button("cr")
-async def clip_rights(bot, msg, cid, r):
-    await bot.api.patch(f"/api/clips/{cid}", {"rights_status": fmt.RIGHT[r]})
-    await refresh(bot, msg, "c", int(cid))
-    return f"Rights: {fmt.RIGHTS[fmt.RIGHT[r]]}"
 
 
 @button("ch")
@@ -787,9 +761,9 @@ async def render_delete(bot, msg, rid):
     await bot.edit(msg, f"Render #{rid} deleted.")
 
 
-async def post_now(bot, rid: int, aid: int, caption: str | None, override: bool) -> dict:
+async def post_now(bot, rid: int, aid: int, caption: str | None) -> dict:
     """The post at this second, approved (Post now is the approval), watched until it goes out."""
-    body = {"render_id": rid, "account_id": aid, "scheduled_for": now().replace(microsecond=0).isoformat(), "rights_override": override}
+    body = {"render_id": rid, "account_id": aid, "scheduled_for": now().replace(microsecond=0).isoformat()}
     p = await bot.api.post("/api/posts", json=body | ({"caption": caption} if caption is not None else {}))
     if p["status"] == "DRAFT":
         p = await bot.api.post(f"/api/posts/{p['id']}/approve")
@@ -800,19 +774,17 @@ async def post_now(bot, rid: int, aid: int, caption: str | None, override: bool)
 @button("rn")
 async def render_now_ask(bot, msg, rid):
     await publishing_on(bot)
-    r = await bot.api.get(f"/api/renders/{rid}")
-    none = (await bot.api.get(f"/api/clips/{r['source_clip_id']}"))["rights_status"] == "none"
     if not (accs := usable(await bot.accounts())):
         raise Alert(NO_ACCOUNT)
-    rows = [[(f"Post to @{a['username']} now" + (", no rights" if none else ""), f"rn!:{rid}:{a['id']}:{int(none)}")] for a in accs]
+    rows = [[(f"Post to @{a['username']} now", f"rn!:{rid}:{a['id']}")] for a in accs]
     await bot.buttons(msg, rows + [[("Back", f"re:r:{rid}")]])
-    return "It goes live on Instagram within about a minute and can't be deleted from here." + (" This clip has no rights recorded." if none else "")
+    return "It goes live on Instagram within about a minute and can't be deleted from here."
 
 
 @button("rn!")
-async def render_now(bot, msg, rid, aid, override):
+async def render_now(bot, msg, rid, aid, *_):  # *_: the rights flag older confirm buttons still carry
     await publishing_on(bot)
-    p = await post_now(bot, int(rid), int(aid), None, override == "1")
+    p = await post_now(bot, int(rid), int(aid), None)
     await refresh(bot, msg, "r", int(rid))
     await bot.send(f"Posting render #{rid} on @{h(p['account_username'])} now: live within about a minute. /p{p['id']}")
     return "Posting now"
@@ -1305,8 +1277,7 @@ def editor_view(v: dict) -> tuple[str, list]:
     c, cap, b = v["clip"], v["caption"], editor_brand(v)
     tags = fmt.hashtags(cap)
     lines = [f"<b>Render</b> · clip {c['id']} · {h(fmt.cut(fmt.clip_name(c), 60))}",
-             (f"{fmt.mmss(c['duration_s'])} · {c['width']}x{c['height']} · {'audio' if c['has_audio'] else 'no audio'} · "
-              f"rights: {fmt.RIGHTS[c['rights_status']]}"), ""]  # fmt: skip
+             f"{fmt.mmss(c['duration_s'])} · {c['width']}x{c['height']} · {'audio' if c['has_audio'] else 'no audio'}", ""]  # fmt: skip
     if not v["chosen"]:
         lines.append("Brand: <b>pick one below</b>, or No logo.")
     else:
@@ -1488,8 +1459,6 @@ async def schedule_view(bot, v: dict) -> tuple[str, list]:
     else:
         lines.append("When: no free slot in the next 30 days. Pick a time.")
     lines.append("Caption:" + (f"\n<blockquote>{h(fmt.cut(v['caption'], 300))}</blockquote>" if v["caption"] else " none"))
-    if v["clip"]["rights_status"] == "none":
-        lines.append("This clip has no rights recorded.")
     if not (await bot.api.get("/api/status"))["publishing_enabled"]:
         lines.append("Publishing is off: nothing reaches Instagram until it is turned on.")
     if step == "accounts":
@@ -1501,10 +1470,6 @@ async def schedule_view(bot, v: dict) -> tuple[str, list]:
         if not rows:
             lines.append(f"No posting slot left on {v['day']:%a} {v['day'].day}: type a time.")
         rows += [[("Type a time…", "s:tt"), ("Back", "s:d")]]
-    elif step in ("rights", "rights_now"):
-        now_ = step == "rights_now"
-        lines.append(f"<b>No rights recorded for this clip.</b> {'Post' if now_ else 'Schedule'} it anyway?")
-        rows = [[("Post anyway" if now_ else "Schedule anyway", "s:now!!" if now_ else "s:go!"), ("Back", "s:bk")]]
     elif step == "now":
         lines.append(f"<b>Post to @{h(a['username'])} now?</b> It goes live on Instagram within about a minute and can't be deleted from here.")
         rows = [[("Post now", "s:now!"), ("Back", "s:bk")]]
@@ -1542,33 +1507,26 @@ async def schedule_op(bot, msg, op, arg=""):
     elif op == "x":
         bot.views.pop(msg["message_id"], None)
         return await bot.edit(msg, "Closed.")
-    elif op in ("go", "go!"):
-        return await schedule_submit(bot, msg, v, now_=False, override=op == "go!")
+    elif op == "go":
+        return await schedule_submit(bot, msg, v, now_=False)
     elif op == "now":
         await publishing_on(bot)
         v["step"] = "now"
-    elif op in ("now!", "now!!"):  # the confirm showed "no rights recorded" when there are none
-        return await schedule_submit(bot, msg, v, now_=True, override=op == "now!!" or v["clip"]["rights_status"] == "none")
+    elif op == "now!":
+        return await schedule_submit(bot, msg, v, now_=True)
     await bot.edit(msg, *await schedule_view(bot, v))
 
 
-async def schedule_submit(bot, msg: dict, v: dict, now_: bool, override: bool) -> str | None:
+async def schedule_submit(bot, msg: dict, v: dict, now_: bool) -> str:
     a, r = v["acc"], v["render"]
-    try:
-        if now_:
-            await publishing_on(bot)
-            p = await post_now(bot, r["id"], a["id"], v["caption"], override)
-        elif not v["at"]:
-            raise Alert("Pick a time first.")
-        else:
-            body = {"render_id": r["id"], "account_id": a["id"], "scheduled_for": v["at"].isoformat(), "caption": v["caption"], "rights_override": override}
-            p = await bot.api.post("/api/posts", json=body)
-    except ApiError as e:
-        if e.code != "RIGHTS_NONE" or override:
-            raise
-        v["step"] = "rights_now" if now_ else "rights"
-        await bot.edit(msg, *await schedule_view(bot, v))
-        return None
+    if now_:
+        await publishing_on(bot)
+        p = await post_now(bot, r["id"], a["id"], v["caption"])
+    elif not v["at"]:
+        raise Alert("Pick a time first.")
+    else:
+        body = {"render_id": r["id"], "account_id": a["id"], "scheduled_for": v["at"].isoformat(), "caption": v["caption"]}
+        p = await bot.api.post("/api/posts", json=body)
     bot.views.pop(msg["message_id"], None)
     who, when = f"@{h(a['username'])}", fmt.when(p["scheduled_for"], a["timezone"])
     if now_:
@@ -1633,9 +1591,8 @@ def upload_name(f: dict, m: dict) -> str:
 
 
 def upload_question(v: dict) -> str:
-    n = len(v["files"])
-    return (f"Import {fmt.plural(n, 'video')} ({fmt.mb(sum(f['size'] for f in v['files']))})"
-            + (f" by {h(v['handle'])}" if v["handle"] else "") + f"? Pick {'its' if n == 1 else 'their'} rights:")  # fmt: skip
+    return (f"Import {fmt.plural(len(v['files']), 'video')} ({fmt.mb(sum(f['size'] for f in v['files']))})"
+            + (f" by {h(v['handle'])}" if v["handle"] else "") + "?")  # fmt: skip
 
 
 async def on_message(bot, m: dict) -> None:
@@ -1666,28 +1623,27 @@ async def ask_upload(bot, m: dict, f: dict) -> None:
     if group and (v := bot.views.get(bot.albums.get(group, 0))) and v["kind"] == "upload":  # the rest of an album: one question
         v["files"].append(item)
         v["handle"] = v["handle"] or handle
-        return await bot.edit(v["msg"], upload_question(v), rights_rows("up"))
+        return await bot.edit(v["msg"], upload_question(v), import_rows("up"))
     v = {"kind": "upload", "files": [item], "handle": handle}
-    bot.keep(await bot.send(upload_question(v), rights_rows("up"), reply_to=m["message_id"]), v)
+    bot.keep(await bot.send(upload_question(v), import_rows("up"), reply_to=m["message_id"]), v)
     if group:
         bot.albums[group] = v["msg"]["message_id"]
 
 
 @button("up")
-async def upload_go(bot, msg, r):
+async def upload_go(bot, msg, op):
     v = bot.view(msg, "upload")
     bot.views.pop(msg["message_id"], None)
-    if r == "x":
+    if op == "x":
         return await bot.edit(msg, "Import cancelled.")
-    rights = fmt.RIGHT[r]
-    await bot.edit(msg, f"Uploading {fmt.plural(len(v['files']), 'video')} ({fmt.RIGHTS[rights]})…")
-    bot.spawn(upload_all(bot, msg, v, rights))
+    await bot.edit(msg, f"Uploading {fmt.plural(len(v['files']), 'video')}…")
+    bot.spawn(upload_all(bot, msg, v))
 
 
-async def upload_all(bot, msg: dict, v: dict, rights: str) -> None:
+async def upload_all(bot, msg: dict, v: dict) -> None:
     ok, bad = [], []
     for f in v["files"]:
-        fields = {"rights_status": rights} | ({"source_creator_handle": v["handle"]} if v["handle"] else {})
+        fields = {"source_creator_handle": v["handle"]} if v["handle"] else {}
         try:
             data = await bot.tg.download(f["file_id"])
             kind = VIDEO_TYPES[PurePath(f["name"]).suffix.lower()]
@@ -1714,7 +1670,7 @@ def links_summary(found: dict) -> tuple[str, list[str]]:
     notes += [f"{fmt.plural(found['other_count'], 'other link')} skipped"] if found["other_count"] else []
     per = " · ".join(f"{p} {n}" for p, n in Counter(link["platform"] for link in vids).items())
     text = f"Found {fmt.plural(len(vids), 'video')} ({per})" + (f": {', '.join(notes)}" if notes else "") + "."
-    return text + (f"\nImport {len(fresh)}? Pick their rights:" if fresh else "\nNothing new to import."), fresh
+    return text + (f"\nImport {len(fresh)}?" if fresh else "\nNothing new to import."), fresh
 
 
 async def import_text(bot, m: dict, text: str) -> None:
@@ -1737,8 +1693,8 @@ async def import_text(bot, m: dict, text: str) -> None:
             return await open_card(bot, "c", clip["id"])
         v = {"kind": "links", "urls": [link["url"]], "handle": handle_in(text), "single": True}
         q = (f"Import this {link['platform'] or 'link'}" + (f" by {h(v['handle'])}" if v["handle"] else "")
-             + f"?\n{h(fmt.short_url(link['url']))}\nPick its rights:")  # fmt: skip
-    bot.keep(await bot.send(q, rights_rows("li"), reply_to=m["message_id"]), v)
+             + f"?\n{h(fmt.short_url(link['url']))}")  # fmt: skip
+    bot.keep(await bot.send(q, import_rows("li"), reply_to=m["message_id"]), v)
 
 
 async def import_document(bot, m: dict, d: dict) -> None:
@@ -1752,30 +1708,29 @@ async def import_document(bot, m: dict, d: dict) -> None:
         other = f" ({fmt.plural(found['other_count'], 'other link')})" if found["other_count"] else ""
         return await bot.send(f"No video links in {h(name)}{other}.", reply_to=m["message_id"])
     q, urls = links_summary(found)
-    msg = await bot.send(f"<b>{h(name)}</b>\n{q}", rights_rows("li") if urls else None, reply_to=m["message_id"])
+    msg = await bot.send(f"<b>{h(name)}</b>\n{q}", import_rows("li") if urls else None, reply_to=m["message_id"])
     if urls:
         bot.keep(msg, {"kind": "links", "urls": urls})
 
 
 @button("li")
-async def links_go(bot, msg, r):
+async def links_go(bot, msg, op):
     v = bot.view(msg, "links")
-    if r == "x":
+    if op == "x":
         bot.views.pop(msg["message_id"], None)
         return await bot.edit(msg, "Import cancelled.")
-    rights = fmt.RIGHT[r]
     if v.get("single"):
-        c = await bot.api.post("/api/clips/from-url", json={"url": v["urls"][0], "rights_status": rights, "source_creator_handle": v["handle"]})
+        c = await bot.api.post("/api/clips/from-url", json={"url": v["urls"][0], "source_creator_handle": v["handle"]})
         bot.views.pop(msg["message_id"], None)
         bot.watch("clip", c["id"])
-        return await bot.edit(msg, f"Importing {h(fmt.short_url(v['urls'][0]))} ({fmt.RIGHTS[rights]}) as /c{c['id']}: its card follows when it's ready.")
+        return await bot.edit(msg, f"Importing {h(fmt.short_url(v['urls'][0]))} as /c{c['id']}: its card follows when it's ready.")
     ids = []
     for i in range(0, len(v["urls"]), 1000):  # the api takes up to 1000 per request
-        ids += (await bot.api.post("/api/clips/from-urls", json={"urls": v["urls"][i : i + 1000], "rights_status": rights}))["ids"]
+        ids += (await bot.api.post("/api/clips/from-urls", json={"urls": v["urls"][i : i + 1000]}))["ids"]
     bot.views.pop(msg["message_id"], None)
     if ids:
         bot.watch("batch", msg["message_id"], ids=ids)
-    await bot.edit(msg, f"Importing {fmt.plural(len(ids), 'video')} ({fmt.RIGHTS[rights]}), two at a time behind other work. "
+    await bot.edit(msg, f"Importing {fmt.plural(len(ids), 'video')}, two at a time behind other work. "
                         "One message when they're all done; /clips shows progress.")  # fmt: skip
 
 

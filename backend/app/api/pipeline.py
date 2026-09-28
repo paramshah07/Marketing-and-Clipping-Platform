@@ -1,5 +1,5 @@
-"""Clips, brands and renders (docs/PLAN.md section 5). Status changes are compare-and-set (0 rows ->
-409) and each job is deferred in the same transaction as its row change."""
+"""Clips, brands, renders and the saved captions / covers (docs/PLAN.md section 5). Status changes are
+compare-and-set (0 rows -> 409) and each job is deferred in the same transaction as its row change."""
 
 import io
 import mimetypes
@@ -8,24 +8,30 @@ import struct
 from pathlib import Path, PurePath
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, UploadFile
 from python_multipart.multipart import MultipartParser, parse_options_header
-from sqlalchemy import delete, exists, func, select
+from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.models import Brand, Post, Render, SourceClip, cas
+from app.models import Brand, Post, Render, SavedCaption, SavedCover, SourceClip, cas
 from app.schemas import (
     BrandCreate,
     BrandOut,
     BrandPatch,
+    CaptionCreate,
+    CaptionOut,
+    CaptionPatch,
     ClipFromUrl,
     ClipOut,
     ClipPatch,
     ClipsFromUrls,
     ClipsFromUrlsOut,
+    CoverOut,
+    CoverPatch,
     FoundLink,
     LinksOut,
     RenderCreate,
@@ -38,7 +44,6 @@ from app.tasks.media import download_clip, probe_clip, render
 router = APIRouter(prefix="/api")
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
-RIGHTS = ("permission_granted", "none", "own_content")
 MAX_LOGO_BYTES = 10 * 1024**2
 MAX_DOCUMENT_BYTES = 20 * 1024**2
 MAX_COVER_BYTES = 8 * 1024**2  # Instagram's image limit (Zernio: Instagram media requirements)
@@ -71,6 +76,21 @@ async def _cas(s: AsyncSession, model, id: int, from_statuses: list[str], **valu
     await _get(s, model, id)
     if (await s.execute(cas(model, id, from_statuses, **values))).rowcount != 1:
         raise HTTPException(409, f"{model.__tablename__} {id} is not {' or '.join(from_statuses)}")
+
+
+async def _clear_default(s: AsyncSession, model, keep: int | None = None) -> None:
+    """Before a row becomes its table's default: clear the old default (other than keep), same transaction.
+    Call it before setting the flag, or autoflush writes the flag first and trips uq_<table>_default."""
+    await s.execute(update(model).where(model.is_default, model.id.is_distinct_from(keep)).values(is_default=False))
+
+
+async def _commit(s: AsyncSession) -> None:
+    """Commit a default change. uq_<table>_default is these tables' only unique index, so an IntegrityError
+    means another request set a default between our clear and this commit."""
+    try:
+        await s.commit()
+    except IntegrityError:
+        raise HTTPException(409, "another default was set at the same moment: try again") from None
 
 
 # ---------------------------------------------------------------- clips
@@ -153,10 +173,9 @@ UPLOAD_BODY = {  # the handler parses the body itself (to stream it), so describ
             "multipart/form-data": {
                 "schema": {
                     "type": "object",
-                    "required": ["file", "rights_status"],
+                    "required": ["file"],
                     "properties": {
                         "file": {"type": "string", "format": "binary", "description": ".mp4, .mov or .webm"},
-                        "rights_status": {"type": "string", "enum": list(RIGHTS)},
                         "source_creator_handle": {"type": "string"},
                     },
                 }
@@ -179,8 +198,6 @@ async def upload_clip(request: Request, s: Db) -> ClipOut:
         fields, filename = await _stream_multipart(request, part)
         if not filename:
             raise HTTPException(422, "file is required")
-        if fields.get("rights_status") not in RIGHTS:
-            raise HTTPException(422, f"rights_status must be one of {', '.join(RIGHTS)}")
         key = f"raw/{clip.id}{PurePath(filename).suffix.lower()}"
         part.replace(storage.path_for(key))
     except Exception:  # bad request or client gone: leave no trace
@@ -191,7 +208,7 @@ async def upload_clip(request: Request, s: Db) -> ClipOut:
     await _cas(
         s, SourceClip, clip.id, ["UPLOADING"],
         status="PROBING", raw_key=key, original_filename=filename, content_type=mimetypes.guess_type(key)[0],
-        rights_status=fields["rights_status"], source_creator_handle=fields.get("source_creator_handle") or None,
+        source_creator_handle=fields.get("source_creator_handle") or None,
         uploaded_at=func.now(),
     )  # fmt: skip
     await _defer(s, probe_clip, clip_id=clip.id)
@@ -206,7 +223,6 @@ async def create_clip_from_url(body: ClipFromUrl, s: Db) -> ClipOut:
         origin="url",
         status="DOWNLOADING",
         source_url=str(body.url),
-        rights_status=body.rights_status,
         source_creator_handle=body.source_creator_handle,
     )
     s.add(clip)
@@ -246,7 +262,7 @@ async def create_clips_from_urls(body: ClipsFromUrls, s: Db) -> ClipsFromUrlsOut
         if (k := links.key(url)) in have:
             continue
         have.add(k)
-        clip = SourceClip(origin="url", status="DOWNLOADING", source_url=url, rights_status=body.rights_status)
+        clip = SourceClip(origin="url", status="DOWNLOADING", source_url=url)
         s.add(clip)
         await s.flush()
         options = {"priority": BULK_PRIORITY, "lock": f"import-{clip.id % BULK_LANES}"}
@@ -341,22 +357,33 @@ async def list_brands(s: Db, archived: bool = False) -> list[BrandOut]:
 @router.post("/brands", status_code=201)
 async def create_brand(body: BrandCreate, s: Db) -> BrandOut:
     values = body.model_dump(exclude_none=True)
+    if body.is_default:
+        await _clear_default(s, Brand)
     brand = Brand(**values)
     s.add(brand)
-    await s.commit()
+    await _commit(s)
     await s.refresh(brand)
     return brand
 
 
 @router.patch("/brands/{brand_id}")
 async def update_brand(brand_id: int, body: BrandPatch, s: Db) -> BrandOut:
-    brand = await _get(s, Brand, brand_id)
+    # FOR UPDATE: an archive racing a make-default must see the other's commit, never leave an archived default
+    if (brand := await s.get(Brand, brand_id, with_for_update=True)) is None:
+        raise HTTPException(404, f"brands {brand_id} not found")
     values = body.model_dump(exclude_unset=True)
+    archived = values.get("archived", brand.archived_at is not None)
+    if values.get("is_default"):
+        if archived:
+            raise HTTPException(409, "an archived brand can't be the default")
+        await _clear_default(s, Brand, brand.id)
+    elif archived:
+        values["is_default"] = False  # archiving clears the default
     if "archived" in values:
         brand.archived_at = (brand.archived_at or func.now()) if values.pop("archived") else None
     for k, v in values.items():
         setattr(brand, k, v)
-    await s.commit()
+    await _commit(s)
     await s.refresh(brand)
     return brand
 
@@ -464,6 +491,15 @@ async def delete_render(render_id: int, s: Db) -> Response:
     return Response(status_code=204)
 
 
+async def _cover_jpeg(file: UploadFile) -> bytes:
+    data = await file.read(MAX_COVER_BYTES + 1)
+    if len(data) > MAX_COVER_BYTES:
+        raise HTTPException(413, f"cover is larger than {MAX_COVER_BYTES // 1024**2} MB (Instagram's image limit)")
+    if not data.startswith(b"\xff\xd8\xff"):
+        raise HTTPException(415, "cover must be a JPEG")
+    return data
+
+
 async def _set_cover(s: AsyncSession, render_id: int, key: str | None) -> Render:
     """Point the render at a new cover file (or none) and delete the old one. Only while no post other than a
     CANCELLED one refers to the render: a post uploads the cover once, with the video, so it never changes under
@@ -490,11 +526,7 @@ async def _set_cover(s: AsyncSession, render_id: int, key: str | None) -> Render
 async def set_render_cover(render_id: int, file: UploadFile, s: Db) -> RenderOut:
     """The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).
     Stored under a new name each time, so browsers never show a stale cover. 409 once the render has posts."""
-    data = await file.read(MAX_COVER_BYTES + 1)
-    if len(data) > MAX_COVER_BYTES:
-        raise HTTPException(413, f"cover is larger than {MAX_COVER_BYTES // 1024**2} MB (Instagram's image limit)")
-    if not data.startswith(b"\xff\xd8\xff"):
-        raise HTTPException(415, "cover must be a JPEG")
+    data = await _cover_jpeg(file)
     key = f"covers/{render_id}-{secrets.token_hex(4)}.jpg"
     await run_in_threadpool(storage.save, key, io.BytesIO(data))
     return await _set_cover(s, render_id, key)
@@ -504,3 +536,98 @@ async def set_render_cover(render_id: int, file: UploadFile, s: Db) -> RenderOut
 async def delete_render_cover(render_id: int, s: Db) -> RenderOut:
     """Back to Instagram's own pick. 409 once the render has posts."""
     return await _set_cover(s, render_id, None)
+
+
+# ---------------------------------------------------------------- saved captions and covers (Customizations)
+
+@router.get("/captions")
+async def list_captions(s: Db) -> list[CaptionOut]:
+    """The default first, then by name."""
+    q = select(SavedCaption).order_by(SavedCaption.is_default.desc(), SavedCaption.name, SavedCaption.id)
+    return (await s.scalars(q)).all()
+
+
+@router.post("/captions", status_code=201)
+async def create_caption(body: CaptionCreate, s: Db) -> CaptionOut:
+    if body.is_default:
+        await _clear_default(s, SavedCaption)
+    caption = SavedCaption(**body.model_dump())
+    s.add(caption)
+    await _commit(s)
+    await s.refresh(caption)
+    return caption
+
+
+@router.patch("/captions/{caption_id}")
+async def update_caption(caption_id: int, body: CaptionPatch, s: Db) -> CaptionOut:
+    caption = await _get(s, SavedCaption, caption_id)
+    values = body.model_dump(exclude_unset=True)
+    if values.get("is_default"):
+        await _clear_default(s, SavedCaption, caption.id)
+    for k, v in values.items():
+        setattr(caption, k, v)
+    await _commit(s)
+    return caption
+
+
+@router.delete("/captions/{caption_id}", status_code=204)
+async def delete_caption(caption_id: int, s: Db) -> Response:
+    await s.delete(await _get(s, SavedCaption, caption_id))
+    await s.commit()
+    return Response(status_code=204)
+
+
+@router.get("/covers")
+async def list_covers(s: Db) -> list[CoverOut]:
+    """The default first, then the newest."""
+    q = select(SavedCover).order_by(SavedCover.is_default.desc(), SavedCover.created_at.desc(), SavedCover.id.desc())
+    return (await s.scalars(q)).all()
+
+
+@router.post("/covers", status_code=201)
+async def upload_cover(
+    file: UploadFile,
+    name: Annotated[str, Form(min_length=1, max_length=100)],
+    s: Db,
+    is_default: Annotated[bool, Form()] = False,
+) -> CoverOut:
+    """A JPEG up to 8 MB (the web app sends 1080x1920). The Editor uploads a copy as a render's cover, so
+    renaming or deleting this one never changes a render."""
+    data = await _cover_jpeg(file)
+    cover = SavedCover(name=name, image_key="")
+    s.add(cover)
+    await s.flush()  # the key carries the id
+    key = cover.image_key = f"cover-library/{cover.id}-{secrets.token_hex(4)}.jpg"
+    if is_default:
+        await _clear_default(s, SavedCover, cover.id)
+        cover.is_default = True
+    await run_in_threadpool(storage.save, key, io.BytesIO(data))
+    try:
+        await _commit(s)
+    except Exception:  # no row, no file
+        await run_in_threadpool(storage.delete, key)
+        raise
+    await s.refresh(cover)
+    return cover
+
+
+@router.patch("/covers/{cover_id}")
+async def update_cover(cover_id: int, body: CoverPatch, s: Db) -> CoverOut:
+    cover = await _get(s, SavedCover, cover_id)
+    values = body.model_dump(exclude_unset=True)
+    if values.get("is_default"):
+        await _clear_default(s, SavedCover, cover.id)
+    for k, v in values.items():
+        setattr(cover, k, v)
+    await _commit(s)
+    return cover
+
+
+@router.delete("/covers/{cover_id}", status_code=204)
+async def delete_cover(cover_id: int, s: Db) -> Response:
+    """The file goes too (after the commit). Renders keep their own copies."""
+    cover = await _get(s, SavedCover, cover_id)
+    await s.delete(cover)
+    await s.commit()
+    await run_in_threadpool(storage.delete, cover.image_key)
+    return Response(status_code=204)

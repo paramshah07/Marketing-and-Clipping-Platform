@@ -1,14 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
-import { AtSign, CalendarDays, Film, Stamp } from "lucide-react"
+import { AtSign, CalendarDays, Film, SlidersHorizontal } from "lucide-react"
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
 import { listPostsOptions, statusOptions } from "@/api/@tanstack/react-query.gen"
 import { Empty, Header } from "@/components/bits"
 import { cn } from "@/lib/utils"
 import { Accounts } from "@/routes/Accounts"
-import { Brands } from "@/routes/Brands"
 import { Calendar } from "@/routes/Calendar"
+import { Customizations } from "@/routes/Customizations"
 import { Editor } from "@/routes/Editor"
 import { Library } from "@/routes/Library"
 import { Recover } from "@/routes/Recover"
@@ -20,7 +20,9 @@ export function App() {
         <Route index element={<Navigate to="/library" replace />} />
         <Route path="library" element={<Library />} />
         <Route path="editor/:clipId" element={<Editor />} />
-        <Route path="brands" element={<Brands />} />
+        <Route path="customizations/:tab" element={<Customizations />} />
+        <Route path="customizations" element={<Navigate to="/customizations/brands" replace />} />
+        <Route path="brands" element={<Navigate to="/customizations/brands" replace />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="*" element={<Soon title="Not found" note="Nothing lives at this address." />} />
@@ -34,7 +36,7 @@ const NAV = [
   { to: "/library", label: "Library", icon: Film, also: "/editor" },
   { to: "/calendar", label: "Calendar", icon: CalendarDays },
   { to: "/accounts", label: "Accounts", icon: AtSign },
-  { to: "/brands", label: "Brands", icon: Stamp },
+  { to: "/customizations", label: "Customizations", icon: SlidersHorizontal },
 ]
 
 function Shell() {

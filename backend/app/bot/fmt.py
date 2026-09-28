@@ -20,8 +20,6 @@ SNAPS = ["Top left", "Top centre", "Top right", "Middle left", "Centre", "Middle
 ARROWS = ["↖", "↑", "↗", "←", "·", "→", "↙", "↓", "↘"]
 OPACITIES = [1, 0.75, 0.5, 0.25]
 CAPTION_MAX, HASHTAG_MAX = 2200, 30
-RIGHTS = {"own_content": "own content", "permission_granted": "permission granted", "none": "none"}
-RIGHT = {k[0]: k for k in RIGHTS}  # "o" / "p" / "n" in callback data
 # Clip and render error codes in plain words (utils.ts CAUSES)
 CAUSES = {
     "PRIVATE": "Private video", "LOGIN_REQUIRED": "Needs login cookies", "REMOVED": "Video removed",

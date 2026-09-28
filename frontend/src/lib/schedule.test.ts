@@ -171,7 +171,7 @@ describe("misc", () => {
     expect(new Set(ZONES).size).toBe(ZONES.length)
   })
   it("apiError reads {detail: {code, message}}", () => {
-    expect(apiError({ detail: { code: "RIGHTS_NONE", message: "no rights" } })).toEqual({ code: "RIGHTS_NONE", message: "no rights" })
+    expect(apiError({ detail: { code: "STATE_CONFLICT", message: "already published" } })).toEqual({ code: "STATE_CONFLICT", message: "already published" })
     expect(apiError({ detail: "Not found" })).toEqual({ message: "Not found" })
   })
 })

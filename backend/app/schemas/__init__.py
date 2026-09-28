@@ -1,4 +1,5 @@
-"""API request/response bodies. *_key columns go out as *_url (served under /media)."""
+"""API request/response bodies. *_key columns go out as *_url (served under /media). Unknown fields in a
+request are ignored (pydantic's default), so an old client's rights_status / rights_override still works."""
 
 from datetime import datetime
 from typing import Literal
@@ -6,8 +7,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, model_validator
 
 from app.services import storage
-
-RightsStatus = Literal["permission_granted", "none", "own_content"]
 
 
 def _url(key: str | None) -> str | None:
@@ -47,7 +46,6 @@ class CropConfig(BaseModel):
 
 class ClipFromUrl(BaseModel):
     url: HttpUrl
-    rights_status: RightsStatus
     source_creator_handle: str | None = None
 
 
@@ -66,7 +64,6 @@ class LinksOut(BaseModel):
 
 class ClipsFromUrls(BaseModel):
     urls: list[HttpUrl] = Field(min_length=1, max_length=1000)
-    rights_status: RightsStatus
 
 
 class ClipsFromUrlsOut(BaseModel):
@@ -76,7 +73,6 @@ class ClipsFromUrlsOut(BaseModel):
 
 
 class ClipPatch(BaseModel):  # omit a field to leave it unchanged
-    rights_status: RightsStatus = None
     source_creator_handle: str | None = None
     has_watermark: bool | None = None
 
@@ -93,7 +89,6 @@ class ClipOut(BaseModel):
     original_filename: str | None
     platform: str | None
     source_creator_handle: str | None
-    rights_status: RightsStatus
     has_watermark: bool | None
     content_type: str | None
     size_bytes: int | None
@@ -124,6 +119,7 @@ class BrandCreate(BaseModel):
     link: str | None = None
     auto_approve: bool = False
     default_overlay_config: OverlayConfig | None = None  # None: the column default (top right)
+    is_default: bool = False  # preselected in the Editor; clears the previous default brand
 
 
 class BrandPatch(BaseModel):  # omit a field to leave it unchanged
@@ -132,7 +128,8 @@ class BrandPatch(BaseModel):  # omit a field to leave it unchanged
     link: str | None = None
     auto_approve: bool = None
     default_overlay_config: OverlayConfig = None
-    archived: bool = None
+    archived: bool = None  # archiving clears is_default
+    is_default: bool = None  # True clears the previous default; 409 on an archived brand
 
 
 class BrandOut(BaseModel):
@@ -144,6 +141,7 @@ class BrandOut(BaseModel):
     link: str | None
     auto_approve: bool
     default_overlay_config: OverlayConfig
+    is_default: bool
     created_at: datetime
     archived_at: datetime | None
     logo_key: str | None = Field(exclude=True)
@@ -151,6 +149,51 @@ class BrandOut(BaseModel):
     @computed_field
     def logo_url(self) -> str | None:
         return _url(self.logo_key)
+
+
+# Customizations: saved captions and covers. At most one of each is the default (the Editor preselects it);
+# setting is_default: true clears the previous one.
+
+
+class CaptionCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    text: str = Field(max_length=2200)  # Instagram's caption limit; {creator} and {link} are filled in the Editor
+    is_default: bool = False
+
+
+class CaptionPatch(BaseModel):  # omit a field to leave it unchanged
+    name: str = Field(None, min_length=1, max_length=100)
+    text: str = Field(None, max_length=2200)
+    is_default: bool = None
+
+
+class CaptionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    text: str
+    is_default: bool
+    created_at: datetime
+
+
+class CoverPatch(BaseModel):  # omit a field to leave it unchanged
+    name: str = Field(None, min_length=1, max_length=100)
+    is_default: bool = None
+
+
+class CoverOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_default: bool
+    created_at: datetime
+    image_key: str = Field(exclude=True)
+
+    @computed_field
+    def image_url(self) -> str:  # a JPEG; the Editor uploads a copy as the render's cover
+        return storage.url_for(self.image_key)
 
 
 class RenderCreate(BaseModel):
@@ -288,7 +331,6 @@ class PostCreate(BaseModel):
     account_id: int
     scheduled_for: datetime  # must be tz-aware
     caption: str | None = Field(None, max_length=2200)  # None: the render's caption
-    rights_override: bool = False  # required when the clip's rights_status is "none"
 
 
 class PostPatch(BaseModel):  # DRAFT or SCHEDULED only; omit a field to leave it unchanged
@@ -299,7 +341,6 @@ class PostPatch(BaseModel):  # DRAFT or SCHEDULED only; omit a field to leave it
 class AutoScheduleIn(BaseModel):
     render_ids: list[int] = Field(min_length=1)
     account_id: int
-    rights_override: bool = False
 
 
 class Placed(BaseModel):

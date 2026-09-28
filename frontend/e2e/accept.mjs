@@ -68,7 +68,7 @@ await page.getByText("Published at").waitFor() // react-router commits in a tran
 await shot("library-published")
 
 // 3. brand: an opaque logo is refused (alpha surfaced), then the transparent one is accepted
-await page.goto(`${BASE}/brands`)
+await page.goto(`${BASE}/customizations/brands`)
 await page.getByRole("button", { name: "New brand" }).click()
 await page.getByLabel("Name").fill(`Phase3 Test Co ${Date.now() % 10000}`)
 await page.getByLabel("Link").fill("https://phase3.test/go")

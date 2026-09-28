@@ -24,6 +24,7 @@ React + Tailwind + shadcn/ui build, so use only things that build can reproduce.
     beside the text; off-slot posts are 36 px lines with an 18x32 thumb.
   - The calendar's render queue is a list, not cards: 56 px rows with the table's 28x50 thumb (grouped clips stack
     two 28x50 thumbs in the same 28 px column).
+  - Customizations > Covers: saved covers are 72x128 tiles (they are the image that gets published).
 - Borders (`border-line`) separate things, not shadows. Controls 28px tall (`h-7`), radius 4px.
 - Motion: none in a static mock; you may indicate "animates" in an HTML comment.
 - Icons: lucide via `<i data-lucide="name"></i>` (already loaded in the base).
@@ -45,7 +46,7 @@ Brand logos: render a simple text wordmark in a white/black box, or an inline SV
 - Brands (advertisers): `Northwind Coffee`, `Flux Energy`, `Kite VPN` (archived: `Old Brand Co`).
 - Clips: mix of uploads (`IMG_4821.MOV`, `podcast_ep42_cut3.mp4`, `street_interview.webm`) and URL
   imports (`tiktok.com/@creator/video/...`, `youtube.com/shorts/...`, `instagram.com/reel/...`) with
-  creator handles and rights chips (`permission granted`, `own content`, `none`).
+  creator handles.
 - IDs look like `clp_7f3a9c`, `rnd_19b2e0`, `pst_a41c07`, container `17912345678901234`.
 - Today is Sat 26 Sep 2026, it is 23:40. The calendar week is Mon 28 Sep – Sun 4 Oct.
 
@@ -56,7 +57,7 @@ Header: title "Library", segmented tabs `Clips | Published` right of title; righ
 (`/` hint), primary button "Upload". Under header: a slim dashed drop strip (40px tall) "Drop videos here
 (mp4, mov, webm) — or paste a URL" with an inline URL input + "Import" button. Then a dense table (TanStack
 style) with columns: [checkbox] thumb | Name (filename or URL host + path, second line: platform icon +
-@creator or "Uploaded") | Duration | Size (1080x1920 · 30fps) | Rights chip | Status | Renders (count) |
+@creator or "Uploaded") | Duration | Size (1080x1920 · 30fps) | Status | Renders (count) |
 Added (relative, tabular) | row actions (`Open editor` ghost button + kebab).
 Show states: 2 rows uploading at the top (inline progress bar in Status column with %, MB/s), 1 row
 PROBING (spinner), 1 FAILED upload row with distinct cause "Upload interrupted — network" + Retry
@@ -122,15 +123,21 @@ Website permissions → Apps and websites → Tester invites → Accept), 3 "Log
 accent primary button "Continue with Instagram"; below: "We'll verify with /me and your publishing
 quota before saving." ). Dim the page behind the drawer slightly.
 
-### brands (1440x900) — `/brands`
-Header: "Brands", "Show archived" toggle, primary "New brand". Table: logo (on `.checker`, 48x48) |
+### customizations (1440x900) — `/customizations/:tab` (`brands` | `captions` | `covers`; `/brands` redirects)
+Header: "Customizations" with segmented tabs `Brands n | Captions n | Covers n` (as Library's), then the tab's
+actions on the right. Each tab keeps at most one default, which the Editor preselects; it shows as a neutral
+bordered `Default` chip (not the accent). Captions: table Name | caption (2 lines, tokens as mono chips) |
+`n / 2200 · n tags` | Default | hover actions (Make default, Edit, delete), New/Edit in a 440px drawer like
+the brand's with a "Default caption" switch. Covers: 72x128 tiles with name, added day, Default chip, Make
+default / rename / delete; "Upload cover" makes the 1080x1920 JPEG in the browser.
+Brands tab (was `/brands`): "Show archived" toggle, primary "New brand". Table: logo (on `.checker`, 48x48) |
 Name | Caption template (1 line, truncated, with `{link}` token highlighted as a mono chip) | Link |
 Default placement (tiny 9:16 frame 27x48 with the logo position drawn) | Auto-approve (switch) |
 Renders / Posts counts | kebab. Right drawer open (440px) editing "Flux Energy": logo dropzone showing
 the PNG on checker with "Replace", name, link, caption template textarea with token help ("{link}",
 "{creator}"), auto-approve switch with helper text "Posts for this brand skip Draft and go straight to
 Scheduled", default placement preview (9:16 frame 108x192 with logo box drawn) + "Edit in editor"
-link, footer: Archive (ghost, bad text), Save (primary).
+link, a "Default brand" switch, footer: Archive (ghost, bad text), Save (primary).
 
 ### recover (390x844, MOBILE) — `/recover/pst_a41c07`
 No sidebar (use a minimal top bar: "Clipper" + back chevron). Single column, 16px padding.

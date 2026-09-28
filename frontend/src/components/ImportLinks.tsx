@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react"
 
 import type { LinksOut } from "@/api"
 import { createClipsFromUrlsMutation, findLinksMutation, listClipsQueryKey } from "@/api/@tanstack/react-query.gen"
-import { DOCUMENTS, RIGHTS, btn, cn, errorText, field, label, shortUrl, type Rights } from "@/lib/utils"
+import { DOCUMENTS, btn, cn, errorText, field, shortUrl } from "@/lib/utils"
 
 const BATCH = 1000 // the api's limit per request
 
@@ -16,7 +16,6 @@ export function ImportLinks({ file, onClose }: { file?: File; onClose: () => voi
   const [text, setText] = useState("")
   const [source, setSource] = useState("")
   const [found, setFound] = useState<LinksOut | null>(null)
-  const [rights, setRights] = useState<Rights | "">("")
   const [error, setError] = useState("")
   const [over, setOver] = useState(false)
   const find = useMutation(findLinksMutation())
@@ -45,10 +44,9 @@ export function ImportLinks({ file, onClose }: { file?: File; onClose: () => voi
   const platforms = [...count].map(([p, n]) => `${p} ${n}`)
 
   async function submit() {
-    if (!rights) return
     setError("")
     try {
-      for (let i = 0; i < fresh.length; i += BATCH) await create.mutateAsync({ body: { urls: fresh.slice(i, i + BATCH).map((l) => l.url), rights_status: rights } })
+      for (let i = 0; i < fresh.length; i += BATCH) await create.mutateAsync({ body: { urls: fresh.slice(i, i + BATCH).map((l) => l.url) } })
       onClose()
     } catch (e) {
       setError(errorText(e))
@@ -140,22 +138,9 @@ export function ImportLinks({ file, onClose }: { file?: File; onClose: () => voi
             </ol>
           )}
           {error && <p className="text-sm text-bad">{error}</p>}
-          <div className="flex items-end gap-3">
-            <label className="space-y-1">
-              <span className={cn(label, "block")}>Rights for these clips</span>
-              <select value={rights} onChange={(e) => setRights(e.target.value as Rights)} className={cn(field, "w-[180px]", !rights && "text-subtle")}>
-                <option value="" disabled>
-                  Choose…
-                </option>
-                {Object.entries(RIGHTS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <span className="min-w-0 flex-1 pb-1 text-sm text-subtle">Downloads run two at a time, after renders and publishing.</span>
-            <button className={cn(btn.primary, "shrink-0")} disabled={!fresh.length || !rights || create.isPending} onClick={submit}>
+          <div className="flex items-center gap-3">
+            <span className="min-w-0 flex-1 text-sm text-subtle">Downloads run two at a time, after renders and publishing.</span>
+            <button className={cn(btn.primary, "shrink-0")} disabled={!fresh.length || create.isPending} onClick={submit}>
               {create.isPending ? "Importing…" : fresh.length ? `Import ${fresh.length} ${fresh.length === 1 ? "video" : "videos"}` : "Nothing new to import"}
             </button>
           </div>
