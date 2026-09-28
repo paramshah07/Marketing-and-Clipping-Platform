@@ -13,6 +13,6 @@ export default defineConfig({
     strictPort: true,
     proxy: { "/api": api, "/media": api },
     // ponytail: demo-only tunnel host, no auth in front of it — remove once the demo is over
-    allowedHosts: ["vegetable-carolina-groove-qualification.trycloudflare.com"],
+    allowedHosts: ["discount-employment-disabled-minerals.trycloudflare.com"],
   },
 })
