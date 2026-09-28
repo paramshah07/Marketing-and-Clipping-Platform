@@ -102,15 +102,15 @@ async def _reslot(s: AsyncSession, post: Post, code: str | None, from_statuses, 
     """Back to SCHEDULED at the account's next free slot, error_code kept for display (None clears it);
     FAILED NO_FREE_SLOT when nothing is free within 30 days. The CAS also requires the scheduled_for we
     read, so an operator's move in between wins. Key and media URL stay: first_post_at keeps the 20 h
-    guard honest, and a never-POSTed URL is re-uploaded only if it was dropped here (Zernio deletes temp
-    media after 7 days)."""
+    guard honest, and a never-POSTed URL (video and cover) is re-uploaded only if it was dropped here (Zernio
+    deletes temp media after 7 days)."""
     account = await slots.lock_account(s, post.account_id)
     slot = await slots.next_free_slot(s, account, _now() + slots.AUTO_LEAD, exclude_post_id=post.id)
     guard = Post.scheduled_for == post.scheduled_for
     if slot is None:
         return await _finish(s, post, from_statuses, "FAILED", "NO_FREE_SLOT", guard=guard, **values)
     if post.first_post_at is None and not (values.get("zernio_post_id") or post.zernio_post_id):
-        values["zernio_media_url"] = None
+        values |= {"zernio_media_url": None, "zernio_cover_url": None}
     return await _finish(s, post, from_statuses, "SCHEDULED", code, guard=guard, scheduled_for=slot, **values)
 
 
@@ -229,6 +229,14 @@ async def _publish(s: AsyncSession, c, post_id: int) -> None:
             return
         await s.commit()
         post.zernio_media_url = url
+    if post.first_post_at is None and not post.zernio_cover_url:  # the cover goes out with the first POST or never
+        render = await s.get(Render, post.render_id, populate_existing=True)  # expire_on_commit=False: re-read
+        if render.cover_key:
+            url = await publisher.upload(c, settings.DATA_DIR / render.cover_key, "image/jpeg")
+            if not await _set(s, post.id, ["PUBLISHING"], zernio_cover_url=url):
+                return
+            await s.commit()
+            post.zernio_cover_url = url
     await _pause("before_post")
     if post.first_post_at is None:  # committed before the POST: from here on the Reel may be live
         if not await _set(s, post.id, ["PUBLISHING"], first_post_at=now):
@@ -237,7 +245,7 @@ async def _publish(s: AsyncSession, c, post_id: int) -> None:
         post.first_post_at = now
     account = await s.get(Account, post.account_id)
     zpost = await publisher.create_post(
-        c, post.idempotency_key, post.caption, post.zernio_media_url, account.zernio_account_id
+        c, post.idempotency_key, post.caption, post.zernio_media_url, account.zernio_account_id, post.zernio_cover_url
     )
     await _pause("after_post")
     await _resolve(s, post, zpost)

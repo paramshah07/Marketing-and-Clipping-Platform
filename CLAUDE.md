@@ -102,7 +102,8 @@ finishes that first, so the worker can look offline for up to the render's lengt
 1. Every rendered MP4 is 1080x1920 H.264 High yuv420p, 30 fps closed GOP, AAC 48 kHz stereo (silent
    track if the source has none), and `-movflags +faststart`.
 2. Publishing is: upload the render to Zernio (`POST /v1/media/presign`, PUT the bytes), persist
-   `zernio_media_url`, then `POST /v1/posts` with `publishNow: true` and an `Idempotency-Key` header.
+   `zernio_media_url` (the cover, if any, the same way as `zernio_cover_url`), then `POST /v1/posts`
+   with `publishNow: true` and an `Idempotency-Key` header.
 3. The `Idempotency-Key` is the post's `idempotency_key`, persisted before the first call. Every retry
    reuses the same key and the same media URL. Never re-POST without the key, and never re-POST more
    than 20 hours after the first attempt (Zernio's replay window is 24 h). This is what prevents a

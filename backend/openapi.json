@@ -681,7 +681,7 @@
       },
       "delete": {
         "summary": "Delete Render",
-        "description": "Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts\nand files go too.",
+        "description": "Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts\nand files go too. FOR UPDATE: a cover change in flight lands first, so its file is the one deleted.",
         "operationId": "delete_render",
         "parameters": [
           {
@@ -715,6 +715,94 @@
       "post": {
         "summary": "Retry Render",
         "operationId": "retry_render",
+        "parameters": [
+          {
+            "name": "render_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Render Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/renders/{render_id}/cover": {
+      "put": {
+        "summary": "Set Render Cover",
+        "description": "The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).\nStored under a new name each time, so browsers never show a stale cover. 409 once the render has posts.",
+        "operationId": "set_render_cover",
+        "parameters": [
+          {
+            "name": "render_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Render Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_render_cover"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RenderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Render Cover",
+        "description": "Back to Instagram's own pick. 409 once the render has posts.",
+        "operationId": "delete_render_cover",
         "parameters": [
           {
             "name": "render_id",
@@ -1559,6 +1647,20 @@
           "file"
         ],
         "title": "Body_find_links"
+      },
+      "Body_set_render_cover": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_set_render_cover"
       },
       "Body_upload_brand_logo": {
         "properties": {
@@ -2937,6 +3039,18 @@
             ],
             "title": "Thumbnail Url",
             "readOnly": true
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -2956,7 +3070,8 @@
           "completed_at",
           "ffmpeg_log",
           "output_url",
-          "thumbnail_url"
+          "thumbnail_url",
+          "cover_url"
         ],
         "title": "RenderDetail"
       },
@@ -3094,6 +3209,18 @@
             ],
             "title": "Thumbnail Url",
             "readOnly": true
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -3112,7 +3239,8 @@
           "updated_at",
           "completed_at",
           "output_url",
-          "thumbnail_url"
+          "thumbnail_url",
+          "cover_url"
         ],
         "title": "RenderOut"
       },

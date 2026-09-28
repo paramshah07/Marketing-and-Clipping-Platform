@@ -105,6 +105,7 @@ class Render(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
     completed_at: Mapped[datetime | None]
     superseded_at: Mapped[datetime | None]  # 'Re-render and retry' replaced it: never back in the Ready tray
+    cover_key: Mapped[str | None]  # 1080x1920 JPEG Reel cover (Zernio instagramThumbnail); null = Instagram's pick
 
 
 class Account(Base):
@@ -150,6 +151,7 @@ class Post(Base):
     # sha256(render_id, account_id, scheduled_for), set once at creation, sent as Zernio's Idempotency-Key
     idempotency_key: Mapped[str]
     zernio_media_url: Mapped[str | None]  # exact URL reused on every retry
+    zernio_cover_url: Mapped[str | None]  # the render's cover uploaded to Zernio, same rules as zernio_media_url
     zernio_post_id: Mapped[str | None]
     # committed just before the first POST /v1/posts with this key: set means a post may be live. The 20 h
     # no-re-POST guard counts from it (never from scheduled_for, which reslots move). Cleared only with a new key.

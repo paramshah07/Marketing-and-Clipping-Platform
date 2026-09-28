@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteClip, deleteRender, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
-import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
+import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteClip, deleteRender, deleteRenderCover, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, setRenderCover, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
+import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -316,7 +316,7 @@ export const createRenderMutation = (options?: Partial<Options<CreateRenderData>
  * Delete Render
  *
  * Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
- * and files go too.
+ * and files go too. FOR UPDATE: a cover change in flight lands first, so its file is the one deleted.
  */
 export const deleteRenderMutation = (options?: Partial<Options<DeleteRenderData>>): UseMutationOptions<DeleteRenderResponse, DeleteRenderError, Options<DeleteRenderData>> => {
     const mutationOptions: UseMutationOptions<DeleteRenderResponse, DeleteRenderError, Options<DeleteRenderData>> = {
@@ -357,6 +357,45 @@ export const retryRenderMutation = (options?: Partial<Options<RetryRenderData>>)
     const mutationOptions: UseMutationOptions<RetryRenderResponse, RetryRenderError, Options<RetryRenderData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await retryRender({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Render Cover
+ *
+ * Back to Instagram's own pick. 409 once the render has posts.
+ */
+export const deleteRenderCoverMutation = (options?: Partial<Options<DeleteRenderCoverData>>): UseMutationOptions<DeleteRenderCoverResponse, DeleteRenderCoverError, Options<DeleteRenderCoverData>> => {
+    const mutationOptions: UseMutationOptions<DeleteRenderCoverResponse, DeleteRenderCoverError, Options<DeleteRenderCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteRenderCover({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Set Render Cover
+ *
+ * The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).
+ * Stored under a new name each time, so browsers never show a stale cover. 409 once the render has posts.
+ */
+export const setRenderCoverMutation = (options?: Partial<Options<SetRenderCoverData>>): UseMutationOptions<SetRenderCoverResponse, SetRenderCoverError, Options<SetRenderCoverData>> => {
+    const mutationOptions: UseMutationOptions<SetRenderCoverResponse, SetRenderCoverError, Options<SetRenderCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setRenderCover({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

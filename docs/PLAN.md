@@ -65,7 +65,7 @@ Browser ─ localhost:5173 (Vite dev server; proxies /api and /media → :8000)
             └─ api   (FastAPI :8000, uvicorn --reload)
                  ├─ postgres 16 (app tables + procrastinate_* tables)
                  └─ defers jobs ─> worker (Procrastinate; ffmpeg 7.1, ffprobe, yt-dlp; concurrency 4)
- ./data (bind mount shared by api + worker): raw/ thumbs/ renders/ logos/
+ ./data (bind mount shared by api + worker): raw/ thumbs/ renders/ logos/ covers/
  worker ─> zernio.com/api/v1 (upload render at publish time, publish now)
  worker ─> api.telegram.org (optional alerts)
 Telegram ⇄ bot (long polling; optional) ─> api over HTTP, like the browser (docs/telegram-bot.md)
@@ -84,15 +84,16 @@ Telegram ⇄ bot (long polling; optional) ─> api over HTTP, like the browser (
 - **brands**: spec columns; `logo_key` nullable until uploaded (PNG, alpha checked); default overlay
   `{"x":0.72,"y":0.06,"w":0.22,"opacity":1}`.
 - **renders**: spec columns + `caption`, `thumbnail_key`, `size_bytes`, `error_code`, `updated_at`,
-  `superseded_at` (set by "Re-render and retry"; such a render never shows as unscheduled again);
-  `brand_id` null ⇒ no logo; > 300 MB → FAILED `OUTPUT_TOO_LARGE`.
+  `superseded_at` (set by "Re-render and retry"; such a render never shows as unscheduled again),
+  `cover_key` (1080x1920 JPEG Reel cover, null ⇒ Instagram's pick; changes only while no live post refers
+  to the render); `brand_id` null ⇒ no logo; > 300 MB → FAILED `OUTPUT_TOO_LARGE`.
 - **accounts**: `zernio_account_id` unique, `zernio_profile_id`, `username`, `avatar_url`,
   `connection_status` (connected | disconnected), `posting_slots` `{"times":[…]}` (account-local, DST
   gap → forward, overlap → fold=0), `daily_cap` 10, `timezone` NOT NULL, `min_gap_minutes` 30,
   `connected_at`, `last_publish_at`, `disabled_at`, `last_alerts` jsonb. (No tokens stored.)
 - **posts**: `render_id`, `account_id`, `caption`, `scheduled_for`, `status` (DRAFT | SCHEDULED |
-  PUBLISHING | PUBLISHED | FAILED | DEAD_LETTER | CANCELLED), `zernio_media_url` (exact URL reused on
-  every retry), `zernio_post_id`, `ig_media_id`, `permalink`, `attempt_count`, `error_code`,
+  PUBLISHING | PUBLISHED | FAILED | DEAD_LETTER | CANCELLED), `zernio_media_url` / `zernio_cover_url` (exact
+  URLs reused on every retry), `zernio_post_id`, `ig_media_id`, `permalink`, `attempt_count`, `error_code`,
   `error_detail` jsonb, `alerted_at`, `published_at`, `created_at`, `updated_at`, `idempotency_key` =
   sha256(render_id, account_id, scheduled_for) set once at creation, sent as Zernio `Idempotency-Key`;
   partial unique index `WHERE status NOT IN ('CANCELLED','FAILED','DEAD_LETTER')`.
@@ -120,7 +121,8 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
   2. CAS SCHEDULED → PUBLISHING.
   3. `zernio_post_id` set → GET it: published → PUBLISHED; failed → classify; processing → re-defer 1 min.
   4. `zernio_media_url` null → presign, PUT file, commit URL (crash before commit = orphan temp upload,
-     auto-deleted by Zernio after 7 days).
+     auto-deleted by Zernio after 7 days). Then, while `first_post_at` is null, the render's cover (if any)
+     the same way into `zernio_cover_url`, sent as `instagramThumbnail`.
   5. Quota exhausted → back to SCHEDULED at next free slot (clear media URL if > 6 days out), RATE_LIMITED.
   6. POST `/v1/posts` with `Idempotency-Key`, same media URL, `publishNow`, read timeout 300 s →
      201: store ids + permalink, PUBLISHED. 207: classify. 409 idempotency_conflict / 429 → re-defer after
@@ -148,7 +150,7 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
 | Area | Endpoints |
 |---|---|
 | Clips | `POST /clips` (multipart: file, rights_status, source_creator_handle?) · `POST /clips/from-url` · `POST /clips/links` (a document or text file → the video links in it) · `POST /clips/from-urls` (bulk; skips videos already in the library; downloads at priority -10, two at a time) · `GET /clips` · `GET /clips/{id}` · `PATCH /clips/{id}` · `POST /clips/{id}/retry` · `DELETE /clips/{id}` |
-| Renders | `POST /renders` · `GET /renders?clip_id&status&unscheduled` · `GET /renders/{id}` · `POST /renders/{id}/retry` · `DELETE /renders/{id}` |
+| Renders | `POST /renders` · `GET /renders?clip_id&status&unscheduled` · `GET /renders/{id}` · `POST /renders/{id}/retry` · `DELETE /renders/{id}` · `PUT`/`DELETE /renders/{id}/cover` |
 | Brands | `GET /brands?archived` · `POST /brands` · `PATCH /brands/{id}` · `POST /brands/{id}/logo` (multipart) |
 | Accounts | `GET /accounts` (+ cached quota) · `POST /accounts/sync` (pull from Zernio) · `PATCH /accounts/{id}` (slots, cap, tz, min gap, disable) |
 | Posts | `GET /posts?from&to&account_id&brand_id&status` · `GET /posts/{id}` · `POST /posts` · `POST /posts/auto-schedule` · `PATCH /posts/{id}` · `POST /posts/{id}/approve` · `POST /posts/{id}/cancel` · `POST /posts/{id}/remedy` |

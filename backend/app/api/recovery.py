@@ -1,18 +1,21 @@
 """Recovery (Phase 5): apply a failed post's remedy. docs/PLAN.md section 4."""
 
+import secrets
+import shutil
 from datetime import UTC, datetime
 
 from fastapi import APIRouter
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.api.pipeline import Db, _defer
 from app.api.scheduling import _err, idempotency_key, load_post_out
 from app.core.config import settings
 from app.models import Account, Post, Render, cas
 from app.schemas import PostOut, RemedyIn
-from app.services import publisher, slots, zernio
+from app.services import publisher, slots, storage, zernio
 from app.services.errors import RETRY, describe
 from app.tasks import accounts as account_sync
 from app.tasks import publish
@@ -68,11 +71,12 @@ async def _retry(s: AsyncSession, post: Post) -> None:
             pass
         return
     # nothing was ever POSTed with this key: a clean new attempt now (the old upload may be past Zernio's 7 days)
-    await _cas(s, post, status="SCHEDULED", scheduled_for=datetime.now(UTC), zernio_media_url=None, **fresh)
+    await _cas(s, post, status="SCHEDULED", scheduled_for=datetime.now(UTC), zernio_media_url=None,
+               zernio_cover_url=None, **fresh)  # fmt: skip
 
 
 async def _rerender(s: AsyncSession, post: Post) -> None:
-    """Same clip, brand, overlay, crop and caption into a new render; the post points at it with a new
+    """Same clip, brand, overlay, crop, caption and cover into a new render; the post points at it with a new
     idempotency key at the next free slot (it waits there for the render). A new key means no replay
     protection, so it is refused while the old attempt may still be live."""
     state = await _zernio_state(s, post)
@@ -96,10 +100,13 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
     await s.flush()
     await _cas(
         s, post, status="SCHEDULED", render_id=new.id, scheduled_for=at,
-        idempotency_key=idempotency_key(new.id, acc.id, at), zernio_media_url=None, zernio_post_id=None,
-        first_post_at=None, ig_media_id=None, permalink=None, published_at=None, error_code=None,
-        error_detail=None, alerted_at=None, attempt_count=0,
+        idempotency_key=idempotency_key(new.id, acc.id, at), zernio_media_url=None, zernio_cover_url=None,
+        zernio_post_id=None, first_post_at=None, ig_media_id=None, permalink=None, published_at=None,
+        error_code=None, error_detail=None, alerted_at=None, attempt_count=0,
     )  # fmt: skip
+    if old.cover_key:  # a copy, not the same file: deleting either render never breaks the other
+        new.cover_key = f"covers/{new.id}-{secrets.token_hex(4)}.jpg"
+        await run_in_threadpool(shutil.copyfile, storage.path_for(old.cover_key), storage.path_for(new.cover_key))
     await _defer(s, render, render_id=new.id)
 
 

@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
+import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -177,7 +177,7 @@ export const createRender = <ThrowOnError extends boolean = false>(options: Opti
  * Delete Render
  *
  * Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
- * and files go too.
+ * and files go too. FOR UPDATE: a cover change in flight lands first, so its file is the one deleted.
  */
 export const deleteRender = <ThrowOnError extends boolean = false>(options: Options<DeleteRenderData, ThrowOnError>): RequestResult<DeleteRenderResponses, DeleteRenderErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRenderResponses, DeleteRenderErrors, ThrowOnError>({ url: '/api/renders/{render_id}', ...options });
 
@@ -190,6 +190,29 @@ export const getRender = <ThrowOnError extends boolean = false>(options: Options
  * Retry Render
  */
 export const retryRender = <ThrowOnError extends boolean = false>(options: Options<RetryRenderData, ThrowOnError>): RequestResult<RetryRenderResponses, RetryRenderErrors, ThrowOnError> => (options.client ?? client).post<RetryRenderResponses, RetryRenderErrors, ThrowOnError>({ url: '/api/renders/{render_id}/retry', ...options });
+
+/**
+ * Delete Render Cover
+ *
+ * Back to Instagram's own pick. 409 once the render has posts.
+ */
+export const deleteRenderCover = <ThrowOnError extends boolean = false>(options: Options<DeleteRenderCoverData, ThrowOnError>): RequestResult<DeleteRenderCoverResponses, DeleteRenderCoverErrors, ThrowOnError> => (options.client ?? client).delete<DeleteRenderCoverResponses, DeleteRenderCoverErrors, ThrowOnError>({ url: '/api/renders/{render_id}/cover', ...options });
+
+/**
+ * Set Render Cover
+ *
+ * The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).
+ * Stored under a new name each time, so browsers never show a stale cover. 409 once the render has posts.
+ */
+export const setRenderCover = <ThrowOnError extends boolean = false>(options: Options<SetRenderCoverData, ThrowOnError>): RequestResult<SetRenderCoverResponses, SetRenderCoverErrors, ThrowOnError> => (options.client ?? client).put<SetRenderCoverResponses, SetRenderCoverErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/renders/{render_id}/cover',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
 
 /**
  * List Accounts

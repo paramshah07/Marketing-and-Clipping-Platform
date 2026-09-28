@@ -69,6 +69,16 @@ export function cropPx(c: Box, srcW: number, srcH: number): [number, number, num
 /** Cover scale from a cw x ch region to 1080x1920 (the "upscaled N.NNx" readout). */
 export const coverScale = (cw: number, ch: number) => Math.max(OUT_W / cw, OUT_H / ch)
 
+/** The Reel cover: the source rect of an imgW x imgH image that cover-fits 1080x1920, centre-cropped
+ * (drawImage(img, sx, sy, sw, sh, 0, 0, 1080, 1920)). */
+export function coverFit(imgW: number, imgH: number) {
+  const s = coverScale(imgW, imgH)
+  return { sx: (imgW - OUT_W / s) / 2, sy: (imgH - OUT_H / s) / 2, sw: OUT_W / s, sh: OUT_H / s }
+}
+
+/** Instagram's profile grid shows the middle 3:4 (1080x1440) of a Reel cover: this fraction is cut at top and bottom. */
+export const GRID = 0.125
+
 /** Where the whole source frame sits in the output, as fractions of the output: position the source
  * <video> at these percentages of the 9:16 stage and the stage shows exactly what the render will.
  * No crop = object-fit: cover. */

@@ -74,5 +74,18 @@ services:
     restart: on-failure
     depends_on: { api: { condition: service_started } }
 
+  # A third Telegram bot, same pattern as bot2.
+  bot3:
+    <<: *backend
+    command: ["python", "-m", "app.bot"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
+      DATA_DIR: /data
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_3}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_3}
+    init: true
+    restart: on-failure
+    depends_on: { api: { condition: service_started } }
+
 volumes:
   pgdata:

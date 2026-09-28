@@ -41,6 +41,7 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
 RIGHTS = ("permission_granted", "none", "own_content")
 MAX_LOGO_BYTES = 10 * 1024**2
 MAX_DOCUMENT_BYTES = 20 * 1024**2
+MAX_COVER_BYTES = 8 * 1024**2  # Instagram's image limit (Zernio: Instagram media requirements)
 # A list import must not starve the rest: its downloads queue behind renders and single imports (priority)
 # and run two at a time (lanes), which also keeps the sites' rate limits further away.
 BULK_PRIORITY, BULK_LANES = -10, 2
@@ -443,8 +444,9 @@ async def retry_render(render_id: int, s: Db) -> RenderOut:
 @router.delete("/renders/{render_id}", status_code=204)
 async def delete_render(render_id: int, s: Db) -> Response:
     """Not while RENDERING, and not while a live (non-CANCELLED) post refers to it. Its CANCELLED posts
-    and files go too."""
-    r = await _get(s, Render, render_id)
+    and files go too. FOR UPDATE: a cover change in flight lands first, so its file is the one deleted."""
+    if (r := await s.get(Render, render_id, with_for_update=True)) is None:
+        raise HTTPException(404, f"renders {render_id} not found")
     await s.execute(delete(Post).where(Post.render_id == render_id, Post.status == "CANCELLED"))  # FK RESTRICT
     deleted = await s.execute(
         delete(Render).where(
@@ -456,7 +458,49 @@ async def delete_render(render_id: int, s: Db) -> Response:
     if deleted.rowcount != 1:
         raise HTTPException(409, "render is RENDERING or a live post refers to it")  # no commit: cancelled posts stay
     await s.commit()
-    for key in (r.output_key, r.thumbnail_key):
+    for key in (r.output_key, r.thumbnail_key, r.cover_key):
         if key:
             await run_in_threadpool(storage.delete, key)
     return Response(status_code=204)
+
+
+async def _set_cover(s: AsyncSession, render_id: int, key: str | None) -> Render:
+    """Point the render at a new cover file (or none) and delete the old one. Only while no post other than a
+    CANCELLED one refers to the render: a post uploads the cover once, with the video, so it never changes under
+    one. FOR UPDATE serialises cover changes and holds off new posts (their FK check locks this row)."""
+    try:
+        r = await s.get(Render, render_id, with_for_update=True)
+        if r is None:
+            raise HTTPException(404, f"renders {render_id} not found")
+        if await s.scalar(select(exists().where(Post.render_id == render_id, Post.status != "CANCELLED"))):
+            raise HTTPException(409, "the render has posts: cancel them to change its cover")
+    except HTTPException:
+        if key:
+            await run_in_threadpool(storage.delete, key)
+        raise
+    old, r.cover_key = r.cover_key, key
+    await s.commit()
+    if old:
+        await run_in_threadpool(storage.delete, old)
+    await s.refresh(r)  # updated_at is set by the database
+    return r
+
+
+@router.put("/renders/{render_id}/cover")
+async def set_render_cover(render_id: int, file: UploadFile, s: Db) -> RenderOut:
+    """The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).
+    Stored under a new name each time, so browsers never show a stale cover. 409 once the render has posts."""
+    data = await file.read(MAX_COVER_BYTES + 1)
+    if len(data) > MAX_COVER_BYTES:
+        raise HTTPException(413, f"cover is larger than {MAX_COVER_BYTES // 1024**2} MB (Instagram's image limit)")
+    if not data.startswith(b"\xff\xd8\xff"):
+        raise HTTPException(415, "cover must be a JPEG")
+    key = f"covers/{render_id}-{secrets.token_hex(4)}.jpg"
+    await run_in_threadpool(storage.save, key, io.BytesIO(data))
+    return await _set_cover(s, render_id, key)
+
+
+@router.delete("/renders/{render_id}/cover")
+async def delete_render_cover(render_id: int, s: Db) -> RenderOut:
+    """Back to Instagram's own pick. 409 once the render has posts."""
+    return await _set_cover(s, render_id, None)
