@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Phase 3: frontend (library, upload, editor, brands)
 
 What exists now, in `frontend/`:

@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Clipper V1: 5-minute demo
 
 This demo covers the V1 flow on localhost. A clip gets a brand logo in the editor, renders to a 1080x1920

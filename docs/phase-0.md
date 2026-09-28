@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Phase 0 — Zernio spike
 
 Script: `backend/scripts/spike_zernio.py` (run with `uv run`, reads `ZERNIO_API_KEY` from `.env`).

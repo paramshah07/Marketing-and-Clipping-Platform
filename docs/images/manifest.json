@@ -1,0 +1,682 @@
+[
+  {
+    "file": "overview.png",
+    "page": "docs/guide/01-getting-started.md",
+    "title": "The Clipper layout",
+    "alt": "Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, and the status footer",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "aside nav",
+        "label": "Pages: Library, Calendar, Accounts, Customizations"
+      },
+      {
+        "n": 2,
+        "selector": "aside a[title*=\"failed post\"]",
+        "label": "Failed posts badge: opens the oldest failure's Recover page"
+      },
+      {
+        "n": 3,
+        "selector": "aside div[title]:has-text('Publishing')",
+        "label": "Status: API, database, worker and the publishing switch, worst first"
+      },
+      {
+        "n": 4,
+        "selector": "aside div.tabular-nums",
+        "label": "Renders running now and posts waiting to go out"
+      },
+      {
+        "n": 5,
+        "selector": "main header",
+        "label": "Page header: title, tabs and the page's main actions"
+      }
+    ]
+  },
+  {
+    "file": "library.png",
+    "page": "docs/guide/02-library.md",
+    "title": "Library",
+    "alt": "The Library's Clips tab: search, Import links and Upload in the header, a drop zone with a URL field, and a table of clips with their status and render counts",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header div:has(> button:has-text('Published'))",
+        "label": "Clips and Published tabs"
+      },
+      {
+        "n": 2,
+        "selector": "header label:has(input[placeholder^='Search'])",
+        "label": "Search clips, creators and URLs (press /)"
+      },
+      {
+        "n": 3,
+        "selector": "header button:has-text('Import links')",
+        "label": "Import links: every video linked in pasted text or a document"
+      },
+      {
+        "n": 4,
+        "selector": "header button:has-text('Upload')",
+        "label": "Upload video files (mp4, mov, webm, up to 2 GB)"
+      },
+      {
+        "n": 5,
+        "selector": "[data-testid=dropzone]",
+        "label": "Drop zone: drop videos (or a document of links) anywhere here"
+      },
+      {
+        "n": 6,
+        "selector": "[data-testid=dropzone] form label + [data-testid=dropzone] form button",
+        "label": "Paste one video URL, optionally with the creator's @handle, then Import"
+      },
+      {
+        "n": 7,
+        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(5) span",
+        "label": "Status: Uploading, Downloading, Probing, Ready, or Failed with the reason"
+      },
+      {
+        "n": 8,
+        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(6)",
+        "label": "Renders made from this clip"
+      },
+      {
+        "n": 9,
+        "selector": "tr[data-clip] >> nth=0 >> a:has-text('Open editor')",
+        "label": "Open editor (shows on hover), and Remove"
+      }
+    ]
+  },
+  {
+    "file": "library-import-links.png",
+    "page": "docs/guide/02-library.md",
+    "title": "Import links",
+    "alt": "The Import links dialog after reading pasted text: 4 videos found, 2 already in the library, and an Import 2 videos button",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "dialog span.text-lg",
+        "label": "Videos found, and where (Change goes back)"
+      },
+      {
+        "n": 2,
+        "selector": "dialog div.flex-wrap",
+        "label": "Per platform; repeats dropped, clips already in the library, other links skipped"
+      },
+      {
+        "n": 3,
+        "selector": "dialog ol",
+        "label": "Every video link; In library ones are not imported again"
+      },
+      {
+        "n": 4,
+        "selector": "dialog button:has-text('Import')",
+        "label": "Import the new ones: they download in the background"
+      }
+    ]
+  },
+  {
+    "file": "library-published.png",
+    "page": "docs/guide/02-library.md",
+    "title": "Published",
+    "alt": "The Library's Published tab: filters for account, brand and date range, and a table of published posts with Instagram links and a Re-render for… menu",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "main label:has-text('Account') + main label:has(svg + select)",
+        "label": "Filter by account, brand and date range"
+      },
+      {
+        "n": 2,
+        "selector": "main span.tabular-nums:has-text('posts')",
+        "label": "How many posts; times are in your browser's zone"
+      },
+      {
+        "n": 3,
+        "selector": "tr[data-post] >> nth=0 >> td:nth-child(2) div.font-medium",
+        "label": "When it went out (and in the account's zone, if different)"
+      },
+      {
+        "n": 4,
+        "selector": "tr[data-post] >> nth=0 >> a:has-text('View on Instagram')",
+        "label": "Open the Reel on Instagram"
+      },
+      {
+        "n": 5,
+        "selector": "tr[data-post] >> nth=0 >> td:last-child label",
+        "label": "Re-render for… a brand: same clip and crop, that brand's default logo and caption; opens the editor"
+      }
+    ]
+  },
+  {
+    "file": "editor.png",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor",
+    "alt": "The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, cover, caption, Render) and the renders for this clip",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header nav",
+        "label": "The clip: back to Library, its length, size, frame rate and audio"
+      },
+      {
+        "n": 2,
+        "selector": "[data-fracbox=logo]",
+        "label": "The logo: drag it, pull a corner to resize"
+      },
+      {
+        "n": 3,
+        "selector": "div.inline-flex:has(> button:text-is('output'))",
+        "label": "Output, Crop and Cover views of the stage"
+      },
+      {
+        "n": 4,
+        "selector": "button:has-text('IG overlay')",
+        "label": "IG overlay: Instagram's buttons and caption over the frame, and the safe zone"
+      },
+      {
+        "n": 5,
+        "selector": "aside div.space-y-2:has(select[aria-label=Brand])",
+        "label": "Brand (or No logo); Save as brand default keeps this placement"
+      },
+      {
+        "n": 6,
+        "selector": "aside fieldset",
+        "label": "Logo scale, opacity, snap position and margin"
+      },
+      {
+        "n": 7,
+        "selector": "aside div.space-y-2:has(> textarea[aria-label=Caption])",
+        "label": "Caption: saved captions, reset to the brand template, limits"
+      },
+      {
+        "n": 8,
+        "selector": "aside button:has-text('Render')",
+        "label": "Render (⌘↵): queues the 1080x1920 MP4"
+      },
+      {
+        "n": 9,
+        "selector": "aside:has(span:text-is('Renders for this clip'))",
+        "label": "Renders for this clip, newest first"
+      }
+    ]
+  },
+  {
+    "file": "editor-crop.png",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor: crop",
+    "alt": "The Editor in Crop view: the whole landscape source with a 9:16 crop box, and the Crop switch, presets and readout in the controls panel",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "[data-fracbox=crop]",
+        "label": "The crop box on the full source: drag to move, pull an edge to resize (9:16)"
+      },
+      {
+        "n": 2,
+        "selector": "div.inline-flex:has(> button:text-is('crop'))",
+        "label": "Crop view (Output shows the result)"
+      },
+      {
+        "n": 3,
+        "selector": "aside div.space-y-2:has([aria-label=Crop])",
+        "label": "Crop on or off (off: the source fills the frame, centred)"
+      },
+      {
+        "n": 4,
+        "selector": "aside div.grid:has(> button:text-is('9:16 region'))",
+        "label": "Presets: 9:16 region or Full frame"
+      },
+      {
+        "n": 5,
+        "selector": "[data-testid=crop-readout]",
+        "label": "Position and size as fractions, and the scaling applied"
+      }
+    ]
+  },
+  {
+    "file": "editor-cover.png",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor: cover",
+    "alt": "The Editor in Cover view: the chosen cover image with the 3:4 profile grid band, and the Cover section with saved covers and Choose image…",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "span:text-is('Profile grid 3:4') >> xpath=..",
+        "label": "The middle 3:4: what the profile grid shows"
+      },
+      {
+        "n": 2,
+        "selector": "div.inline-flex:has(> button:text-is('cover'))",
+        "label": "Cover view (needs a cover)"
+      },
+      {
+        "n": 3,
+        "selector": "aside div.space-y-2:has(> div > span:text-is('Cover'))",
+        "label": "The Reel's cover; Remove lets Instagram pick a frame"
+      },
+      {
+        "n": 4,
+        "selector": "select[aria-label='Saved covers'] >> xpath=..",
+        "label": "Saved covers (the default one is preselected)"
+      },
+      {
+        "n": 5,
+        "selector": "aside button:has-text('Choose image')",
+        "label": "Choose any image: it becomes a 1080x1920 JPEG"
+      }
+    ]
+  },
+  {
+    "file": "editor-renders.png",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor: render cards",
+    "alt": "The renders column with a failed render (View log, Retry) and ready renders; the Schedule popover is open with account, time, caption and Schedule / Post now",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "li[data-status=FAILED]",
+        "label": "A failed render: its error, View log and Retry"
+      },
+      {
+        "n": 2,
+        "selector": "li[data-render=\"30\"] div:has(> button:has-text(\"Preview\"))",
+        "label": "A ready render: Preview on the stage, Schedule…, Download the MP4, Delete"
+      },
+      {
+        "n": 3,
+        "selector": "[role=dialog] label:has(span:text-is('Account'))",
+        "label": "Which Instagram account"
+      },
+      {
+        "n": 4,
+        "selector": "[role=dialog] input[aria-label=Date] >> xpath=../..",
+        "label": "Time in the account's zone: the next free slot, or your own"
+      },
+      {
+        "n": 5,
+        "selector": "[role=dialog] textarea >> xpath=..",
+        "label": "The post's caption (from the render)"
+      },
+      {
+        "n": 6,
+        "selector": "[role=dialog] button:text-is('Schedule') >> xpath=..",
+        "label": "Schedule, or Post now (within about a minute)"
+      }
+    ]
+  },
+  {
+    "file": "customizations-brands.png",
+    "page": "docs/guide/04-customizations.md",
+    "title": "Customizations: brands",
+    "alt": "The Brands tab with the Flux Energy drawer open: logo, name and link, caption template, Auto-approve, Default brand and the default logo placement",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header nav",
+        "label": "Brands, Captions and Covers tabs"
+      },
+      {
+        "n": 2,
+        "selector": "tr[data-brand]:has-text('Flux Energy') td:nth-child(2) button",
+        "label": "A brand: click its row to edit it"
+      },
+      {
+        "n": 3,
+        "selector": "[role=dialog] div:has(> div:text-is('Logo'))",
+        "label": "Logo: a PNG with a transparent background"
+      },
+      {
+        "n": 4,
+        "selector": "[role=dialog] div.grid:has(input[aria-label=Name])",
+        "label": "Name and link (the link fills {link})"
+      },
+      {
+        "n": 5,
+        "selector": "[role=dialog] div:has(> textarea[aria-label='Caption template'])",
+        "label": "Caption template with {link} and {creator}"
+      },
+      {
+        "n": 6,
+        "selector": "[role=dialog] label:has-text('Auto-approve')",
+        "label": "Auto-approve: its posts skip Draft"
+      },
+      {
+        "n": 7,
+        "selector": "[role=dialog] label:has-text('Default brand')",
+        "label": "Default brand: preselected in the Editor"
+      },
+      {
+        "n": 8,
+        "selector": "[role=dialog] div:has(> div:text-is('Default placement'))",
+        "label": "Default logo placement; Edit in editor changes it"
+      },
+      {
+        "n": 9,
+        "selector": "[role=dialog] button:has-text('Archive')",
+        "label": "Archive, and Save (⌘S)"
+      }
+    ]
+  },
+  {
+    "file": "customizations-captions.png",
+    "page": "docs/guide/04-customizations.md",
+    "title": "Customizations: captions",
+    "alt": "The Captions tab with the Late-night pick drawer open: name, caption text with {link} and {creator}, and the Default caption switch",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header nav",
+        "label": "Brands, Captions and Covers tabs"
+      },
+      {
+        "n": 2,
+        "selector": "tr[data-caption]:has-text('Late-night pick') button",
+        "label": "A saved caption: click its row to edit it"
+      },
+      {
+        "n": 3,
+        "selector": "[role=dialog] label:has(input[aria-label=Name])",
+        "label": "Name, as the Editor lists it"
+      },
+      {
+        "n": 4,
+        "selector": "[role=dialog] div:has(> textarea[aria-label=Caption])",
+        "label": "The text, with its length and hashtag count"
+      },
+      {
+        "n": 5,
+        "selector": "[role=dialog] p:has-text('the brand')",
+        "label": "{link} and {creator} are filled in by the Editor"
+      },
+      {
+        "n": 6,
+        "selector": "[role=dialog] label:has-text('Default caption')",
+        "label": "Default caption: used when the brand has no template"
+      },
+      {
+        "n": 7,
+        "selector": "[role=dialog] button:has-text('Delete')",
+        "label": "Delete, and Save (⌘S)"
+      }
+    ]
+  },
+  {
+    "file": "customizations-covers.png",
+    "page": "docs/guide/04-customizations.md",
+    "title": "Customizations: covers",
+    "alt": "The Covers tab: a grid of saved cover images, one marked Default, each with Make default, rename and delete",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header button:has-text('Upload cover')",
+        "label": "Upload cover (any image, several at once)"
+      },
+      {
+        "n": 2,
+        "selector": "li[data-cover] >> nth=0",
+        "label": "A saved cover, as the Editor uses it (1080x1920)"
+      },
+      {
+        "n": 3,
+        "selector": "li[data-cover] >> nth=0 >> span:text-is('Default')",
+        "label": "The default cover: preselected in the Editor"
+      },
+      {
+        "n": 4,
+        "selector": "li[data-cover] >> nth=1 >> button:has-text('Make default')",
+        "label": "Make default (or Clear default)"
+      },
+      {
+        "n": 5,
+        "selector": "li[data-cover] >> nth=1 >> button[title=Rename]",
+        "label": "Rename or delete (renders keep their own copy)"
+      }
+    ]
+  },
+  {
+    "file": "calendar.png",
+    "page": "docs/guide/05-calendar.md",
+    "title": "Calendar",
+    "alt": "The Calendar week board for one account: three posting slots a day with scheduled posts, drafts and free slots, and the Ready to schedule tray on the right",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "a[aria-current=true]",
+        "label": "The account; hover for its zone, slots, cap and gap"
+      },
+      {
+        "n": 2,
+        "selector": "header button[title='Back to today'] >> xpath=..",
+        "label": "Today, previous and next 7 days"
+      },
+      {
+        "n": 3,
+        "selector": "header a[title='Open recovery']",
+        "label": "Failed posts: opens recovery"
+      },
+      {
+        "n": 4,
+        "selector": "header button:has-text('Approve')",
+        "label": "Approve every draft (lists them first)"
+      },
+      {
+        "n": 5,
+        "selector": "[data-post][data-status=SCHEDULED] >> nth=0",
+        "label": "A scheduled post: click to open it, drag to move it"
+      },
+      {
+        "n": 6,
+        "selector": "[data-post][data-status=DRAFT] >> nth=0",
+        "label": "A draft: needs Approve before it can publish"
+      },
+      {
+        "n": 7,
+        "selector": "[data-slot] >> nth=0",
+        "label": "A free slot: click or drop a render here"
+      },
+      {
+        "n": 8,
+        "selector": "aside[data-queue]",
+        "label": "Ready to schedule: finished renders without a post"
+      }
+    ]
+  },
+  {
+    "file": "calendar-schedule.png",
+    "page": "docs/guide/05-calendar.md",
+    "title": "Calendar: auto-schedule",
+    "alt": "Three renders selected in the Ready to schedule tray; dashed Fill previews show where Auto-schedule will place them on the board",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "[data-preview]:has-text('Fill 1')",
+        "label": "Where each selected render will land (Fill 1/3); click one to place just that"
+      },
+      {
+        "n": 2,
+        "selector": "aside[data-queue] input[aria-label='Select every render']",
+        "label": "Select every render"
+      },
+      {
+        "n": 3,
+        "selector": "aside[data-queue] label[data-render=\"196\"]",
+        "label": "A selected render (or drag it onto a slot)"
+      },
+      {
+        "n": 4,
+        "selector": "aside[data-queue] button[aria-expanded]",
+        "label": "One clip in several brands: expand to pick"
+      },
+      {
+        "n": 5,
+        "selector": "aside[data-queue] button:has-text('Auto-schedule')",
+        "label": "Auto-schedule: fills the next free slots"
+      },
+      {
+        "n": 6,
+        "selector": "[data-footnote]",
+        "label": "Where they will go"
+      }
+    ]
+  },
+  {
+    "file": "calendar-post-drawer.png",
+    "page": "docs/guide/05-calendar.md",
+    "title": "Calendar: a post",
+    "alt": "A draft post's drawer over the calendar: the render player, account and brand, editable date, time and caption, and Save, Approve, Post now and Cancel post",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "[role=dialog] h2",
+        "label": "Status and post id"
+      },
+      {
+        "n": 2,
+        "selector": "[role=dialog] button[aria-label=Play] >> xpath=..",
+        "label": "The render: click to play it"
+      },
+      {
+        "n": 3,
+        "selector": "[role=dialog] div.space-y-1\\.5.text-sm > div >> nth=0 + [role=dialog] div.space-y-1\\.5.text-sm > div >> nth=2",
+        "label": "Account, clip and brand"
+      },
+      {
+        "n": 4,
+        "selector": "[role=dialog] input[aria-label=Date] >> xpath=../..",
+        "label": "Date and time, in the account's zone"
+      },
+      {
+        "n": 5,
+        "selector": "[role=dialog] div.space-y-1\\.5:has(> textarea)",
+        "label": "Caption"
+      },
+      {
+        "n": 6,
+        "selector": "[role=dialog] button:text-is('Save')",
+        "label": "Save changes"
+      },
+      {
+        "n": 7,
+        "selector": "[role=dialog] button:text-is('Approve')",
+        "label": "Approve: the draft becomes Scheduled"
+      },
+      {
+        "n": 8,
+        "selector": "[role=dialog] button:text-is('Post now')",
+        "label": "Post now (off while publishing is off)"
+      },
+      {
+        "n": 9,
+        "selector": "[role=dialog] button:text-is('Cancel post')",
+        "label": "Cancel post: its render goes back to the tray"
+      }
+    ]
+  },
+  {
+    "file": "accounts.png",
+    "page": "docs/guide/06-accounts.md",
+    "title": "Accounts",
+    "alt": "The Accounts page: one Instagram account card with its connection, quota, today's count, time zone, posting slot times, daily cap, minimum gap and Disable",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header button:has-text('Connect account')",
+        "label": "How to connect an account (in Zernio)"
+      },
+      {
+        "n": 2,
+        "selector": "header button:has-text('Sync accounts')",
+        "label": "Sync accounts from Zernio"
+      },
+      {
+        "n": 3,
+        "selector": "article[data-account] span:has-text('Connected') >> nth=0",
+        "label": "Connection state"
+      },
+      {
+        "n": 4,
+        "selector": "article[data-account] div.space-y-1 > div >> nth=0",
+        "label": "Meta's publishing quota and today's posts against the daily cap"
+      },
+      {
+        "n": 5,
+        "selector": "article[data-account] div.space-y-1 > div >> nth=1",
+        "label": "Last published and next post"
+      },
+      {
+        "n": 6,
+        "selector": "article[data-account] label:has(select[aria-label=Timezone])",
+        "label": "Timezone the slots are in"
+      },
+      {
+        "n": 7,
+        "selector": "article[data-account] div.flex-wrap:has(button[aria-label^='Remove'])",
+        "label": "Posting slots: remove, Add, or pick Presets"
+      },
+      {
+        "n": 8,
+        "selector": "article[data-account] div:has(> input[aria-label='Daily cap'])",
+        "label": "Daily cap and minimum gap between posts"
+      },
+      {
+        "n": 9,
+        "selector": "article[data-account] button:has-text('Disable')",
+        "label": "Disable: cancels its drafts and scheduled posts"
+      }
+    ]
+  },
+  {
+    "file": "recover.png",
+    "page": "docs/guide/07-publishing-and-recovery.md",
+    "title": "Recover",
+    "alt": "The Recover page on a phone: a failed post with its cause, what Instagram said, a Re-render and retry button, Dismiss, and Technical details",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "main > div >> nth=0",
+        "label": "Status and what went wrong"
+      },
+      {
+        "n": 2,
+        "selector": "button[aria-label='Play the render']",
+        "label": "The render: tap to play"
+      },
+      {
+        "n": 3,
+        "selector": "main span.text-md",
+        "label": "Account and when it was due"
+      },
+      {
+        "n": 4,
+        "selector": "main p.text-md",
+        "label": "The cause in plain words, and Instagram's own message"
+      },
+      {
+        "n": 5,
+        "selector": "main button:has-text('Re-render')",
+        "label": "The one remedy for this failure"
+      },
+      {
+        "n": 6,
+        "selector": "main p:has-text('Creates a fresh render')",
+        "label": "What the remedy does, and the slot it takes"
+      },
+      {
+        "n": 7,
+        "selector": "main button:has-text('Dismiss')",
+        "label": "Dismiss: cancel the post instead"
+      },
+      {
+        "n": 8,
+        "selector": "summary",
+        "label": "Technical details: error code, ids, raw payload"
+      }
+    ]
+  },
+  {
+    "file": "hero.png",
+    "page": "README.md",
+    "title": "Clipper",
+    "alt": "Clipper's calendar: a week of Instagram Reels scheduled across three daily slots, with finished renders waiting in the Ready to schedule tray",
+    "callouts": []
+  }
+]

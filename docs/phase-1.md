@@ -1,3 +1,5 @@
+> **Historical record**, kept as written and partly out of date. For current documentation, start at [docs/README.md](README.md).
+
 # Phase 1: backend skeleton
 
 What exists: compose stack (`postgres`, one-shot `migrate`, `api`, `worker`), one Dockerfile with
