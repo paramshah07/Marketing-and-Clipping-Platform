@@ -1,0 +1,40 @@
+# Production on the cloud VM (docs/deploy.md), layered on compose.yml:
+#   docker compose -f compose.yml -f compose.prod.yml up -d --build
+# Code and the built frontend are baked into the images (no ./backend bind mount, no --reload), so after a
+# git pull, `up -d --build` recreates exactly the services whose image changed. There is no login, so Caddy
+# (HTTPS + one shared password, ./Caddyfile) is the only published port; everything else stays on 127.0.0.1.
+
+x-prod: &prod
+  volumes: !override [./data:/data]
+  logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }  # the disk never fills with logs
+
+services:
+  postgres:
+    logging: *logs
+    healthcheck:  # over TCP: on a fresh volume the entrypoint's init server is socket-only, so healthy = the real one
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U clipper -d clipper"]
+  migrate: *prod
+  api:
+    <<: *prod
+    build: { context: ./backend, target: api-prod, additional_contexts: { frontend: ./frontend } }
+    command: !override ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment: { STATIC_DIR: /app/static }
+  worker: *prod
+  bot: *prod
+  bot2: *prod
+  bot3: *prod
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]  # the only public ports: 80 for the certificate challenge and the redirect
+    environment:  # from the VM's .env
+      CLIPPER_HOST: ${CLIPPER_HOST:?set CLIPPER_HOST in .env}
+      CLIPPER_USER: ${CLIPPER_USER:?set CLIPPER_USER in .env}
+      CLIPPER_PASSWORD_HASH: ${CLIPPER_PASSWORD_HASH:?set CLIPPER_PASSWORD_HASH in .env}
+      CLIPPER_ACME_EMAIL: ${CLIPPER_ACME_EMAIL:?set CLIPPER_ACME_EMAIL in .env}
+    volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data]  # caddy_data keeps the certificate
+    depends_on: { api: { condition: service_started } }
+    logging: *logs
+
+volumes:
+  caddy_data:

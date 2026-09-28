@@ -19,7 +19,7 @@ from app import cli
 from app.api.pipeline import png_alpha
 from app.core.config import settings
 from app.core.db import SyncSession, engine
-from app.main import app
+from app.main import SPA, app
 from app.models import Brand, Render, SourceClip, cas
 from app.services import links
 from app.tasks import media as media_tasks
@@ -396,3 +396,17 @@ def test_api_startup_fails_orphaned_uploads_and_drops_their_part_file(db, client
         clip = s.get(SourceClip, cid)
         assert (clip.status, clip.error_code) == ("FAILED", "UPLOAD_ABANDONED")
     assert not part.exists()
+
+
+def test_spa_fallback(tmp_path):
+    """Production serves the built frontend (compose.prod.yml): app routes get index.html, files are files,
+    and an unknown /api path stays a 404 instead of a 200 page."""
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "index.html").write_text("app")
+    (tmp_path / "assets" / "a.js").write_text("js")
+    c = TestClient(Starlette(routes=[Mount("/", SPA(directory=tmp_path, html=True))]))
+    assert [c.get(u).text for u in ("/", "/editor/12", "/assets/a.js")] == ["app", "app", "js"]
+    assert c.get("/api/nope").status_code == 404

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import DataError, SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import pipeline, recovery, scheduling
 from app.core.config import settings
@@ -110,3 +111,20 @@ async def status() -> SystemStatus:
         return SystemStatus(
             db=False, worker_alive=False, worker_last_heartbeat=None, jobs={}, publishing_enabled=publishing
         )
+
+
+class SPA(StaticFiles):
+    """The built frontend. A path that isn't a file gets index.html, so /editor/12 survives a reload; /api/*
+    stays a JSON 404."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as e:
+            if e.status_code != 404 or path.startswith("api/"):
+                raise
+            return await super().get_response("index.html", scope)
+
+
+if settings.STATIC_DIR:  # last: a mount at / would otherwise shadow the routes declared after it
+    app.mount("/", SPA(directory=settings.STATIC_DIR, html=True), name="web")

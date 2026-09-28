@@ -10,6 +10,10 @@ path). Spec: `docs/spec.md`. Research: `.context/research/*.md`
   crop locked to 9:16 · DRAFT + brands.auto_approve as approval gate · rights "none" = confirm dialog ·
   from-url best effort TikTok / Instagram / X · table thumbs 28x50 + hover preview, cards 36x64 ·
   share_to_feed=true · one branch + PR per phase into master.
+- Rev 3 (2026-09-28): **production = one Oracle Cloud Always Free Arm VM** (2 OCPU / 12 GB, Pay As You Go
+  account so it is never reclaimed as idle), same compose + `compose.prod.yml` (images carry the code and the
+  built frontend, the api serves it at `/`), public at `<ip>.sslip.io` behind Caddy: HTTPS plus one shared
+  password (basic auth), since there is no login. Runbook: `docs/deploy.md`.
 - Rev 2: **publish via Zernio** (operator can't create a Meta developer account) · **localhost-first,
   not production-grade**: no Cloudflare Access/Tunnel, no VPS, no R2 for now.
 

@@ -22,3 +22,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --locked --no-install-project --group worker
 COPY . .
+
+# Production (compose.prod.yml, docs/deploy.md): the built frontend, served by the api. compose.prod.yml passes
+# ../frontend as the named context `frontend`; only the build inputs are copied (never the host's node_modules).
+FROM node:22-slim AS web
+WORKDIR /web
+COPY --from=frontend package.json package-lock.json ./
+RUN npm ci
+COPY --from=frontend index.html vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json ./
+COPY --from=frontend src src
+RUN npm run build
+
+FROM api AS api-prod
+COPY --from=web /web/dist /app/static
