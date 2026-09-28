@@ -309,12 +309,12 @@ def rgba_png(w: int, hh: int) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, hh, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
 
 
-def seed(tmp_path, rights="own_content", auto_approve=False, width=1920, height=1080) -> dict:
+def seed(tmp_path, auto_approve=False, width=1920, height=1080) -> dict:
     """A READY clip, a brand with a 400x160 logo, a READY render of them and a connected account (UTC,
     09:00 / 13:00 / 19:00)."""
     (tmp_path / "logos").mkdir(exist_ok=True)
     with SyncSession() as s:
-        clip = SourceClip(origin="url", status="READY", rights_status=rights, source_url="https://www.tiktok.com/@maya/video/7421983301",
+        clip = SourceClip(origin="url", status="READY", source_url="https://www.tiktok.com/@maya/video/7421983301",
                           source_creator_handle="@maya", duration_s=20.0, width=width, height=height, fps=30.0, has_audio=True,
                           size_bytes=5_000_000, raw_key="raw/x.mp4")  # fmt: skip
         brand = Brand(name="Northwind", caption_template="Coffee at {link} · clip by {creator}", link="nw.coffee", auto_approve=auto_approve)
@@ -357,11 +357,11 @@ def test_imports(env):
         # one link, with the creator next to it
         await phone.say("look https://www.tiktok.com/@maya.eats/video/7421983301999?is_from_webapp=1 by @maya.eats")
         assert "Import this TikTok by @maya.eats?" in phone.text()
-        await phone.tap("Own content")
+        await phone.tap("Import")
         with SyncSession() as s:
             c = s.scalars(select(SourceClip).order_by(SourceClip.id.desc())).first()
-        assert (c.status, c.rights_status, c.source_creator_handle, c.source_url) == (
-            "DOWNLOADING", "own_content", "@maya.eats", "https://www.tiktok.com/@maya.eats/video/7421983301999")
+        assert (c.status, c.source_creator_handle, c.source_url) == (
+            "DOWNLOADING", "@maya.eats", "https://www.tiktok.com/@maya.eats/video/7421983301999")
         assert job("download_clip", clip_id=c.id) and ("clip", c.id) in bot.watches
         # the same video again: its card, no second clip
         await phone.say("https://www.tiktok.com/@maya.eats/video/7421983301999")
@@ -372,11 +372,10 @@ def test_imports(env):
                             b"https://www.tiktok.com/@maya.eats/video/7421983301999 https://youtu.be/aaaaaaaaaaa https://example.com")  # fmt: skip
         await phone.say(document={"file_id": "doc1", "file_name": "links.txt", "mime_type": "text/plain", "file_size": 200})
         assert "Found 3 videos (YouTube 1 · Instagram 1 · TikTok 1): 1 already in the library, 1 repeat, 1 other link skipped." in phone.text()
-        await phone.tap("Permission granted")
+        await phone.tap("Import")
         with SyncSession() as s:
             new = s.scalars(select(SourceClip).where(SourceClip.id > c.id)).all()
-        assert sorted((x.source_url, x.rights_status) for x in new) == [
-            ("https://www.instagram.com/reel/BBB222xyz/", "permission_granted"), ("https://youtu.be/aaaaaaaaaaa", "permission_granted")]
+        assert sorted(x.source_url for x in new) == ["https://www.instagram.com/reel/BBB222xyz/", "https://youtu.be/aaaaaaaaaaa"]
         batch = next(w for (kind, _), w in bot.watches.items() if kind == "batch")
         assert sorted(batch["ids"]) == sorted(x.id for x in new)
         # the batch reports once, when every clip has finished
@@ -397,12 +396,12 @@ def test_imports(env):
         tg.files["v1"], tg.files["v2"] = b"video one", b"video two"
         await phone.say(video={"file_id": "v1", "file_size": 9, "mime_type": "video/mp4"}, caption="@creator", media_group_id="g")
         await phone.say(video={"file_id": "v2", "file_size": 9, "mime_type": "video/quicktime", "file_name": "IMG_1.MOV"}, media_group_id="g")
-        assert "Import 2 videos (0.0 MB) by @creator? Pick their rights:" in phone.text()
-        await phone.tap("No rights")
+        assert "Import 2 videos (0.0 MB) by @creator?" in phone.text()
+        await phone.tap("Import")
         await phone.settle()
         with SyncSession() as s:
             up = s.scalars(select(SourceClip).where(SourceClip.origin == "upload").order_by(SourceClip.id)).all()[-2:]
-        assert [(x.status, x.rights_status, x.source_creator_handle) for x in up] == [("PROBING", "none", "@creator")] * 2
+        assert [(x.status, x.source_creator_handle) for x in up] == [("PROBING", "@creator")] * 2
         assert up[0].original_filename.startswith("telegram-") and up[0].original_filename.endswith(".mp4")
         assert up[1].original_filename == "IMG_1.MOV" and job("probe_clip", clip_id=up[1].id)
         assert "Uploaded 2 videos" in phone.text(min(m for m, x in tg.messages.items() if "Uploaded" in x["text"]))
@@ -471,7 +470,7 @@ def test_render_editor(env):
 
 def test_schedule_and_posts(env, monkeypatch):
     ids = seed(env)
-    none = seed(env, rights="none")
+    other = seed(env)
 
     async def scenario(phone, tg, bot):
         bot.last_account = ids["account"]
@@ -502,19 +501,17 @@ def test_schedule_and_posts(env, monkeypatch):
             assert s.get(Post, p.id).caption == "new words"
         assert await phone.tap("Post now", form) is not None and tg.toasts[-1] == (
             "Publishing is off (PUBLISHING_ENABLED or ZERNIO_API_KEY in .env): nothing can post now.", True)
-        # a clip without rights: the api's 409 becomes a confirm
-        await phone.say(f"/r{none['render']}")
+        # a typed time, then no confirm step: Schedule saves it
+        await phone.say(f"/r{other['render']}")
         await phone.tap("Schedule…")
         form2 = max(tg.messages)
         await phone.tap("Other time…", form2)
         await phone.tap("Type a time…", form2)
         await phone.say("tomorrow 13:00")
         assert "tomorrow" not in phone.text(form2) and "13:00" in phone.text(form2)
-        assert await phone.tap("Schedule for", form2) is None
-        assert "No rights recorded for this clip" in phone.text(form2)
-        await phone.tap("Schedule anyway", form2)
+        assert await phone.tap("Schedule for", form2) == "Saved as a draft"
         with SyncSession() as s:
-            p2 = s.scalars(select(Post).where(Post.render_id == none["render"])).one()
+            p2 = s.scalars(select(Post).where(Post.render_id == other["render"])).one()
         assert p2.scheduled_for.hour == 13 and p2.status == "DRAFT"
         # cancel it from its card
         await phone.say(f"/p{p2.id}")
@@ -548,6 +545,16 @@ def test_schedule_and_posts(env, monkeypatch):
         await screens.check_watches(bot)
         assert phone.text().startswith("<b>Live on Instagram</b>: @acct, post") and ("post", p.id) not in bot.watches
         assert tg.buttons(max(tg.messages)) == [("View on Instagram", "https://www.instagram.com/reel/X/")]
+        # Post now from a render card: one confirm per account, then the post at this second, approved
+        await phone.say(f"/r{other['render']}")
+        card = max(tg.messages)
+        await phone.tap("Post now", card)
+        confirm = f"rn!:{other['render']}:{other['account']}"
+        assert ("Post to @acct now", confirm) in tg.buttons(card)
+        assert await phone.press(confirm, card) == "Posting now"
+        with SyncSession() as s:
+            p3 = s.scalars(select(Post).where(Post.render_id == other["render"], Post.status != "CANCELLED")).one()
+        assert p3.status == "SCHEDULED" and ("post", p3.id) in bot.watches
 
     run(scenario)
 

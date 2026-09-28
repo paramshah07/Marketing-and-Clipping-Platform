@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarPlus, Camera, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react"
+import { CalendarPlus, Camera, ChevronDown, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react"
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 
-import type { BrandOut, ClipOut, OverlayConfig, RenderOut } from "@/api"
+import type { BrandOut, CaptionOut, ClipOut, CoverOut, OverlayConfig, RenderOut } from "@/api"
 import {
   createRenderMutation,
   deleteRenderMutation,
@@ -12,6 +12,8 @@ import {
   listAccountsOptions,
   listBrandsOptions,
   listBrandsQueryKey,
+  listCaptionsOptions,
+  listCoversOptions,
   listRendersOptions,
   listRendersQueryKey,
   retryRenderMutation,
@@ -23,8 +25,9 @@ import { SchedulePopover } from "@/components/SchedulePopover"
 import { Chip, Empty, Header } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
-import { GRID, IG, OUT_H, OUT_W, type Box, clamp, coverFit, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
-import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, RIGHTS, btn, label } from "@/lib/utils"
+import { coverJpeg, savedCover } from "@/lib/cover"
+import { GRID, IG, OUT_H, OUT_W, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
+import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, btn, label } from "@/lib/utils"
 
 const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.16, w: 0.22, opacity: 1 } // backend brands default (below the IG top bar)
 const MIN_W = 0.02
@@ -40,12 +43,19 @@ export function Editor() {
   })
   const brands = useQuery(listBrandsOptions())
   const history = useQuery(listRendersOptions({ query: { clip_id: id } }))
+  // Saved captions and covers (Customizations) are extras: the editor opens without them if they fail to load
+  const captions = useQuery(listCaptionsOptions())
+  const covers = useQuery(listCoversOptions())
+  const def = covers.data?.find((c) => c.is_default)
+  const defCover = useQuery({ queryKey: ["saved-cover", def?.id], queryFn: () => savedCover(def!), enabled: !!def, staleTime: Infinity })
   const [params] = useSearchParams()
   if (clip.isError || brands.isError) return <Page title="Clip">{errorText(clip.error ?? brands.error)}</Page>
-  if (!clip.data || !brands.data || history.isPending) return <Page title="Clip">Loading…</Page>
-  // ?brand= wins, else the brand this clip was last rendered with (newest first), else the operator picks
+  if (!clip.data || !brands.data || history.isPending || captions.isPending || covers.isPending || (def && defCover.isPending))
+    return <Page title="Clip">Loading…</Page>
+  // ?brand= wins, else the brand this clip was last rendered with (newest first), else the default brand, else the operator picks
   const byId = (bid: number | null | undefined) => brands.data.find((b) => b.id === bid && b.logo_url)
-  const initial = byId(Number(params.get("brand"))) ?? (history.data ?? []).map((r) => byId(r.brand_id)).find(Boolean) ?? null
+  const initial =
+    byId(Number(params.get("brand"))) ?? (history.data ?? []).map((r) => byId(r.brand_id)).find(Boolean) ?? byId(brands.data.find((b) => b.is_default)?.id) ?? null
   if (clip.data.status === "FAILED")
     return (
       <Page title={clipName(clip.data)}>
@@ -54,7 +64,8 @@ export function Editor() {
     )
   if (clip.data.status !== "READY" || !clip.data.width || !clip.data.height)
     return <Page title={clipName(clip.data)}>This clip is {clip.data.status.toLowerCase()}; the editor opens once it is READY.</Page>
-  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} />
+  const cover = def && defCover.data ? { jpeg: defCover.data, url: def.image_url, from: def.id } : null
+  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} captions={captions.data ?? []} covers={covers.data ?? []} initialCover={cover} />
 }
 
 function Page({ title, children }: { title: string; children: ReactNode }) {
@@ -81,7 +92,10 @@ function useSize<T extends HTMLElement>() {
   return [ref, size] as const
 }
 
-function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null }) {
+// url: an object URL for a chosen file, a saved cover's own /media URL (revoking that is a no-op); from: that saved cover
+type Cover = { jpeg: Blob; url: string; from?: number }
+
+function EditorBody({ clip, brands, initial, captions, covers, initialCover }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null; captions: CaptionOut[]; covers: CoverOut[]; initialCover: Cover | null }) {
   const qc = useQueryClient()
   const W = clip.width!
   const H = clip.height!
@@ -91,7 +105,9 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
   const [chosen, setChosen] = useState(!!first) // false: nothing picked yet, Render waits for a choice
   const brand = brands.find((b) => b.id === brandId) ?? null
   const [overlay, setOverlay] = useState<OverlayConfig>(first?.default_overlay_config ?? DEFAULT_OVERLAY)
-  const template = (b: BrandOut | null) => fillCaption(b?.caption_template ?? null, b?.link ?? null, clip.source_creator_handle)
+  const fill = (text: string | null, b: BrandOut | null) => fillCaption(text, b?.link ?? null, clip.source_creator_handle)
+  // the brand's caption template, else the default saved caption (with the brand's link), else empty
+  const template = (b: BrandOut | null) => fill(b?.caption_template || (captions.find((c) => c.is_default)?.text ?? null), b)
   const [caption, setCaption] = useState(() => template(first))
   const [cell, setCell] = useState<number | null>(null)
   const [margin, setMargin] = useState(4) // % of the output width
@@ -99,7 +115,7 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
   const [cropOn, setCropOn] = useState(false)
   const [crop, setCrop] = useState<Box>(() => crop916(W, H))
   const [mode, setMode] = useState<"output" | "crop" | "cover">("output")
-  const [cover, setCover] = useState<{ jpeg: Blob; url: string } | null>(null) // the Reel cover exactly as uploaded
+  const [cover, setCover] = useState<Cover | null>(initialCover) // the Reel cover exactly as uploaded
   useEffect(() => () => void (cover && URL.revokeObjectURL(cover.url)), [cover]) // on replace and unmount
   const pickCover = useRef<HTMLInputElement>(null)
   const [ig, setIg] = useState(true)
@@ -171,10 +187,12 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
       })
       .then((r) => jpeg && coverUpload.mutate({ path: { render_id: r.id }, body: { file: jpeg } }), () => {}) // render's onError reports
   }
-  async function chooseCover(file: File) {
+  async function chooseCover(from: File | CoverOut) {
     try {
-      const jpeg = await coverJpeg(file)
-      setCover({ jpeg, url: URL.createObjectURL(jpeg) })
+      if (from instanceof File) {
+        const jpeg = await coverJpeg(from)
+        setCover({ jpeg, url: URL.createObjectURL(jpeg) })
+      } else setCover({ jpeg: await savedCover(from), url: from.image_url, from: from.id })
       setMode("cover")
       setPreview(null)
       setError("")
@@ -222,10 +240,7 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
             {mmss(clip.duration_s)} · {W}x{H} · {clip.fps ? +clip.fps.toFixed(2) : "?"}fps · {clip.has_audio ? "has audio" : "no audio"}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
-          <span className="font-mono text-sm text-subtle">clip {clip.id}</span>
-          <span className="inline-flex h-5 items-center rounded border border-line px-1.5 text-xs text-muted">{RIGHTS[clip.rights_status]}</span>
-        </div>
+        <span className="shrink-0 font-mono text-sm whitespace-nowrap text-subtle">clip {clip.id}</span>
       </Header>
       <section className="flex min-h-0 flex-1">
         <Stage
@@ -422,8 +437,29 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
               </div>
               <div className="flex items-center gap-3">
                 {cover ? <img src={cover.url} alt="" className="h-16 w-9 shrink-0 rounded-sm object-cover" /> : <span className="h-16 w-9 shrink-0 rounded-sm border border-dashed border-line-strong" />}
-                <div className="min-w-0 space-y-1.5">
+                <div className="min-w-0 flex-1 space-y-1.5">
                   <input ref={pickCover} type="file" accept="image/*" hidden onChange={(e) => (e.target.files?.[0] && chooseCover(e.target.files[0]), (e.target.value = ""))} />
+                  {covers.length > 0 && (
+                    <label className="flex h-7 items-center gap-2 rounded border border-line bg-bg px-2 hover:border-line-strong focus-within:border-muted">
+                      <select
+                        aria-label="Saved covers"
+                        value={cover?.from ?? ""}
+                        onChange={(e) => chooseCover(covers.find((c) => c.id === Number(e.target.value))!)}
+                        className={cn("min-w-0 flex-1 appearance-none truncate bg-transparent outline-none", cover?.from == null && "text-subtle")}
+                      >
+                        <option value="" disabled>
+                          Saved covers…
+                        </option>
+                        {covers.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                            {c.is_default ? " (default)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronsUpDown className="size-3.5 shrink-0 text-subtle" />
+                    </label>
+                  )}
                   <button className={cn(btn.secondary, "px-2.5 font-normal")} onClick={() => pickCover.current?.click()}>
                     <Upload className="size-3.5" />
                     Choose image…
@@ -434,8 +470,25 @@ function EditorBody({ clip, brands, initial }: { clip: ClipOut; brands: BrandOut
             </div>
 
             <div className="space-y-2 px-4 py-3">
-              <div className="flex items-center justify-between">
-                <span className={label}>Caption</span>
+              <div className="flex items-center gap-3">
+                <span className={cn(label, "mr-auto")}>Caption</span>
+                {captions.length > 0 && (
+                  // an action, not a state: picking one replaces the text (filled like the template)
+                  <label className="flex items-center gap-0.5 text-sm text-muted hover:text-fg">
+                    <select aria-label="Saved captions" value="" onChange={(e) => setCaption(fill(captions.find((c) => c.id === Number(e.target.value))!.text, brand))} className="max-w-[128px] appearance-none truncate bg-transparent outline-none [field-sizing:content]">
+                      <option value="" disabled>
+                        Saved captions
+                      </option>
+                      {captions.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                          {c.is_default ? " (default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="size-3.5" />
+                  </label>
+                )}
                 <button className="text-sm text-muted hover:text-fg" onClick={() => setCaption(template(brand))}>
                   Reset to template
                 </button>
@@ -843,22 +896,6 @@ function placement(r: RenderOut) {
   const col = clamp(Math.floor((o.x + o.w / 2) * 3), 0, 2)
   const row = clamp(Math.floor(((cy - IG.top) / (1 - IG.top - IG.bottom)) * 3), 0, 2)
   return `${SNAPS[row * 3 + col]} · ${Math.round(o.w * 100)}% · ${crop}`
-}
-
-/** Any image the browser can decode -> the 1080x1920 JPEG that gets published: cover-fit, centre-cropped, black
- * under transparency. createImageBitmap applies the EXIF orientation. */
-async function coverJpeg(file: File): Promise<Blob> {
-  const img = await createImageBitmap(file).catch(() => null)
-  if (!img) throw new Error(`Can't read ${file.name} as an image in this browser`)
-  const c = new OffscreenCanvas(OUT_W, OUT_H)
-  const g = c.getContext("2d")!
-  g.fillStyle = "#000"
-  g.fillRect(0, 0, OUT_W, OUT_H)
-  g.imageSmoothingQuality = "high" // photos are usually downscaled a lot
-  const { sx, sy, sw, sh } = coverFit(img.width, img.height)
-  g.drawImage(img, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H)
-  img.close()
-  return c.convertToBlob({ type: "image/jpeg", quality: 0.9 })
 }
 
 function LogDialog({ id, onClose }: { id: number; onClose: () => void }) {

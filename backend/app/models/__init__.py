@@ -27,6 +27,11 @@ def one_of(column: str, *values: str) -> CheckConstraint:
     return CheckConstraint(f"{column} IN ({', '.join(repr(v) for v in values)})", name=column)
 
 
+def default_index(table: str) -> Index:
+    """At most one row of the table is its default (what the Editor preselects)."""
+    return Index(f"uq_{table}_default", "is_default", unique=True, postgresql_where=text("is_default"))
+
+
 def cas(model, id: int, from_statuses: Iterable[str], **values) -> Update:
     """Compare-and-set: UPDATE model SET values WHERE id = :id AND status IN from_statuses.
     Execute it and check rowcount == 1; 0 means another writer got there first (or the row is gone)."""
@@ -37,7 +42,6 @@ class SourceClip(Base):
     __tablename__ = "source_clips"
     __table_args__ = (
         one_of("origin", "upload", "url"),
-        one_of("rights_status", "permission_granted", "none", "own_content"),
         one_of("status", "UPLOADING", "DOWNLOADING", "PROBING", "READY", "FAILED"),
     )
 
@@ -47,7 +51,6 @@ class SourceClip(Base):
     original_filename: Mapped[str | None]
     platform: Mapped[str | None]
     source_creator_handle: Mapped[str | None]
-    rights_status: Mapped[str] = mapped_column(server_default="none")
     status: Mapped[str]
     raw_key: Mapped[str | None]
     thumbnail_key: Mapped[str | None]
@@ -70,6 +73,7 @@ class SourceClip(Base):
 
 class Brand(Base):
     __tablename__ = "brands"
+    __table_args__ = (default_index("brands"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
@@ -80,8 +84,31 @@ class Brand(Base):
     caption_template: Mapped[str | None]
     link: Mapped[str | None]
     auto_approve: Mapped[bool] = mapped_column(server_default=text("false"))
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))  # never while archived
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     archived_at: Mapped[datetime | None]
+
+
+class SavedCaption(Base):  # Customizations: a caption the Editor can fill in
+    __tablename__ = "saved_captions"
+    __table_args__ = (default_index("saved_captions"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    text: Mapped[str]
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class SavedCover(Base):  # Customizations: a Reel cover the Editor copies onto a render (renders.cover_key)
+    __tablename__ = "saved_covers"
+    __table_args__ = (default_index("saved_covers"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]
+    image_key: Mapped[str]  # cover-library/{id}-{hex8}.jpg, a JPEG (1080x1920 from the web app)
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
 class Render(Base):

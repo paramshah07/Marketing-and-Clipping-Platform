@@ -7,13 +7,15 @@ path). Spec: `docs/spec.md`. Research: `.context/research/*.md`
 ## Operator decisions
 - Rev 1 (all defaults approved): React 19 · every-minute dispatcher · httpx-transport fakes allowed ONLY
   for publish state-machine tests, ONLY with responses recorded in Phase 0, never as proof of integration ·
-  crop locked to 9:16 · DRAFT + brands.auto_approve as approval gate · rights "none" = confirm dialog ·
+  crop locked to 9:16 · DRAFT + brands.auto_approve as approval gate ·
   from-url best effort TikTok / Instagram / X · table thumbs 28x50 + hover preview, cards 36x64 ·
   share_to_feed=true · one branch + PR per phase into master.
 - Rev 3 (2026-09-28): **production = one Oracle Cloud Always Free Arm VM** (2 OCPU / 12 GB, Pay As You Go
   account so it is never reclaimed as idle), same compose + `compose.prod.yml` (images carry the code and the
   built frontend, the api serves it at `/`), public at `<ip>.sslip.io` behind Caddy: HTTPS plus one shared
   password (basic auth), since there is no login. Runbook: `docs/deploy.md`.
+- Rev 4 (2026-09-28): no content-ownership tag anywhere; a **Customizations** tab holds brands, saved captions
+  and saved covers, one of each marked default (what the Editor preselects).
 - Rev 2: **publish via Zernio** (operator can't create a Meta developer account) · **localhost-first,
   not production-grade**: no Cloudflare Access/Tunnel, no VPS, no R2 for now.
 
@@ -69,7 +71,7 @@ Browser ─ localhost:5173 (Vite dev server; proxies /api and /media → :8000)
             └─ api   (FastAPI :8000, uvicorn --reload)
                  ├─ postgres 16 (app tables + procrastinate_* tables)
                  └─ defers jobs ─> worker (Procrastinate; ffmpeg 7.1, ffprobe, yt-dlp; concurrency 4)
- ./data (bind mount shared by api + worker): raw/ thumbs/ renders/ logos/ covers/
+ ./data (bind mount shared by api + worker): raw/ thumbs/ renders/ logos/ covers/ cover-library/
  worker ─> zernio.com/api/v1 (upload render at publish time, publish now)
  worker ─> api.telegram.org (optional alerts)
 Telegram ⇄ bot (long polling; optional) ─> api over HTTP, like the browser (docs/telegram-bot.md)
@@ -83,10 +85,17 @@ Telegram ⇄ bot (long polling; optional) ─> api over HTTP, like the browser (
   sync tasks are `async def` with no blocking calls.
 
 ## 3. Data model (statuses as `text` + CHECK; FKs ON DELETE RESTRICT; `*_key` = path under ./data)
-- **source_clips**: spec columns + `thumbnail_key`, `video_codec`, `color_transfer`, `size_bytes`,
-  `content_type`, `created_at`; status adds `DOWNLOADING`; probe rejects < 3 s or > 15 min.
+- **source_clips**: spec columns except `rights_status` (no ownership tag) + `thumbnail_key`, `video_codec`,
+  `color_transfer`, `size_bytes`, `content_type`, `created_at`; status adds `DOWNLOADING`; probe rejects < 3 s
+  or > 15 min.
 - **brands**: spec columns; `logo_key` nullable until uploaded (PNG, alpha checked); default overlay
-  `{"x":0.72,"y":0.06,"w":0.22,"opacity":1}`.
+  `{"x":0.72,"y":0.16,"w":0.22,"opacity":1}`; `is_default` (never while archived: archiving clears it).
+- **saved_captions** (`name`, `text` ≤ 2200, `is_default`, `created_at`) and **saved_covers** (`name`,
+  `image_key` = `cover-library/{id}-{hex8}.jpg`, a JPEG, `is_default`, `created_at`): the Customizations
+  library. The Editor copies a saved cover onto a render (`PUT /renders/{id}/cover`), so editing or deleting
+  one never changes a render. brands / saved_captions / saved_covers each have at most one default:
+  setting one clears the previous in the same transaction, partial unique index `uq_<table>_default` as the
+  backstop (a concurrent clash is a 409).
 - **renders**: spec columns + `caption`, `thumbnail_key`, `size_bytes`, `error_code`, `updated_at`,
   `superseded_at` (set by "Re-render and retry"; such a render never shows as unscheduled again),
   `cover_key` (1080x1920 JPEG Reel cover, null ⇒ Instagram's pick; changes only while no live post refers
@@ -153,17 +162,19 @@ DRAFT/SCHEDULED/FAILED/DEAD_LETTER --cancel / account disabled--> CANCELLED
 ## 5. API (under `/api`; files under `/media/*`)
 | Area | Endpoints |
 |---|---|
-| Clips | `POST /clips` (multipart: file, rights_status, source_creator_handle?) · `POST /clips/from-url` · `POST /clips/links` (a document or text file → the video links in it) · `POST /clips/from-urls` (bulk; skips videos already in the library; downloads at priority -10, two at a time) · `GET /clips` · `GET /clips/{id}` · `PATCH /clips/{id}` · `POST /clips/{id}/retry` · `DELETE /clips/{id}` |
+| Clips | `POST /clips` (multipart: file, source_creator_handle?) · `POST /clips/from-url` · `POST /clips/links` (a document or text file → the video links in it) · `POST /clips/from-urls` (bulk; skips videos already in the library; downloads at priority -10, two at a time) · `GET /clips` · `GET /clips/{id}` · `PATCH /clips/{id}` · `POST /clips/{id}/retry` · `DELETE /clips/{id}` |
 | Renders | `POST /renders` · `GET /renders?clip_id&status&unscheduled` · `GET /renders/{id}` · `POST /renders/{id}/retry` · `DELETE /renders/{id}` · `PUT`/`DELETE /renders/{id}/cover` |
-| Brands | `GET /brands?archived` · `POST /brands` · `PATCH /brands/{id}` · `POST /brands/{id}/logo` (multipart) |
+| Brands | `GET /brands?archived` · `POST /brands` · `PATCH /brands/{id}` (incl. `is_default`, `archived`) · `POST /brands/{id}/logo` (multipart) |
+| Captions | `GET /captions` (default first, then name) · `POST /captions` · `PATCH /captions/{id}` · `DELETE /captions/{id}` |
+| Covers | `GET /covers` (default first, then newest) · `POST /covers` (multipart: file ≤ 8 MB JPEG, name, is_default?) · `PATCH /covers/{id}` · `DELETE /covers/{id}` (file too) |
 | Accounts | `GET /accounts` (+ cached quota) · `POST /accounts/sync` (pull from Zernio) · `PATCH /accounts/{id}` (slots, cap, tz, min gap, disable) |
 | Posts | `GET /posts?from&to&account_id&brand_id&status` · `GET /posts/{id}` · `POST /posts` · `POST /posts/auto-schedule` · `PATCH /posts/{id}` · `POST /posts/{id}/approve` · `POST /posts/{id}/cancel` · `POST /posts/{id}/remedy` |
 | System | `GET /health` · `GET /status` |
 
 Validation: POST /posts + auto-schedule reject render not READY, render longer than
-`ZERNIO_MAX_REEL_SECONDS`, disabled/disconnected account, a time already passed (now is allowed), rights "none" without
-`rights_override` (409 `RIGHTS_NONE`). Drag = time change within a lane. Auto-schedule keeps input order,
-skips slots < 10 min away, 30-day horizon, returns unplaced ids. Deletes only when no live post refers
+`ZERNIO_MAX_REEL_SECONDS`, disabled/disconnected account, a time already passed (now is allowed). Drag =
+time change within a lane. Auto-schedule keeps input order, skips slots < 10 min away, 30-day horizon,
+returns unplaced ids. Deletes only when no live post refers
 to the row (a render's CANCELLED posts are deleted with it); files removed too.
 
 ## 6. Settings (`.env`)
@@ -207,5 +218,6 @@ Mockups in `docs/design/*.png` stand, with these changes: **Accounts** — the 3
 becomes "Connect in Zernio (one profile per account) → Sync accounts"; token-expiry chips become
 connection-status chips (also in calendar lane headers). **Editor / render queue** — warning when the
 clip is longer than the 15 min Reel limit. **Recover** — remedy labels per §4.
-Routes: `/library` (Clips | Published), `/editor/:clipId`, `/calendar`, `/accounts`, `/brands`,
+Routes: `/library` (Clips | Published), `/editor/:clipId`, `/calendar`, `/accounts`,
+`/customizations/:tab` (brands | captions | covers; `/customizations` and `/brands` redirect to brands),
 `/recover/:postId`.

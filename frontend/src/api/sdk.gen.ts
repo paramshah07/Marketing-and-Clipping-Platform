@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListClipsData, ListClipsResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses } from './types.gen';
+import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateCaptionData, CreateCaptionErrors, CreateCaptionResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteCaptionData, DeleteCaptionErrors, DeleteCaptionResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteCoverData, DeleteCoverErrors, DeleteCoverResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListCaptionsData, ListCaptionsResponses, ListClipsData, ListClipsResponses, ListCoversData, ListCoversResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateCaptionData, UpdateCaptionErrors, UpdateCaptionResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdateCoverData, UpdateCoverErrors, UpdateCoverResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses, UploadCoverData, UploadCoverErrors, UploadCoverResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -210,6 +210,84 @@ export const setRenderCover = <ThrowOnError extends boolean = false>(options: Op
     ...options,
     headers: {
         'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * List Captions
+ *
+ * The default first, then by name.
+ */
+export const listCaptions = <ThrowOnError extends boolean = false>(options?: Options<ListCaptionsData, ThrowOnError>): RequestResult<ListCaptionsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListCaptionsResponses, unknown, ThrowOnError>({ url: '/api/captions', ...options });
+
+/**
+ * Create Caption
+ */
+export const createCaption = <ThrowOnError extends boolean = false>(options: Options<CreateCaptionData, ThrowOnError>): RequestResult<CreateCaptionResponses, CreateCaptionErrors, ThrowOnError> => (options.client ?? client).post<CreateCaptionResponses, CreateCaptionErrors, ThrowOnError>({
+    url: '/api/captions',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Caption
+ */
+export const deleteCaption = <ThrowOnError extends boolean = false>(options: Options<DeleteCaptionData, ThrowOnError>): RequestResult<DeleteCaptionResponses, DeleteCaptionErrors, ThrowOnError> => (options.client ?? client).delete<DeleteCaptionResponses, DeleteCaptionErrors, ThrowOnError>({ url: '/api/captions/{caption_id}', ...options });
+
+/**
+ * Update Caption
+ */
+export const updateCaption = <ThrowOnError extends boolean = false>(options: Options<UpdateCaptionData, ThrowOnError>): RequestResult<UpdateCaptionResponses, UpdateCaptionErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCaptionResponses, UpdateCaptionErrors, ThrowOnError>({
+    url: '/api/captions/{caption_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Covers
+ *
+ * The default first, then the newest.
+ */
+export const listCovers = <ThrowOnError extends boolean = false>(options?: Options<ListCoversData, ThrowOnError>): RequestResult<ListCoversResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListCoversResponses, unknown, ThrowOnError>({ url: '/api/covers', ...options });
+
+/**
+ * Upload Cover
+ *
+ * A JPEG up to 8 MB (the web app sends 1080x1920). The Editor uploads a copy as a render's cover, so
+ * renaming or deleting this one never changes a render.
+ */
+export const uploadCover = <ThrowOnError extends boolean = false>(options: Options<UploadCoverData, ThrowOnError>): RequestResult<UploadCoverResponses, UploadCoverErrors, ThrowOnError> => (options.client ?? client).post<UploadCoverResponses, UploadCoverErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/covers',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Cover
+ *
+ * The file goes too (after the commit). Renders keep their own copies.
+ */
+export const deleteCover = <ThrowOnError extends boolean = false>(options: Options<DeleteCoverData, ThrowOnError>): RequestResult<DeleteCoverResponses, DeleteCoverErrors, ThrowOnError> => (options.client ?? client).delete<DeleteCoverResponses, DeleteCoverErrors, ThrowOnError>({ url: '/api/covers/{cover_id}', ...options });
+
+/**
+ * Update Cover
+ */
+export const updateCover = <ThrowOnError extends boolean = false>(options: Options<UpdateCoverData, ThrowOnError>): RequestResult<UpdateCoverResponses, UpdateCoverErrors, ThrowOnError> => (options.client ?? client).patch<UpdateCoverResponses, UpdateCoverErrors, ThrowOnError>({
+    url: '/api/covers/{cover_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
         ...options.headers
     }
 });

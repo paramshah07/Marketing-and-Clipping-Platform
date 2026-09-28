@@ -54,9 +54,9 @@ def account(**kw) -> int:
         return a.id
 
 
-def render(rights="own_content", auto_approve=False, brand=True, **kw) -> int:
+def render(auto_approve=False, brand=True, **kw) -> int:
     with SyncSession() as s:
-        clip = SourceClip(origin="upload", status="READY", rights_status=rights, original_filename="c.mp4")
+        clip = SourceClip(origin="upload", status="READY", original_filename="c.mp4")
         b = Brand(name="Acme", auto_approve=auto_approve) if brand else None
         s.add_all([clip] + ([b] if b else []))
         s.flush()
@@ -139,11 +139,9 @@ def test_create_guards(client):
     assert create(client, rid, 10**6, ok).status_code == 404
 
 
-def test_create_rights_none(client):
-    aid, rid = account(), render(rights="none")
-    r = create(client, rid, aid, NOW + D)
-    assert (r.status_code, code(r), r.json()["detail"]["render_ids"]) == (409, "RIGHTS_NONE", [rid])
-    assert create(client, rid, aid, NOW + D, rights_override=True).status_code == 201
+def test_create_ignores_an_old_clients_rights_override(client):
+    aid = account()
+    assert create(client, render(), aid, NOW + D, rights_override=False).status_code == 201
 
 
 # ---------------------------------------------------------------- patch / approve / cancel
@@ -280,10 +278,8 @@ def test_auto_schedule_horizon_and_no_slots(client):
 
 
 def test_auto_schedule_guards(client):
-    aid, none1, none2, ok = account(), render(rights="none"), render(rights="none"), render()
-    r = auto(client, aid, [ok, none2, none1, none2])
-    assert (r.status_code, code(r), r.json()["detail"]["render_ids"]) == (409, "RIGHTS_NONE", [none2, none1])
-    assert len(auto(client, aid, [ok, none2], rights_override=True).json()["placed"]) == 2
+    aid, ok = account(), render()
+    assert len(auto(client, aid, [ok, render()], rights_override=False).json()["placed"]) == 2  # an old client's field
     assert code(auto(client, account(disabled_at=NOW), [ok])) == "ACCOUNT_UNAVAILABLE"
     assert auto(client, 10**6, [ok]).status_code == 404
     assert auto(client, aid, []).status_code == 422

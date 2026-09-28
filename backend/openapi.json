@@ -40,22 +40,13 @@
                     "format": "binary",
                     "description": ".mp4, .mov or .webm"
                   },
-                  "rights_status": {
-                    "type": "string",
-                    "enum": [
-                      "permission_granted",
-                      "none",
-                      "own_content"
-                    ]
-                  },
                   "source_creator_handle": {
                     "type": "string"
                   }
                 },
                 "type": "object",
                 "required": [
-                  "file",
-                  "rights_status"
+                  "file"
                 ]
               }
             }
@@ -838,6 +829,284 @@
         }
       }
     },
+    "/api/captions": {
+      "get": {
+        "summary": "List Captions",
+        "description": "The default first, then by name.",
+        "operationId": "list_captions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CaptionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Captions"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Caption",
+        "operationId": "create_caption",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/captions/{caption_id}": {
+      "patch": {
+        "summary": "Update Caption",
+        "operationId": "update_caption",
+        "parameters": [
+          {
+            "name": "caption_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Caption Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptionPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Caption",
+        "operationId": "delete_caption",
+        "parameters": [
+          {
+            "name": "caption_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Caption Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/covers": {
+      "get": {
+        "summary": "List Covers",
+        "description": "The default first, then the newest.",
+        "operationId": "list_covers",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CoverOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Covers"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload Cover",
+        "description": "A JPEG up to 8 MB (the web app sends 1080x1920). The Editor uploads a copy as a render's cover, so\nrenaming or deleting this one never changes a render.",
+        "operationId": "upload_cover",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_cover"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/covers/{cover_id}": {
+      "patch": {
+        "summary": "Update Cover",
+        "operationId": "update_cover",
+        "parameters": [
+          {
+            "name": "cover_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cover Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoverPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoverOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Cover",
+        "description": "The file goes too (after the commit). Renders keep their own copies.",
+        "operationId": "delete_cover",
+        "parameters": [
+          {
+            "name": "cover_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Cover Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/accounts": {
       "get": {
         "summary": "List Accounts",
@@ -1596,11 +1865,6 @@
           "account_id": {
             "type": "integer",
             "title": "Account Id"
-          },
-          "rights_override": {
-            "type": "boolean",
-            "title": "Rights Override",
-            "default": false
           }
         },
         "type": "object",
@@ -1676,6 +1940,32 @@
         ],
         "title": "Body_upload_brand_logo"
       },
+      "Body_upload_cover": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "name"
+        ],
+        "title": "Body_upload_cover"
+      },
       "BrandCreate": {
         "properties": {
           "name": {
@@ -1719,6 +2009,11 @@
                 "type": "null"
               }
             ]
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "default": false
           }
         },
         "type": "object",
@@ -1766,6 +2061,10 @@
           "default_overlay_config": {
             "$ref": "#/components/schemas/OverlayConfig"
           },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1804,6 +2103,7 @@
           "link",
           "auto_approve",
           "default_overlay_config",
+          "is_default",
           "created_at",
           "archived_at",
           "logo_url"
@@ -1849,10 +2149,95 @@
           "archived": {
             "type": "boolean",
             "title": "Archived"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
           }
         },
         "type": "object",
         "title": "BrandPatch"
+      },
+      "CaptionCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2200,
+            "title": "Text"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "text"
+        ],
+        "title": "CaptionCreate"
+      },
+      "CaptionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "text",
+          "is_default",
+          "created_at"
+        ],
+        "title": "CaptionOut"
+      },
+      "CaptionPatch": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2200,
+            "title": "Text"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          }
+        },
+        "type": "object",
+        "title": "CaptionPatch"
       },
       "ClipFromUrl": {
         "properties": {
@@ -1862,15 +2247,6 @@
             "minLength": 1,
             "format": "uri",
             "title": "Url"
-          },
-          "rights_status": {
-            "type": "string",
-            "enum": [
-              "permission_granted",
-              "none",
-              "own_content"
-            ],
-            "title": "Rights Status"
           },
           "source_creator_handle": {
             "anyOf": [
@@ -1886,8 +2262,7 @@
         },
         "type": "object",
         "required": [
-          "url",
-          "rights_status"
+          "url"
         ],
         "title": "ClipFromUrl"
       },
@@ -1970,15 +2345,6 @@
               }
             ],
             "title": "Source Creator Handle"
-          },
-          "rights_status": {
-            "type": "string",
-            "enum": [
-              "permission_granted",
-              "none",
-              "own_content"
-            ],
-            "title": "Rights Status"
           },
           "has_watermark": {
             "anyOf": [
@@ -2143,7 +2509,6 @@
           "original_filename",
           "platform",
           "source_creator_handle",
-          "rights_status",
           "has_watermark",
           "content_type",
           "size_bytes",
@@ -2163,15 +2528,6 @@
       },
       "ClipPatch": {
         "properties": {
-          "rights_status": {
-            "type": "string",
-            "enum": [
-              "permission_granted",
-              "none",
-              "own_content"
-            ],
-            "title": "Rights Status"
-          },
           "source_creator_handle": {
             "anyOf": [
               {
@@ -2211,21 +2567,11 @@
             "maxItems": 1000,
             "minItems": 1,
             "title": "Urls"
-          },
-          "rights_status": {
-            "type": "string",
-            "enum": [
-              "permission_granted",
-              "none",
-              "own_content"
-            ],
-            "title": "Rights Status"
           }
         },
         "type": "object",
         "required": [
-          "urls",
-          "rights_status"
+          "urls"
         ],
         "title": "ClipsFromUrls"
       },
@@ -2254,6 +2600,57 @@
           "ids"
         ],
         "title": "ClipsFromUrlsOut"
+      },
+      "CoverOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "image_url": {
+            "type": "string",
+            "title": "Image Url",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_default",
+          "created_at",
+          "image_url"
+        ],
+        "title": "CoverOut"
+      },
+      "CoverPatch": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          }
+        },
+        "type": "object",
+        "title": "CoverPatch"
       },
       "CropConfig": {
         "properties": {
@@ -2476,11 +2873,6 @@
               }
             ],
             "title": "Caption"
-          },
-          "rights_override": {
-            "type": "boolean",
-            "title": "Rights Override",
-            "default": false
           }
         },
         "type": "object",

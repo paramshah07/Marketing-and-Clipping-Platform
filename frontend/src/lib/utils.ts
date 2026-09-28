@@ -14,8 +14,6 @@ export const label = "text-xs uppercase tracking-wider text-subtle"
 
 /** Files read for the links in them (Library "Import links"), not uploaded as videos. */
 export const DOCUMENTS = ["docx", "txt", "csv", "md", "rtf", "html", "htm", "xlsx", "pptx", "odt"]
-export const RIGHTS = { own_content: "own content", permission_granted: "permission granted", none: "none" } as const
-export type Rights = keyof typeof RIGHTS
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3 // backend MAX_UPLOAD_BYTES default
 export const MAX_REEL_SECONDS = 900 // backend ZERNIO_MAX_REEL_SECONDS: Instagram's 15 min API Reel limit (Zernio's documented 90 s is not enforced)

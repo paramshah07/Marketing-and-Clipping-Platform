@@ -160,3 +160,15 @@ ones that went out (`update posts set status = 'CANCELLED' where id in (...)`). 
 ponytail: the dumps live on the VM itself, which covers mistakes but not losing the VM; copy them off-box
 (Oracle Object Storage, 20 GB free) when that matters. Renders can be re-made; raw clips are the other
 thing worth keeping.
+
+## 6. Trying a PR before merging (on the Mac)
+
+Merging deploys, so try a branch first with `./review.sh`: it copies production's database and files to the
+Mac (only reading from the VM) and runs the branch as project `clipper-review` with `compose.review.yml`:
+publishing off, Zernio key and bot tokens blanked, bots never started. It refuses while any container of the
+Mac's own `clipper` stack exists. Then `cd frontend && npm run dev` and open http://localhost:5173;
+`./review.sh down` removes it (its database included).
+
+```sh
+gh pr checkout <number> && ./review.sh && (cd frontend && npm run dev)
+```

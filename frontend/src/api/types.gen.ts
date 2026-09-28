@@ -103,10 +103,6 @@ export type AutoScheduleIn = {
      * Account Id
      */
     account_id: number;
-    /**
-     * Rights Override
-     */
-    rights_override?: boolean;
 };
 
 /**
@@ -154,6 +150,24 @@ export type BodyUploadBrandLogo = {
 };
 
 /**
+ * Body_upload_cover
+ */
+export type BodyUploadCover = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
+};
+
+/**
  * BrandCreate
  */
 export type BrandCreate = {
@@ -174,6 +188,10 @@ export type BrandCreate = {
      */
     auto_approve?: boolean;
     default_overlay_config?: OverlayConfig | null;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
 };
 
 /**
@@ -201,6 +219,10 @@ export type BrandOut = {
      */
     auto_approve: boolean;
     default_overlay_config: OverlayConfig;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
     /**
      * Created At
      */
@@ -240,6 +262,72 @@ export type BrandPatch = {
      * Archived
      */
     archived?: boolean;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
+};
+
+/**
+ * CaptionCreate
+ */
+export type CaptionCreate = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
+};
+
+/**
+ * CaptionOut
+ */
+export type CaptionOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * CaptionPatch
+ */
+export type CaptionPatch = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Text
+     */
+    text?: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
 };
 
 /**
@@ -250,10 +338,6 @@ export type ClipFromUrl = {
      * Url
      */
     url: string;
-    /**
-     * Rights Status
-     */
-    rights_status: 'permission_granted' | 'none' | 'own_content';
     /**
      * Source Creator Handle
      */
@@ -300,10 +384,6 @@ export type ClipOut = {
      * Source Creator Handle
      */
     source_creator_handle: string | null;
-    /**
-     * Rights Status
-     */
-    rights_status: 'permission_granted' | 'none' | 'own_content';
     /**
      * Has Watermark
      */
@@ -367,10 +447,6 @@ export type ClipOut = {
  */
 export type ClipPatch = {
     /**
-     * Rights Status
-     */
-    rights_status?: 'permission_granted' | 'none' | 'own_content';
-    /**
      * Source Creator Handle
      */
     source_creator_handle?: string | null;
@@ -388,10 +464,6 @@ export type ClipsFromUrls = {
      * Urls
      */
     urls: Array<string>;
-    /**
-     * Rights Status
-     */
-    rights_status: 'permission_granted' | 'none' | 'own_content';
 };
 
 /**
@@ -410,6 +482,46 @@ export type ClipsFromUrlsOut = {
      * Ids
      */
     ids: Array<number>;
+};
+
+/**
+ * CoverOut
+ */
+export type CoverOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Image Url
+     */
+    readonly image_url: string;
+};
+
+/**
+ * CoverPatch
+ */
+export type CoverPatch = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
 };
 
 /**
@@ -562,10 +674,6 @@ export type PostCreate = {
      * Caption
      */
     caption?: string | null;
-    /**
-     * Rights Override
-     */
-    rights_override?: boolean;
 };
 
 /**
@@ -1006,6 +1114,10 @@ export type BrandOutWritable = {
     auto_approve: boolean;
     default_overlay_config: OverlayConfig;
     /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
      * Created At
      */
     created_at: string;
@@ -1056,10 +1168,6 @@ export type ClipOutWritable = {
      */
     source_creator_handle: string | null;
     /**
-     * Rights Status
-     */
-    rights_status: 'permission_granted' | 'none' | 'own_content';
-    /**
      * Has Watermark
      */
     has_watermark: boolean | null;
@@ -1103,6 +1211,28 @@ export type ClipOutWritable = {
      * Uploaded At
      */
     uploaded_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * CoverOut
+ */
+export type CoverOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
     /**
      * Created At
      */
@@ -1241,7 +1371,6 @@ export type UploadClipData = {
          * .mp4, .mov or .webm
          */
         file: Blob | File;
-        rights_status: 'permission_granted' | 'none' | 'own_content';
         source_creator_handle?: string;
     };
     path?: never;
@@ -1784,6 +1913,212 @@ export type SetRenderCoverResponses = {
 };
 
 export type SetRenderCoverResponse = SetRenderCoverResponses[keyof SetRenderCoverResponses];
+
+export type ListCaptionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/captions';
+};
+
+export type ListCaptionsResponses = {
+    /**
+     * Response List Captions
+     *
+     * Successful Response
+     */
+    200: Array<CaptionOut>;
+};
+
+export type ListCaptionsResponse = ListCaptionsResponses[keyof ListCaptionsResponses];
+
+export type CreateCaptionData = {
+    body: CaptionCreate;
+    path?: never;
+    query?: never;
+    url: '/api/captions';
+};
+
+export type CreateCaptionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCaptionError = CreateCaptionErrors[keyof CreateCaptionErrors];
+
+export type CreateCaptionResponses = {
+    /**
+     * Successful Response
+     */
+    201: CaptionOut;
+};
+
+export type CreateCaptionResponse = CreateCaptionResponses[keyof CreateCaptionResponses];
+
+export type DeleteCaptionData = {
+    body?: never;
+    path: {
+        /**
+         * Caption Id
+         */
+        caption_id: number;
+    };
+    query?: never;
+    url: '/api/captions/{caption_id}';
+};
+
+export type DeleteCaptionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteCaptionError = DeleteCaptionErrors[keyof DeleteCaptionErrors];
+
+export type DeleteCaptionResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteCaptionResponse = DeleteCaptionResponses[keyof DeleteCaptionResponses];
+
+export type UpdateCaptionData = {
+    body: CaptionPatch;
+    path: {
+        /**
+         * Caption Id
+         */
+        caption_id: number;
+    };
+    query?: never;
+    url: '/api/captions/{caption_id}';
+};
+
+export type UpdateCaptionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCaptionError = UpdateCaptionErrors[keyof UpdateCaptionErrors];
+
+export type UpdateCaptionResponses = {
+    /**
+     * Successful Response
+     */
+    200: CaptionOut;
+};
+
+export type UpdateCaptionResponse = UpdateCaptionResponses[keyof UpdateCaptionResponses];
+
+export type ListCoversData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/covers';
+};
+
+export type ListCoversResponses = {
+    /**
+     * Response List Covers
+     *
+     * Successful Response
+     */
+    200: Array<CoverOut>;
+};
+
+export type ListCoversResponse = ListCoversResponses[keyof ListCoversResponses];
+
+export type UploadCoverData = {
+    body: BodyUploadCover;
+    path?: never;
+    query?: never;
+    url: '/api/covers';
+};
+
+export type UploadCoverErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadCoverError = UploadCoverErrors[keyof UploadCoverErrors];
+
+export type UploadCoverResponses = {
+    /**
+     * Successful Response
+     */
+    201: CoverOut;
+};
+
+export type UploadCoverResponse = UploadCoverResponses[keyof UploadCoverResponses];
+
+export type DeleteCoverData = {
+    body?: never;
+    path: {
+        /**
+         * Cover Id
+         */
+        cover_id: number;
+    };
+    query?: never;
+    url: '/api/covers/{cover_id}';
+};
+
+export type DeleteCoverErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteCoverError = DeleteCoverErrors[keyof DeleteCoverErrors];
+
+export type DeleteCoverResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteCoverResponse = DeleteCoverResponses[keyof DeleteCoverResponses];
+
+export type UpdateCoverData = {
+    body: CoverPatch;
+    path: {
+        /**
+         * Cover Id
+         */
+        cover_id: number;
+    };
+    query?: never;
+    url: '/api/covers/{cover_id}';
+};
+
+export type UpdateCoverErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateCoverError = UpdateCoverErrors[keyof UpdateCoverErrors];
+
+export type UpdateCoverResponses = {
+    /**
+     * Successful Response
+     */
+    200: CoverOut;
+};
+
+export type UpdateCoverResponse = UpdateCoverResponses[keyof UpdateCoverResponses];
 
 export type ListAccountsData = {
     body?: never;

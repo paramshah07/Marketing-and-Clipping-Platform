@@ -15,7 +15,7 @@ worker ──sendMessage──> Telegram (alerts, now with buttons the bot answe
 - **New compose service `bot`**, the api's image, `python -m app.bot`. No auto-reload: after a code
   change, `docker compose restart bot` (a second; a crash restarts it by itself, `restart: on-failure`).
 - **A client of the HTTP API**, as the browser is. It has no database access and no business logic, so
-  every guard (compare-and-set, rights confirm, slot lock, the 20 h rule) applies unchanged. It reads
+  every guard (compare-and-set, slot lock, the 20 h rule) applies unchanged. It reads
   files through `/media/*`. Setting: `CLIPPER_API_URL`, default `http://api:8000`.
 - **Long polling** (`getUpdates`, 50 s timeout, `message` + `callback_query` only). There is no webhook
   (localhost has no public URL). Updates are handled one at a time, in order. Slow sends (videos) and
@@ -40,7 +40,7 @@ worker ──sendMessage──> Telegram (alerts, now with buttons the bot answe
 - **At most once.** Each batch is confirmed to Telegram before it is handled, so a crash can't replay a
   tap. A confirm button acts once: a double tap or an old message's button does nothing.
 - **Same confirmations as the web app**: delete clip, delete render, cancel/dismiss post, disable account,
-  post now, schedule with rights "none", approve all drafts, and re-render when the Reel may be live.
+  post now, approve all drafts, and re-render when the Reel may be live.
 - The token is never logged (httpx request logging stays at WARNING), and chat ids are not secrets.
 
 ## 3. Telegram limits that shape it (Bot API 10.3)
@@ -60,14 +60,14 @@ worker ──sendMessage──> Telegram (alerts, now with buttons the bot answe
 |---|---|
 | Sidebar: API / database / worker / publishing state, rendering + scheduled counts, failed badge | `/status` |
 | Library: clip table, search | `/clips [text]`, 10 per page, tap `/c12` to open |
-| Upload videos (rights, creator handle) | Send one or more videos (an album too) → pick rights. A caption starting with `@name` sets the handle |
-| Import a URL (rights, handle) | Send a message with one video link (optionally with an `@handle`) → pick rights |
-| Import links from a document or pasted text | Send a document (docx, xlsx, pptx, odt, txt, csv, md, rtf, html) or a message with several links → summary → pick rights. One message when the whole import has finished |
-| Change rights · Retry · Remove | Clip card buttons |
+| Upload videos (creator handle) | Send one or more videos (an album too) → Import. A caption starting with `@name` sets the handle |
+| Import a URL (handle) | Send a message with one video link (optionally with an `@handle`) → Import |
+| Import links from a document or pasted text | Send a document (docx, xlsx, pptx, odt, txt, csv, md, rtf, html) or a message with several links → summary → Import. One message when the whole import has finished |
+| Retry · Remove | Clip card buttons |
 | Published tab: account / brand / range filters, search, permalink, "Re-render for…" | `/published [text]` with filter buttons; post card: Instagram link, Re-render for… |
 | Editor: brand, logo 3x3 snap grid, scale, opacity, crop, caption from the brand template, hashtag and length limits, Save as brand default, Render | Render editor (one message, edited in place). Margin is fixed at the web default 4%. No free drag: grid positions, ±2% size steps, opacity 100/75/50/25, crop window centre / left / right (top / bottom for tall sources) |
 | Render queue: status, preview, download, retry, log, delete | `/renders`, render card: Watch (sends the MP4), Retry, Log, Delete. A render started from the bot reports when it finishes |
-| Schedule popover: account, suggested slot, other time, caption, Schedule, Post now, rights confirm | Schedule form on the render card |
+| Schedule popover: account, suggested slot, other time, caption, Schedule, Post now | Schedule form on the render card |
 | Calendar week board per account, free slots, quota, cap and gap | `/calendar`: one account's week, day by day (its posts, then its free slots on one line), with week navigation |
 | Drag a render onto a slot / drag a post to move it | Schedule form day + slot picker / post card Move… |
 | Ready tray: select, Auto-schedule, unplaced reasons | `/ready`: select, Auto-schedule to an account |
@@ -91,15 +91,15 @@ id command: `/c12` clip, `/r34` render, `/p56` post, `/b4` brand, `/a1` account.
 
 ## 6. Flows
 
-**Import.** Video → "Import 1 video (12.3 MB)? Rights:" [own content] [permission granted] [none].
+**Import.** Video → "Import 1 video (12.3 MB)?" [Import] [Cancel].
 Over 20 MB → a note saying why, and what to do instead. The clip card follows when probing ends. A link
 already in the library → its card instead. Several links or a document → "Found 14 videos (TikTok 6 ·
-Instagram 8): 3 already in the library, 2 repeats. Import 11?" + rights → `POST /clips/from-urls` (low
+Instagram 8): 3 already in the library, 2 repeats. Import 11?" [Import] → `POST /clips/from-urls` (low
 priority, two at a time) → one summary when all 11 are Ready or Failed, with each failure's cause.
 
-**Clip card** (thumbnail): name, source, handle, duration · size · fps · audio, rights, status (cause if
-failed), render count. Buttons: Render… · Renders (n) · Rights · Creator · Watch source · Retry (failed,
-retryable) · Remove (Ready or Failed, no renders).
+**Clip card** (thumbnail): name, source, handle, duration · size · fps · audio, status (cause if failed),
+render count. Buttons: Render… · Renders (n) · Creator · Watch source · Retry (failed, retryable) · Remove
+(Ready or Failed, no renders).
 
 **Render editor** (clip thumbnail + settings, edited in place):
 
@@ -126,7 +126,7 @@ Delete.
 caption. [Schedule for Sun 27 19:00] [Other time…] [Post now]. Other time → day buttons (next 8 days in
 the account's zone) → that day's posting slots (taken ones marked) + "Type a time" (`18:30`, `tomorrow
 6:30pm`, `2026-10-02 09:00`, `fri 13:00`, `now`). It warns about the min gap and daily cap as the
-calendar does. RIGHTS_NONE → confirm. A draft result offers Approve. Post now needs publishing on, asks
+calendar does. A draft result offers Approve. Post now needs publishing on, asks
 once, creates the post at the current second and approves it, then reports "Live on Instagram" with the
 link (or the failure).
 
@@ -192,11 +192,11 @@ send the PNG as a file) · Default placement (the editor's grid, size and opacit
   snap grid and caption template against the web app's `geometry.ts` / `utils.ts` rules, crop windows,
   `callback_data` ≤ 64 bytes), and the flows end to end. The flows drive the bot with real api calls
   (httpx ASGI transport, the `clipper_test` database) and a recorded fake Telegram. They cover: another
-  chat ignored; link import → rights → clip DOWNLOADING; video upload → clip PROBING; document import →
-  bulk; render editor → render PENDING with the snapped overlay; schedule → draft → approve; RIGHTS_NONE
-  confirm; Post now (refused while publishing is off); move, caption and cancel; remedy; account
-  slots / timezone; brand create + logo PNG. Zernio is never called (no key); nothing publishes (no
-  worker on `clipper_test`).
+  chat ignored; link import → clip DOWNLOADING; video upload → clip PROBING; document import → bulk;
+  render editor → render PENDING with the snapped overlay; schedule → draft → approve; a typed time; Post
+  now (refused while publishing is off; from a post card and a render card); move, caption and cancel;
+  remedy; account slots / timezone; brand create + logo PNG. Zernio is never called (no key); nothing
+  publishes (no worker on `clipper_test`).
 - Live: the stack with the bot, `getMe` / `setMyCommands` OK, and every screen sent once to the operator
   chat silently (then deleted), so Telegram's own HTML and keyboard validation passes. There are no live
   publishes without the operator's go-ahead.

@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { approvePost, autoSchedule, cancelPost, createBrand, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteClip, deleteRender, deleteRenderCover, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listClips, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, setRenderCover, status, syncAccounts, updateAccount, updateBrand, updateClip, updatePost, uploadBrandLogo, uploadClip } from '../sdk.gen';
-import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListClipsData, ListClipsResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse } from '../types.gen';
+import { approvePost, autoSchedule, cancelPost, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listCaptions, listClips, listCovers, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, setRenderCover, status, syncAccounts, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
+import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -396,6 +396,153 @@ export const setRenderCoverMutation = (options?: Partial<Options<SetRenderCoverD
     const mutationOptions: UseMutationOptions<SetRenderCoverResponse, SetRenderCoverError, Options<SetRenderCoverData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await setRenderCover({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listCaptionsQueryKey = (options?: Options<ListCaptionsData>) => createQueryKey('listCaptions', options);
+
+/**
+ * List Captions
+ *
+ * The default first, then by name.
+ */
+export const listCaptionsOptions = (options?: Options<ListCaptionsData>) => queryOptions<ListCaptionsResponse, DefaultError, ListCaptionsResponse, ReturnType<typeof listCaptionsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listCaptions({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listCaptionsQueryKey(options)
+});
+
+/**
+ * Create Caption
+ */
+export const createCaptionMutation = (options?: Partial<Options<CreateCaptionData>>): UseMutationOptions<CreateCaptionResponse, CreateCaptionError, Options<CreateCaptionData>> => {
+    const mutationOptions: UseMutationOptions<CreateCaptionResponse, CreateCaptionError, Options<CreateCaptionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createCaption({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Caption
+ */
+export const deleteCaptionMutation = (options?: Partial<Options<DeleteCaptionData>>): UseMutationOptions<DeleteCaptionResponse, DeleteCaptionError, Options<DeleteCaptionData>> => {
+    const mutationOptions: UseMutationOptions<DeleteCaptionResponse, DeleteCaptionError, Options<DeleteCaptionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteCaption({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Caption
+ */
+export const updateCaptionMutation = (options?: Partial<Options<UpdateCaptionData>>): UseMutationOptions<UpdateCaptionResponse, UpdateCaptionError, Options<UpdateCaptionData>> => {
+    const mutationOptions: UseMutationOptions<UpdateCaptionResponse, UpdateCaptionError, Options<UpdateCaptionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateCaption({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listCoversQueryKey = (options?: Options<ListCoversData>) => createQueryKey('listCovers', options);
+
+/**
+ * List Covers
+ *
+ * The default first, then the newest.
+ */
+export const listCoversOptions = (options?: Options<ListCoversData>) => queryOptions<ListCoversResponse, DefaultError, ListCoversResponse, ReturnType<typeof listCoversQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listCovers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listCoversQueryKey(options)
+});
+
+/**
+ * Upload Cover
+ *
+ * A JPEG up to 8 MB (the web app sends 1080x1920). The Editor uploads a copy as a render's cover, so
+ * renaming or deleting this one never changes a render.
+ */
+export const uploadCoverMutation = (options?: Partial<Options<UploadCoverData>>): UseMutationOptions<UploadCoverResponse, UploadCoverError, Options<UploadCoverData>> => {
+    const mutationOptions: UseMutationOptions<UploadCoverResponse, UploadCoverError, Options<UploadCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadCover({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Cover
+ *
+ * The file goes too (after the commit). Renders keep their own copies.
+ */
+export const deleteCoverMutation = (options?: Partial<Options<DeleteCoverData>>): UseMutationOptions<DeleteCoverResponse, DeleteCoverError, Options<DeleteCoverData>> => {
+    const mutationOptions: UseMutationOptions<DeleteCoverResponse, DeleteCoverError, Options<DeleteCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteCover({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Cover
+ */
+export const updateCoverMutation = (options?: Partial<Options<UpdateCoverData>>): UseMutationOptions<UpdateCoverResponse, UpdateCoverError, Options<UpdateCoverData>> => {
+    const mutationOptions: UseMutationOptions<UpdateCoverResponse, UpdateCoverError, Options<UpdateCoverData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateCover({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

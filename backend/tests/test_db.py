@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.models import Account, Brand, Post, Render, SourceClip
 from conftest import ALEMBIC
 
-TABLES = {"source_clips", "brands", "renders", "accounts", "posts"}
+TABLES = {"source_clips", "brands", "renders", "accounts", "posts", "saved_captions", "saved_covers"}
 
 
 def make_post(s: Session, idempotency_key: str) -> Post:

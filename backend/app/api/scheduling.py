@@ -1,11 +1,11 @@
 """Accounts, posts and scheduling (Phase 4). The remedy route lives in app/api/recovery.py (Phase 5).
 
-Errors use HTTPException(detail={"code": ..., "message": ...}), e.g. 409 {"code": "RIGHTS_NONE"} or
-{"code": "STATE_CONFLICT"}, 422 {"code": "RENDER_NOT_READY" | "TOO_LONG" | "ACCOUNT_UNAVAILABLE" |
-"TOO_SOON"}. Anything that picks or moves a post's time holds the account's row lock (_lock_account)
-until commit, so parallel requests can't double-book a slot or exceed the cap. Manual placement (create,
-PATCH time) is refused only on an exact-instant collision (409 SLOT_TAKEN); the daily cap and min gap bind
-automatic placement, and the calendar warns about them for manual moves.
+Errors use HTTPException(detail={"code": ..., "message": ...}), e.g. 409 {"code": "STATE_CONFLICT"}, 422
+{"code": "RENDER_NOT_READY" | "TOO_LONG" | "ACCOUNT_UNAVAILABLE" | "TOO_SOON"}. Anything that picks or moves
+a post's time holds the account's row lock (_lock_account) until commit, so parallel requests can't
+double-book a slot or exceed the cap. Manual placement (create, PATCH time) is refused only on an
+exact-instant collision (409 SLOT_TAKEN); the daily cap and min gap bind automatic placement, and the
+calendar warns about them for manual moves.
 """
 
 import asyncio
@@ -230,11 +230,7 @@ async def next_slot(account_id: int, s: Db) -> NextSlot:
 
 # ---------------------------------------------------------------- posts
 
-_RENDER_ROW = (
-    select(Render, SourceClip.rights_status, func.coalesce(Brand.auto_approve, False))
-    .join(SourceClip, SourceClip.id == Render.source_clip_id)
-    .outerjoin(Brand, Brand.id == Render.brand_id)
-)
+_RENDER_ROW = select(Render, func.coalesce(Brand.auto_approve, False)).outerjoin(Brand, Brand.id == Render.brand_id)
 LIVE_KEY_STATUSES = ("CANCELLED", "FAILED", "DEAD_LETTER")  # matches uq_posts_idempotency_key_live
 
 
@@ -318,14 +314,12 @@ async def create_post(body: PostCreate, s: Db, response: Response) -> PostOut:
         return await load_post_out(s, live)
     if (row := (await s.execute(_RENDER_ROW.where(Render.id == body.render_id))).first()) is None:
         raise _err(404, "NOT_FOUND", f"render {body.render_id} not found")
-    r, rights, auto_approve = row
+    r, auto_approve = row
     if bad := _unfit(r):
         raise _err(422, *bad)
     _usable(acc)
     if at < _now() + MIN_LEAD:
         raise _err(422, "TOO_SOON", "that time has passed: pick now or later")
-    if rights == "none" and not body.rights_override:
-        raise _err(409, "RIGHTS_NONE", "the clip has no rights; confirm to post anyway", render_ids=[r.id])
     await _slot_taken(s, acc.id, at)
     post = await _new_post(s, r, auto_approve, acc.id, at, body.caption)
     s.add(post)
@@ -339,15 +333,12 @@ async def auto_schedule(body: AutoScheduleIn, s: Db) -> AutoScheduleOut:
     acc = await _lock_account(s, body.account_id)
     _usable(acc)
     rows = {row[0].id: row for row in (await s.execute(_RENDER_ROW.where(Render.id.in_(body.render_ids)))).all()}
-    no_rights = [i for i in dict.fromkeys(body.render_ids) if i in rows and rows[i][1] == "none"]
-    if no_rights and not body.rights_override:
-        raise _err(409, "RIGHTS_NONE", "some clips have no rights; confirm to post anyway", render_ids=no_rights)
     after, placed, unplaced = _now() + AUTO_LEAD, [], []
     for rid in dict.fromkeys(body.render_ids):  # a repeated id is placed once
         if rid not in rows:
             unplaced.append(Unplaced(render_id=rid, reason="render not found"))
             continue
-        r, _, auto_approve = rows[rid]
+        r, auto_approve = rows[rid]
         if bad := _unfit(r):
             unplaced.append(Unplaced(render_id=rid, reason=bad[1]))
             continue

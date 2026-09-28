@@ -7,12 +7,15 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import cli
@@ -20,13 +23,14 @@ from app.api.pipeline import png_alpha
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import SPA, app
-from app.models import Brand, Render, SourceClip, cas
+from app.models import Brand, Render, SavedCaption, SourceClip, cas
 from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
 from conftest import needs_ffmpeg
 
 PNG = b"\x89PNG\r\n\x1a\n"
+JPEG = b"\xff\xd8\xff\xe0" + bytes(100)  # the magic bytes are all the api checks
 
 
 def chunk(kind: bytes, data: bytes) -> bytes:
@@ -61,9 +65,7 @@ def job(db, task: str, **kwargs) -> bool:
 
 def upload(client, path, name=None, **fields):
     with open(path, "rb") as f:
-        return client.post(
-            "/api/clips", files={"file": (name or path.name, f)}, data={"rights_status": "own_content", **fields}
-        )
+        return client.post("/api/clips", files={"file": (name or path.name, f)}, data=fields)
 
 
 def test_png_alpha():
@@ -106,19 +108,111 @@ def test_brands_archive(client):
     assert client.patch(f"/api/brands/{b['id']}", json={"default_overlay_config": {"x": 2, "y": 0, "w": 0.3}}).status_code == 422
 
 
+def defaults(client, path: str) -> list[int]:
+    return [x["id"] for x in client.get(path).json() if x["is_default"]]
+
+
+def test_brand_default(client):
+    """One default brand at most: setting one clears the last, archiving clears it, an archived one can't be it."""
+    a = client.post("/api/brands", json={"name": "Default A", "is_default": True}).json()
+    b = client.post("/api/brands", json={"name": "Default B"}).json()
+    assert (a["is_default"], b["is_default"], defaults(client, "/api/brands")) == (True, False, [a["id"]])
+    url = f"/api/brands/{b['id']}"
+    assert client.patch(url, json={"is_default": True}).json()["is_default"] and defaults(client, "/api/brands") == [b["id"]]
+    client.patch(url, json={"is_default": True, "name": "Default B2"})  # already the default: stays it
+    assert defaults(client, "/api/brands") == [b["id"]]
+    assert client.patch(url, json={"archived": True}).json()["is_default"] is False
+    assert defaults(client, "/api/brands") + defaults(client, "/api/brands?archived=true") == []
+    assert client.patch(url, json={"is_default": True}).status_code == 409
+    assert client.patch(f"/api/brands/{a['id']}", json={"archived": True, "is_default": True}).status_code == 409
+    back = client.patch(url, json={"archived": False, "is_default": True}).json()
+    assert (back["archived_at"], back["is_default"], defaults(client, "/api/brands")) == (None, True, [b["id"]])
+    assert client.patch(url, json={"is_default": False}).json()["is_default"] is False
+    assert defaults(client, "/api/brands") == []
+
+
+def test_saved_captions(client, db):
+    assert client.post("/api/captions", json={"name": "", "text": "x"}).status_code == 422
+    assert client.post("/api/captions", json={"name": "Long", "text": "x" * 2201}).status_code == 422
+    r = client.post("/api/captions", json={"name": "b plain", "text": "via {creator} {link}"})
+    assert r.status_code == 201 and r.json()["is_default"] is False
+    a = r.json()["id"]
+    b = client.post("/api/captions", json={"name": "a promo", "text": "#ad", "is_default": True}).json()["id"]
+    c = client.post("/api/captions", json={"name": "c empty", "text": "", "is_default": True}).json()["id"]
+    ids = [c, b, a]  # the default first, then by name
+    assert [x["id"] for x in client.get("/api/captions").json() if x["id"] in ids] == ids
+    assert defaults(client, "/api/captions") == [c]
+    r = client.patch(f"/api/captions/{a}", json={"text": "new", "is_default": True}).json()
+    assert (r["name"], r["text"], r["is_default"], defaults(client, "/api/captions")) == ("b plain", "new", True, [a])
+    assert client.patch(f"/api/captions/{a}", json={"name": ""}).status_code == 422
+    assert client.patch(f"/api/captions/{a}", json={"is_default": False}).json()["is_default"] is False
+    assert defaults(client, "/api/captions") == []
+    assert client.patch("/api/captions/999999", json={"name": "x"}).status_code == 404
+    assert client.delete(f"/api/captions/{b}").status_code == 204
+    assert client.delete(f"/api/captions/{b}").status_code == 404
+    with Session(db) as s, pytest.raises(IntegrityError, match="uq_saved_captions_default"):
+        s.execute(update(SavedCaption).where(SavedCaption.id.in_([a, c])).values(is_default=True))
+
+
+def test_default_set_meanwhile_is_a_409(client, db):
+    """Another transaction sets a default between the request's clear and its commit: the index makes it a 409."""
+    a, b = (client.post("/api/captions", json={"name": n, "text": ""}).json()["id"] for n in ("race a", "race b"))
+    waiting = text("SELECT count(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND datname = current_database()")
+    with ThreadPoolExecutor() as pool, Session(db) as s, db.connect() as watch:  # s ends first: the request can finish
+        s.execute(update(SavedCaption).where(SavedCaption.is_default).values(is_default=False))
+        s.execute(update(SavedCaption).where(SavedCaption.id == a).values(is_default=True))  # not committed yet
+        pending = pool.submit(client.patch, f"/api/captions/{b}", json={"is_default": True})
+        for _ in range(100):  # until the request waits on a's index entry
+            if watch.execute(waiting).scalar():
+                break
+            time.sleep(0.05)
+        s.commit()
+        r = pending.result()
+    assert (r.status_code, defaults(client, "/api/captions")) == (409, [a])
+
+
+def test_saved_covers(client, data_dir):
+    def up(name="Summer", data=JPEG, **form):
+        return client.post("/api/covers", files={"file": ("summer.jpg", data)}, data={"name": name, **form})
+
+    def files():
+        return sorted(p.name for p in data_dir.glob("cover-library/*"))
+
+    assert up(data=PNG).status_code == 415
+    assert up(data=JPEG + bytes(8 * 1024**2)).status_code == 413
+    assert up(name="").status_code == 422
+    assert client.post("/api/covers", files={"file": ("a.jpg", JPEG)}).status_code == 422  # no name
+    assert files() == []  # refused uploads leave no file
+    r = up()
+    assert r.status_code == 201, r.text
+    a = r.json()
+    assert (a["name"], a["is_default"], "image_key" in a) == ("Summer", False, False)
+    assert a["image_url"].startswith(f"/media/cover-library/{a['id']}-") and a["image_url"].endswith(".jpg")
+    assert (data_dir / a["image_url"].removeprefix("/media/")).read_bytes() == JPEG
+    b = up("Winter", is_default="true").json()
+    c = up("Autumn").json()
+    ids = [b["id"], c["id"], a["id"]]  # the default first, then the newest
+    assert b["is_default"] and [x["id"] for x in client.get("/api/covers").json() if x["id"] in ids] == ids
+    r = client.patch(f"/api/covers/{a['id']}", json={"name": "Spring", "is_default": True}).json()
+    assert (r["name"], r["is_default"], defaults(client, "/api/covers")) == ("Spring", True, [a["id"]])
+    assert client.patch(f"/api/covers/{a['id']}", json={"name": ""}).status_code == 422
+    assert client.delete(f"/api/covers/{a['id']}").status_code == 204
+    assert client.delete(f"/api/covers/{a['id']}").status_code == 404
+    assert len(files()) == 2 and a["image_url"].rsplit("/", 1)[1] not in files()  # its file went with it
+    assert defaults(client, "/api/covers") == []
+
+
 def test_upload_rejections_leave_nothing(client, data_dir, monkeypatch, tmp_path):
     before = len(client.get("/api/clips").json())
     fake = tmp_path / "x.mp4"
     fake.write_bytes(b"0" * 1000)
     assert upload(client, fake, name="x.avi").status_code == 415
-    r = client.post("/api/clips", files={"file": ("x.mp4", b"0" * 1000)}, data={"rights_status": "maybe"})
-    assert r.status_code == 422
-    assert client.post("/api/clips", data={"rights_status": "none"}).status_code == 415  # not multipart
+    assert client.post("/api/clips", data={"source_creator_handle": "@x"}).status_code == 415  # not multipart
     bad_utf8 = client.post("/api/clips", files={"file": ("x.mp4", b"0" * 1000)},
-                           data={"rights_status": "none", "source_creator_handle": b"\xff\xfe@bad"})  # fmt: skip
+                           data={"source_creator_handle": b"\xff\xfe@bad"})  # fmt: skip
     assert bad_utf8.status_code == 422, bad_utf8.text
     b = b"XyZ"  # a body cut off before its closing boundary is not a complete upload
-    cut = (b"--XyZ\r\nContent-Disposition: form-data; name=\"rights_status\"\r\n\r\nnone\r\n--XyZ\r\n"
+    cut = (b"--XyZ\r\nContent-Disposition: form-data; name=\"source_creator_handle\"\r\n\r\n@x\r\n--XyZ\r\n"
            b'Content-Disposition: form-data; name="file"; filename="cut.mp4"\r\n\r\n' + b"0" * 1000)  # fmt: skip
     r = client.post("/api/clips", content=cut, headers={"content-type": f"multipart/form-data; boundary={b.decode()}"})
     assert (r.status_code, r.json()["detail"]) == (400, "incomplete multipart body")
@@ -130,11 +224,11 @@ def test_upload_rejections_leave_nothing(client, data_dir, monkeypatch, tmp_path
 
 @needs_ffmpeg
 def test_upload_probe_render(client, db, data_dir, media):
-    r = upload(client, media["land"], source_creator_handle="@me")
+    r = upload(client, media["land"], source_creator_handle="@me", rights_status="own_content")  # an old client's field: ignored
     assert r.status_code == 201, r.text
     clip = r.json()
     assert (clip["status"], clip["origin"], clip["original_filename"]) == ("PROBING", "upload", "land.mp4")
-    assert (clip["rights_status"], clip["source_creator_handle"], clip["content_type"]) == ("own_content", "@me", "video/mp4")
+    assert (clip["source_creator_handle"], clip["content_type"]) == ("@me", "video/mp4") and "rights_status" not in clip
     assert (data_dir / f"raw/{clip['id']}.mp4").read_bytes() == media["land"].read_bytes()
     assert job(db, "probe_clip", clip_id=clip["id"])
 
@@ -228,8 +322,8 @@ def test_short_clip_rejected_then_retry(client, media):
 
 
 def test_from_url_defers_download(client, db):
-    assert client.post("/api/clips/from-url", json={"url": "notaurl", "rights_status": "none"}).status_code == 422
-    r = client.post("/api/clips/from-url", json={"url": "https://www.youtube.com/watch?v=jNQXAC9IVRw", "rights_status": "none"})
+    assert client.post("/api/clips/from-url", json={"url": "notaurl"}).status_code == 422
+    r = client.post("/api/clips/from-url", json={"url": "https://www.youtube.com/watch?v=jNQXAC9IVRw", "rights_status": "none"})  # extra: ignored
     assert r.status_code == 201
     clip = r.json()
     assert (clip["status"], clip["origin"], clip["source_url"]) == ("DOWNLOADING", "url", "https://www.youtube.com/watch?v=jNQXAC9IVRw")
@@ -280,7 +374,7 @@ def test_find_links():
 
 
 def test_import_links(client, db):
-    seen = client.post("/api/clips/from-url", json={"url": "https://www.youtube.com/watch?v=inlibrary01", "rights_status": "none"}).json()
+    seen = client.post("/api/clips/from-url", json={"url": "https://www.youtube.com/watch?v=inlibrary01"}).json()
     pasted = b"https://youtu.be/inlibrary01?si=abc https://www.instagram.com/reel/AAA111/?igsi=x https://www.instagram.com/p/AAA111/ https://example.com/page"
     r = client.post("/api/clips/links", files={"file": ("pasted.txt", pasted)})
     assert r.status_code == 200, r.text
@@ -296,14 +390,14 @@ def test_import_links(client, db):
     assert client.post("/api/clips/links", files={"file": ("big.txt", b"x" * (20 * 1024**2 + 1))}).status_code == 413
 
     urls = [link["url"] for link in r.json()["links"]] + ["https://www.instagram.com/reel/AAA111/?igsi=again", "https://vimeo.com/77"]
-    assert client.post("/api/clips/from-urls", json={"urls": [], "rights_status": "none"}).status_code == 422
-    r = client.post("/api/clips/from-urls", json={"urls": urls, "rights_status": "permission_granted"})
+    assert client.post("/api/clips/from-urls", json={"urls": []}).status_code == 422
+    r = client.post("/api/clips/from-urls", json={"urls": urls})
     assert (r.status_code, {k: r.json()[k] for k in ("created", "skipped")}) == (201, {"created": 2, "skipped": 2})
     new = [c for c in client.get("/api/clips").json() if c["id"] > seen["id"]]
     assert sorted(r.json()["ids"]) == sorted(c["id"] for c in new)
-    assert {(c["source_url"], c["status"], c["rights_status"], c["source_creator_handle"]) for c in new} == {
-        ("https://www.instagram.com/reel/AAA111/", "DOWNLOADING", "permission_granted", None),
-        ("https://vimeo.com/77", "DOWNLOADING", "permission_granted", None),
+    assert {(c["source_url"], c["status"], c["source_creator_handle"]) for c in new} == {
+        ("https://www.instagram.com/reel/AAA111/", "DOWNLOADING", None),
+        ("https://vimeo.com/77", "DOWNLOADING", None),
     }
     with db.connect() as c:  # behind renders and single imports, in one of two lanes
         jobs = c.execute(
@@ -311,7 +405,7 @@ def test_import_links(client, db):
             {"a": json.dumps({"clip_id": new[0]["id"]})},
         ).all()
     assert jobs == [(-10, f"import-{new[0]['id'] % 2}")]
-    assert client.post("/api/clips/from-urls", json={"urls": urls, "rights_status": "none"}).json() == {"created": 0, "skipped": 4, "ids": []}
+    assert client.post("/api/clips/from-urls", json={"urls": urls}).json() == {"created": 0, "skipped": 4, "ids": []}
 
 
 @needs_ffmpeg
@@ -337,7 +431,7 @@ def test_download_clip(client, db, data_dir, media, monkeypatch, tmp_path):
         return subprocess.CompletedProcess(args, 0, json.dumps(info) + "\n", "")
 
     monkeypatch.setattr(media_tasks.subprocess, "run", fake_ytdlp)
-    new = {"url": "https://www.youtube.com/watch?v=x", "rights_status": "none"}
+    new = {"url": "https://www.youtube.com/watch?v=x"}
     clip = client.post("/api/clips/from-url", json=new).json()
     download_clip(clip["id"])
     clip = client.get(f"/api/clips/{clip['id']}").json()

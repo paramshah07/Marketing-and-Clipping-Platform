@@ -49,7 +49,7 @@ Run: `docker compose up` (postgres, migrate, api, worker, bot) + `npm run dev` i
 /frontend
   /src
     /components   FracBox (drag/resize in fractions), bits, ui/ (shadcn slider, switch)
-    /routes       Library, Editor, Brands
+    /routes       Library, Editor, Customizations
     /api          generated client (never edit by hand)
     /lib          geometry.ts (+ test), utils.ts
   /e2e            accept.mjs (Playwright acceptance, Google Chrome)
@@ -62,6 +62,7 @@ All backend commands run in containers (the host has no ffmpeg or psql). From th
 
 ```sh
 docker compose up -d --build                                          # whole stack; api on 127.0.0.1:8000
+./review.sh                                                           # this branch on a copy of production's data, publishing off, no bots (`./review.sh down` drops it)
 docker compose run --rm worker pytest                                 # full test suite (worker has ffmpeg; own clipper_test db)
 docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # probe if needed + render, no queue; prints the path
 docker compose run --rm migrate                                       # alembic upgrade + guarded procrastinate schema
