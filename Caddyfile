@@ -1,0 +1,16 @@
+# Production's only public entry point (compose.prod.yml, docs/deploy.md): HTTPS with an automatic Let's
+# Encrypt certificate, and one shared password in front of everything, because Clipper has no login.
+# All three values come from the VM's .env; the password is only there as a bcrypt hash (base64: no `$`
+# for compose to interpolate).
+{
+	# With an email Caddy falls back to ZeroSSL: sslip.io is not on the Public Suffix List, so every *.sslip.io
+	# site shares one Let's Encrypt quota (50 certificates a week), which runs out.
+	email {$CLIPPER_ACME_EMAIL}
+}
+
+{$CLIPPER_HOST} {
+	basic_auth {
+		{$CLIPPER_USER} {$CLIPPER_PASSWORD_HASH}
+	}
+	reverse_proxy api:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
+}

@@ -6,7 +6,8 @@ them as Instagram Reels to the operator's own Instagram accounts on a schedule.
 Single user. No multi-tenancy, no billing, no org model, no login. **This version runs on localhost
 by default** (not production-grade): no Cloudflare Access, no VPS, no R2. A Cloudflare tunnel is
 allowed temporarily for demos; there is still no login, so anyone with the link has full access —
-tear the tunnel down right after. Publishing goes through **Zernio** (a third-party publishing API
+tear the tunnel down right after. **Production** is the same stack on one Oracle Cloud Arm VM with
+`compose.prod.yml` on top, public at an sslip.io name behind Caddy and one shared password (`docs/deploy.md`). Publishing goes through **Zernio** (a third-party publishing API
 with its own approved Meta app), not the Meta API directly.
 
 Source of truth: `docs/PLAN.md` (implementation plan, rev 2). Original spec: `docs/spec.md`.
@@ -70,6 +71,7 @@ docker compose exec postgres psql -U clipper                          # SQL shel
 docker compose kill worker && docker compose start worker             # reload worker code (no auto-reload)
 docker compose restart bot                                            # reload bot code (no auto-reload)
 docker compose logs -f bot                                            # the bot (an ignored chat logs its chat id)
+CLIPPER_HOST=x CLIPPER_USER=x CLIPPER_PASSWORD_HASH=x CLIPPER_ACME_EMAIL=x docker compose -f compose.yml -f compose.prod.yml build api  # prod images on the Mac (dummies satisfy caddy's guards; the VM's .env sets them and COMPOSE_FILE)
 ```
 
 Frontend, from `frontend/` on the host (Node 22):
@@ -135,6 +137,10 @@ finishes that first, so the worker can look offline for up to the render's lengt
 - Do not add user accounts, login pages, roles or permissions. The bot answers `TELEGRAM_CHAT_ID` only.
 - Do not give the bot database access or rules of its own: it calls the api, so every guard applies once.
 - Do not commit `.env` or anything under `data/`.
+- Do not expose Clipper without its password (it has no login): on the VM, Caddy (HTTPS + basic auth,
+  `Caddyfile`) is the only published port. Never publish another port beyond 127.0.0.1 or bypass Caddy.
+- Do not put the production Zernio key or Telegram tokens in a local `.env` once the VM runs production: a second
+  stack on them publishes the same schedule and fights the VM's bots.
 
 ## Design direction
 
