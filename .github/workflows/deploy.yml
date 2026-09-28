@@ -1,0 +1,24 @@
+# Every push to master (a merged PR) deploys to the production VM (docs/deploy.md section 4). The job only opens
+# SSH with a key whose forced command on the VM is `git pull --ff-only && sh deploy.sh`, so it can do nothing else.
+name: Deploy
+on:
+  push:
+    branches: [master]
+  workflow_dispatch: # "Run workflow" in the Actions tab redeploys by hand
+concurrency: { group: deploy, cancel-in-progress: false } # one deploy at a time
+permissions: {} # the job never touches the repo through GitHub's token
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -T -i ~/.ssh/deploy -o BatchMode=yes -o ServerAliveInterval=30 "ubuntu@$HOST"

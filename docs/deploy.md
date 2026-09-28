@@ -105,12 +105,9 @@ the next minute. A post more than 30 min overdue at that point moves to the next
    ```
    Then check: the calendar shows the same times, the worker logs `dispatch` every minute, the bots answer,
    and the next post publishes.
-6. **Mac**: blank the production credentials so no local stack can publish or poll again, then stop it (the
-   `pgdata` volume stays as a stale copy; the VM keeps the real `.env`):
-   ```sh
-   sed -i '' -E 's/^(ZERNIO_API_KEY|TELEGRAM_BOT_TOKEN(_[23])?|TELEGRAM_CHAT_ID(_[23])?)=.*/\1=/; s/^PUBLISHING_ENABLED=.*/PUBLISHING_ENABLED=false/' .env &&
-   docker compose down
-   ```
+6. **Mac**: `docker compose down` and leave it down. The operator keeps the Mac's `.env` (production Zernio
+   key and bot tokens) on purpose, so never `docker compose up` there, or press Run in Conductor, while the VM
+   runs production: it would publish the same schedule and fight the VM's bots.
 
 **Rollback**, only until the VM has published its first post (so before step 6):
 `sed -i 's/^PUBLISHING_ENABLED=.*/PUBLISHING_ENABLED=false/' .env && docker compose stop` on the VM, then
@@ -119,13 +116,20 @@ list, and cut over again from step 1 with a fresh dump. After the first post fro
 
 ## 4. Deploying an update
 
-```sh
-cd ~/clipper && git pull --ff-only && docker compose up -d --build &&
-{ git diff --quiet 'HEAD@{1}' HEAD -- Caddyfile || docker compose restart caddy; }
+Merging to master deploys. `.github/workflows/deploy.yml` SSHes in with its own key, whose line in the VM's
+`~/.ssh/authorized_keys` is `restrict`ed to one forced command:
+
+```
+command="cd /home/ubuntu/clipper && git pull -q --ff-only && exec sh deploy.sh",restrict ssh-ed25519 AAAA… github-actions-deploy
 ```
 
-Only services whose image changed are recreated; a changed `Caddyfile` needs the restart (the container
-still holds the old file). The worker stops gracefully (90 s); a publish cut off re-runs with the same
+`deploy.sh` runs `docker compose up -d --build`, restarts Caddy if the `Caddyfile` changed (the container
+still holds the old file) and fails the run unless the api answers within 2 min. The repo's Actions secrets
+are `DEPLOY_SSH_KEY` (that key's private half), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan -t ed25519 <vm>`, checked
+against a fingerprint you already trust) and `DEPLOY_HOST`. By hand: Actions → Deploy → Run workflow, or
+`cd ~/clipper && git pull --ff-only && sh deploy.sh` on the VM.
+
+Only services whose image changed are recreated. The worker stops gracefully (90 s); a publish cut off re-runs with the same
 Idempotency-Key, so a deploy never duplicates a Reel.
 
 ## 5. Backups

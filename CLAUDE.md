@@ -7,7 +7,8 @@ Single user. No multi-tenancy, no billing, no org model, no login. **This versio
 by default** (not production-grade): no Cloudflare Access, no VPS, no R2. A Cloudflare tunnel is
 allowed temporarily for demos; there is still no login, so anyone with the link has full access —
 tear the tunnel down right after. **Production** is the same stack on one Oracle Cloud Arm VM with
-`compose.prod.yml` on top, public at an sslip.io name behind Caddy and one shared password (`docs/deploy.md`). Publishing goes through **Zernio** (a third-party publishing API
+`compose.prod.yml` on top, public at an sslip.io name behind Caddy and one shared password (`docs/deploy.md`); every merge to master
+deploys it (`.github/workflows/deploy.yml` -> `deploy.sh`). Publishing goes through **Zernio** (a third-party publishing API
 with its own approved Meta app), not the Meta API directly.
 
 Source of truth: `docs/PLAN.md` (implementation plan, rev 2). Original spec: `docs/spec.md`.
@@ -139,8 +140,10 @@ finishes that first, so the worker can look offline for up to the render's lengt
 - Do not commit `.env` or anything under `data/`.
 - Do not expose Clipper without its password (it has no login): on the VM, Caddy (HTTPS + basic auth,
   `Caddyfile`) is the only published port. Never publish another port beyond 127.0.0.1 or bypass Caddy.
-- Do not put the production Zernio key or Telegram tokens in a local `.env` once the VM runs production: a second
-  stack on them publishes the same schedule and fights the VM's bots.
+- Do not start the local stack (`docker compose up`, Conductor's Run) while the VM runs production: the Mac's
+  `.env` still holds the production Zernio key and bot tokens (the operator's choice), so it would publish the
+  same schedule and fight the VM's bots. Develop against a copy with those blanked, or with the stack's bots off
+  and `PUBLISHING_ENABLED=false`.
 
 ## Design direction
 
