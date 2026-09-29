@@ -6,6 +6,11 @@ fair, what can still go wrong, and the operator's commands. Part of the [documen
 code must keep are in [CLAUDE.md](../CLAUDE.md) (hard constraints 3, 4, 9 to 11 and the "Do not" list); the
 production runbook is [deploy.md](deploy.md).
 
+> [!IMPORTANT]
+> The `dev` branch and the dev site (https://dev.145-241-239-46.sslip.io) run everything described here. Production
+> runs it once the release pull request #20 (`dev` -> `prod`) is merged; until then it is the single-operator version
+> behind one shared browser password ([deploy.md](deploy.md#environments-and-branches)).
+
 ## At a glance
 
 | | |
@@ -19,6 +24,7 @@ production runbook is [deploy.md](deploy.md).
 | Files | `data/u/{user id}/…`; keys without the prefix are user 1's. `/media` serves a file to its owner only |
 | Limits | `USER_QUOTA_BYTES` (5 GiB) of clips and renders per new user; nobody uploads, imports or renders while the disk has under `MIN_FREE_BYTES` (3 GiB) free |
 | Fairness | Renders and downloads: one job per user at a time, users interleaved; publishing runs on its own service |
+| The dev site | A copy of production's users and data every 5 days, with its own secrets: no copied key or bot opens there, its Idempotency-Keys are salted, and it publishes for real ([section 12](#12-the-dev-site)) |
 
 ```mermaid
 flowchart LR
@@ -124,7 +130,7 @@ per user, `/media` is per owner, and bots only reach their owner's data.
 
 | Secret | What it does | Where it comes from |
 |---|---|---|
-| `SECRETS_KEY` | Fernet key(s), comma-separated (`MultiFernet`: the first seals, any opens). Seals `users.zernio_key_enc` and `telegram_bots.token_enc` (`app/core/secrets.py`). Blank or wrong: nothing opens, which the app treats as "no key" | `deploy.sh` appends one to the VM's `.env` when it has none; the operator keeps a copy in a password manager |
+| `SECRETS_KEY` | Fernet key(s), comma-separated (`MultiFernet`: the first seals, any opens). Seals `users.zernio_key_enc` and `telegram_bots.token_enc` (`app/core/secrets.py`). Blank or wrong: nothing opens, which the app treats as "no key" | `deploy.sh` appends one to the checkout's `.env` when it has none (production and the dev site each have their own); the operator keeps production's in a password manager |
 | `BOT_SERVICE_SECRET` | The bot service's bearer: with it, `X-Clipper-User` names the user the call acts as, and `/api/internal/bots` hands out every bot's token. Blank: no bots run | `deploy.sh`, like `SECRETS_KEY` |
 | `APP_DB_PASSWORD` | `clipper_app`'s password | Default `clipper_app` |
 
@@ -163,13 +169,21 @@ and `zernio_key_gen`.
 5. Seal, store, status `valid`; `zernio_key_gen` goes up by one when the key differs from the stored one. Commit.
 6. Sync the accounts (`GET /v1/accounts`), one row at a time with `ON CONFLICT DO NOTHING`. The response lists the
    accounts found, the ones `skipped` because another Clipper user has them, and the ones `over_limit` (listed only
-   with `includeOverLimit=true`: beyond the Zernio plan). A 401 or 403 here marks the key invalid (a restricted key
-   that can't list accounts).
+   with `includeOverLimit=true`: beyond the Zernio plan). A 401 or 403 here marks the key invalid: 401 "Zernio
+   refused the key", 403 (a restricted key that can't list accounts) "Zernio won't list your accounts with this key:
+   create one with full access (Full, Read-write)". Any other failure keeps the key and answers 502 `ZERNIO_ERROR`
+   ("the key is saved, but listing its accounts failed …: Re-check").
 
 **Re-check** (`POST /api/me/zernio-key/check`) verifies and syncs again, and sets `valid` or `invalid` with the
-reason; a valid key resumes a paused user. **Remove** (`DELETE`) works any time except while a post is PUBLISHING;
-the Zernio account stays recorded while the user has its Instagram accounts, so a later key must be the same
-account's.
+reason; a valid key resumes a paused user. No key that opens: 409 `ZERNIO_KEY_MISSING`. **Remove** (`DELETE`) works
+any time except while a post is PUBLISHING; the Zernio account stays recorded while the user has its Instagram
+accounts, so a later key must be the same account's.
+
+**The check nobody asked for.** A key imported from `.env` (section 8) is stored `valid` with no network call, so its
+`zernio_checked_at` is empty and its Zernio user unknown. When **Settings** or **Setup** opens on a `valid` key never
+checked, the page runs Re-check once by itself (the card reads **Checking with Zernio**), which fills in the name,
+email and Zernio user and lists the accounts. Any user's key check also resolves the unknown Zernio user first (step
+3). Publishing doesn't wait for either: the imported key is `valid` from the start.
 
 **Publishing with it** (`app/tasks/publish.py`):
 
@@ -206,7 +220,8 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 - **Adding one** (`POST /api/me/bots {token}`): the token's shape, then Telegram `getMe` (refused: 422
   `TOKEN_REJECTED`) and `getWebhookInfo` (a webhook set: 409 `BOT_IN_USE`, since polling would delete another app's
   webhook). `bot_id` is unique across Clipper: another user's bot, 409 `BOT_TAKEN`; your own bot with a new token
-  (after @BotFather `/revoke`) replaces the token and keeps its chat. The token is sealed like the Zernio key.
+  (@BotFather `/token`) replaces the token, clears **Token rejected** and keeps its chat. The token is sealed like the
+  Zernio key.
 - **Pairing**: a new or unpaired bot gets a code (`token_urlsafe(16)`, 15 minutes, stored as its sha256), shown as
   the link `https://t.me/<bot>?start=<code>` and as `/start <code>`. The bot service passes a `/start <code>` from a
   private chat to `POST /api/internal/bots/{id}/pair` as the bot's owner; the right, unexpired code makes that chat
@@ -215,9 +230,11 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
   the list (`/api/internal/bots`) and starts, stops or restarts bots, keyed on (id, token), so pairing never restarts
   a bot. Each bot answers only its paired chat and calls the api as its owner. While the api is down, running bots
   keep running. At most 3 videos or documents are in its memory at once, across all bots.
-- **Health**, from `last_seen_at` and `error`: *Running* (reported within 90 s), *Waiting for Start* (no chat yet),
-  *Token rejected* (Telegram answered 401 or 404: that bot stops until its owner pastes a new token), *Not
-  responding* (anything else: the service is down, or another program polls the same token).
+- **Health**, from `error`, `chat_id` and `last_seen_at`, in this order: *Token rejected* (Telegram answered 401 or
+  404: that bot stops, and leaves the supervisor's list, until its owner pastes a new token), *Waiting for Start* (no
+  chat yet), *Running* (the supervisor reported it polling within the last 90 s; it reports every 10 s), *Not
+  responding* (anything else, never seen included: the service is down or has no `BOT_SERVICE_SECRET`, or another
+  program polls the same token). Settings reloads the list every 10 s, every 2 s while a pairing code is out.
 - **Alerts**: `notify(user_id, …)` sends to every paired bot of that user with **Alerts** on and no error, unless the
   user is disabled. **Test** is sent by the api itself, so it proves the token and the chat, not the bot service.
 - A disabled user's bots stop within about 10 s.
@@ -293,6 +310,8 @@ skipped.
 | Someone else's chat drives a user's bot | A bot answers its paired chat only; codes are single-use, 15 min, private chats only | – |
 | A stolen database dump or review copy | Keys and tokens are sealed; the review stack has no `SECRETS_KEY`; `review.sh` keeps only the operator's rows and files and no sessions | Every user's bcrypt hash is in the VM's backups, and the operator's in each review copy on the Mac |
 | A stolen `SECRETS_KEY` with a dump | – | Every user's Zernio key and bot tokens. It lives in the VM's `.env` and the operator's password manager only |
+| The dev site's copy of production | The same sign-in and row-level security as production; the refresh deletes every copied session, key and bot, and the dev site's `SECRETS_KEY` opens nothing of production's | It is public and holds every user's rows and files as of the last refresh, and accepts their production passwords (the hashes are copied): a password changed or data deleted in production lingers there until the next refresh. `~/staging-accounts` keeps the dev site's own accounts (hashes, sealed keys and tokens) |
+| One post published twice, from both sites | The refresh cancels every copied post that could still publish, and the dev site's Idempotency-Keys are salted (`IDEMPOTENCY_SALT`) | A post scheduled on the dev site really publishes, to the same Instagram accounts (section 12) |
 | A hostile video or site takes over ffmpeg or yt-dlp | The worker holds no secret: no `SECRETS_KEY`, no bot secret, no tokens | It still connects as the superuser (password in `compose.yml`) and mounts all of `./data` read-write, so it could change any user's rows and files. A `clipper_media` role was not built: forced row-level security would need BYPASSRLS anyway, the superuser's password is in `compose.yml`, and the test suite needs the superuser |
 | A link import reaches the server's own network (SSRF) | Other users may only import single videos on five known sites | The operator's imports take any link |
 | One user starves the rest | Fair-share media queue, publishing on its own service, per-user quota, disk floor | All users share the VM's IP: heavy imports can get it rate-limited by a site for everyone (no daily import cap); renders share 2 CPU cores |
@@ -305,17 +324,20 @@ skipped.
 Production is one Always Free Arm VM: 2 OCPU, about 11 GB of memory visible to the OS, and a 46.6 GB boot volume
 (not yet grown). Nothing here was load-tested.
 
-- **Disk runs out first.** The boot volume holds the OS, the Docker images, Postgres and `./data`, and nothing deletes
-  old clips or renders. Quotas are overcommitted: 14 users at 5 GiB would need 70 GiB. `MIN_FREE_BYTES` (3 GiB) keeps
-  the disk from filling up, but then nobody can upload, import or render (`DISK_FULL`) until space is freed. Watch
-  `df -h /` and `du -sh data/u/*` on the VM. Grow the boot volume (Always Free includes 200 GB of block storage) before
-  more than a handful of users fill their quota, or lower `USER_QUOTA_BYTES` / `set-quota`.
-- **CPU bounds render throughput.** Two renders at a time, one ffmpeg thread each (libx264 at 1080x1920), leaves a
-  core's worth for Postgres, the api and the rest. A nightly batch of about 15 renders per user queues for a while
-  with several active users; fair share interleaves them, and publishing never waits for renders. Render time on the
-  VM's cores has not been measured.
-- **Memory** is not the limit: two ffmpeg processes, Postgres, the api, the publisher, and the bot service (at most 3
-  files in memory at once, each at most 50 MB).
+- **Disk runs out first.** The boot volume holds the OS, the Docker images, both sites' Postgres and both sites'
+  `./data`: the dev site keeps a full copy of production's files (`~/clipper-dev/data`), so every file is on the disk
+  about twice. Nothing deletes old clips or renders. Quotas are overcommitted: 14 users at 5 GiB would need 70 GiB,
+  140 GiB with the copy. `MIN_FREE_BYTES` (3 GiB) keeps the disk from filling up, but then nobody on either site can
+  upload, import or render (`DISK_FULL`) until space is freed. Watch `df -h /` and `du -sh ~/clipper/data/u/*` on the
+  VM. Grow the boot volume (Always Free includes 200 GB of block storage) before more than a handful of users fill
+  their quota, or lower `USER_QUOTA_BYTES` / `set-quota`.
+- **CPU bounds render throughput.** Two renders at a time, `FFMPEG_THREADS` (2) each (libx264 at 1080x1920), on the
+  VM's 2 cores, shared with Postgres, the api and the rest: a lone user's render gets both cores, two users' share
+  them. The dev site's one render at a time yields to production's (`cpu_shares: 256`). A nightly batch of about 15
+  renders per user queues for a while with several active users; fair share interleaves them, and publishing never
+  waits for renders. Render time on the VM's cores has not been measured.
+- **Memory** is not the limit: up to three ffmpeg processes (the dev site's included), both sites' Postgres, apis and
+  publishers, and the bot services (at most 3 files in memory at once each, each at most 50 MB).
 - **Zernio and Instagram** limits are per user and per account (each user's own key and plan), so users don't share
   them.
 - **Telegram**: one long poll per bot in one process; dozens of bots are fine.
@@ -325,7 +347,8 @@ Production is one Always Free Arm VM: 2 OCPU, about 11 GB of memory visible to t
 ## 11. Operator runbook
 
 On the VM, in `~/clipper` (plain `docker compose` means production there). Every command below is safe to run on a
-live stack.
+live stack. The same commands in `~/clipper-dev` act on the dev site's own database: a change to a copied production
+user there lasts until the next refresh, one to an account made on the dev site survives it (section 12).
 
 ### Users
 
@@ -375,5 +398,36 @@ In `psql` (the superuser), for example:
 select id, username, zernio_key_status, zernio_error, zernio_checked_at from users order by id;
 select user_id, id, username, chat_id is not null as paired, alerts, error, last_seen_at from telegram_bots order by 1, 2;
 ```
+
+## 12. The dev site
+
+The `dev` branch runs on the same VM at https://dev.145-241-239-46.sslip.io, on a copy of production made every 5 days
+by `staging-refresh.sh` (the runbook is [deploy.md section 7](deploy.md#7-staging-dev-on-the-vm)). What it means for
+users, keys and bots:
+
+- **Users.** Production's users arrive with the copy, with their usernames and passwords (bcrypt hashes), quotas and
+  data as of the refresh; every session is deleted, so everyone signs in again. Accounts made on the dev site get ids
+  above 10,000,000 and survive every refresh with their password, key, quota and bots, and nothing else: their clips,
+  renders, posts, files, brands, captions, covers and Instagram accounts go (the accounts come back, with the
+  defaults, at the next key check or account sync). `MAX_USERS` counts both kinds.
+- **Secrets.** The dev site has its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` (its `deploy.sh` made them). The refresh
+  clears every copied Zernio key and deletes every copied bot, then `cli bootstrap` seals the dev site's `.env`
+  `ZERNIO_API_KEY`, the operator's, into user 1 again (the import's stamp is cleared first), unchecked until the
+  operator opens **Settings** there. Its migrate never imports a bot (`compose.staging.yml` blanks `TELEGRAM_*`).
+- **Zernio keys.** A copied user keeps their Zernio user and accounts, so they can paste their own key on the dev site
+  to publish from it. An account made on the dev site can't take a Zernio user a copied user holds
+  (`ZERNIO_USER_CLAIMED`), and loses its key at the next refresh if production's copy has come to hold that Zernio
+  user.
+- **Idempotency.** The dev site's api sets `IDEMPOTENCY_SALT=staging:`, the prefix of what each post's key hashes
+  (`<salt><render id>:<account id>:<slot>`, `scheduling.idempotency_key`); production's is empty, so its keys never
+  change. The operator's key, and so the Zernio user, is the same on both sites, and a dev site post for a copied
+  render, account and slot would otherwise carry production's key and get production's post replayed. The refresh
+  also cancels every copied post that could still publish, before anything else can fail.
+- **Publishing is real.** Posts scheduled on the dev site go out to the same Instagram accounts as production's and
+  cannot be deleted through Zernio. The dev site's calendar doesn't see production's schedule (the copies are
+  cancelled), so it can put a post next to one of production's.
+- **Bots.** Each needs its own @BotFather token: a token that production polls too gets both pollers `409 Conflict`,
+  and both sides read **Not responding** in turn. The refresh drops a dev site account's bot that production runs.
+  Alerts on the dev site go to the dev site's bots only.
 
 [Documentation index](README.md) · [Deploy runbook](deploy.md) · [Telegram bot](telegram-bot.md) · [CLAUDE.md](../CLAUDE.md)

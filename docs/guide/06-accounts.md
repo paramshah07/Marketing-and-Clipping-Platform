@@ -22,9 +22,9 @@ Under the handle is the account's Zernio id, useful when you look it up in Zerni
 
 Clipper publishes through [Zernio](https://zernio.com), with your own Zernio account, so accounts are connected there. Click **Connect account** for these steps:
 
-1. **Add your Zernio API key** in **Settings** (see [Getting started](01-getting-started.md#1-zernio-api-key)). Clipper reads your accounts through it, and publishes with it.
+1. **Add your Zernio API key** in **Settings** (see [Settings › Zernio API key](09-settings.md#zernio-api-key)). Clipper reads your accounts through it, and publishes with it.
 2. **Create a Zernio profile.** Use one profile per Instagram account, so each account keeps its own queue and limits.
-3. **Connect Instagram in that profile.** It must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login.
+3. **Connect Instagram in that profile.** It must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login. Step by step: [Connect an account in Zernio](09-settings.md#connect-an-account-in-zernio).
 4. **Sync accounts** in Clipper (or **Re-check** on the Settings page's **Instagram accounts** card). The new account appears as a card.
 
 With no key yet, the page says so and links to Settings, and **Sync accounts** fails with **add your Zernio API key in Settings first**.

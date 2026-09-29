@@ -121,11 +121,12 @@ Each failure has at most one remedy, and the button's label tells you which.
 
 ## Alerts
 
-Alerts go to each of your Telegram bots that has **Alerts** on in **Settings** ([Telegram bot](08-telegram-bot.md)); without one, the red badge in the app is the only sign. Each has an **Open post** button (the post card, with the remedy, in the bot) and **Open in Clipper** (the Recover page).
+Alerts go to each of your Telegram bots that has **Alerts** on in **Settings** ([Telegram bots](09-settings.md#telegram-bots)); without one, the red badge in the app is the only sign. Each has an **Open post** button (the post card, with the remedy, in the bot) and **Open in Clipper** (the Recover page).
 
 | What happened | Alert | How often |
 |---|---|---|
-| A post failed or became a dead letter | `@account post 234 failed: <cause>` | Once per post |
+| A post failed | `@account post 234 failed: <cause>` | Once per post |
+| Clipper gave up on a post | `@account post 234 dead letter: <cause>` | Once per post |
 | A post missed its slot and moved | `@account post 234 moved to a new slot: <cause>` | Every time |
 | The account hit a rate limit, or its login stopped working | The same, for the first post it hits | Once per account and reason every 6 hours |
 | An account sync (every 6 hours, or **Sync accounts**) found the account disconnected | `Instagram account @account is disconnected in Zernio…`, with **Reconnect in Zernio** and **Sync accounts** | Once per account every 6 hours |
@@ -164,20 +165,25 @@ payment), the post that hit it fails with the reason, your bots get one **Publis
 stops sending your posts: they stay **Scheduled**, and the status footer reads **Zernio key refused**. Other users are
 not affected.
 
-1. Open **Settings**. The **Zernio API key** card says **Refused** and why.
+1. Open **Settings**. The **Zernio API key** card says **Refused** and why (each reason and its fix:
+   [What the card tells you](09-settings.md#what-the-card-tells-you)).
 2. Fix it in Zernio and click **Re-check**, or **Replace key** with a new one.
 3. Once the card reads **Connected** again, your posts go out. Retry the failed ones from their Recover pages.
 
-![The Settings page with a refused key: the Zernio API key card reads Refused, Zernio refused the key, with Re-check, Replace key and Remove; below, three Telegram bots read Token rejected](../images/settings-key-refused.png)
+![The Settings page with a refused key: the Zernio API key card reads Refused, Zernio refused the key, with Re-check, Replace key and Remove; below, the Instagram accounts card](../images/settings-key-refused.png)
 
 ## Good to know
+
+> [!WARNING]
+> The dev site publishes for real too ([Which site to use](01-getting-started.md#which-site-to-use)): a post scheduled
+> or retried there goes out to Instagram, and can't be deleted through Clipper or Zernio.
 
 > [!NOTE]
 > When publishing is off (the server's switch, no Zernio key, or a refused key), nothing of yours reaches Instagram:
 > scheduled posts stay **Scheduled** past their time and the status footer says why. When it works again, posts more
 > than 30 minutes late move to their next free slots.
 
-- The screenshot comes from a review copy with publishing off, which is why it says **Publishing is off on this machine: a retry waits until it is turned on**. Its "Instagram said" line is sample text.
+- The screenshot comes from a review copy with publishing off, taken on an earlier version: its amber line now reads **Publishing is switched off on this server: scheduled posts stay Scheduled and nothing reaches Instagram. A retry waits until then.** With no key or a refused key, the line gives that reason instead, with **Open Settings**. Its "Instagram said" line is sample text.
 - **Technical details** › **Restarts** counts worker restarts in the middle of publishing. Clipper restarts a post up to 3 times, then makes it a dead letter.
 
 ← Previous: [Accounts](06-accounts.md) · [Guide](README.md) · Next: [Telegram bot](08-telegram-bot.md) →

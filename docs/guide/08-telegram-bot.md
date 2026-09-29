@@ -2,42 +2,19 @@
 
 A Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends your failure alerts.
 
-It is your own bot, made with Telegram's @BotFather, and it works through the same API as the web app, as you: every rule and confirmation is the same, and it only ever sees your clips, renders, accounts and posts. This page shows how to add one and use it; [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots of the chat: the examples are chat transcripts, with buttons in `[brackets]`.
+It is your own bot, made with Telegram's @BotFather, and it works through the same API as the web app, as you: every rule and confirmation is the same, and it only ever sees your clips, renders, accounts and posts. This page shows how to use it (adding one is in [Settings](09-settings.md#telegram-bots)); [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots of the chat: the examples are chat transcripts, with buttons in `[brackets]`.
 
 ## Add a bot
 
-In **Settings** (or step 3 of **Set up Clipper**), under **Telegram bots**:
+Make a bot with @BotFather, paste its token in **Settings** › **Telegram bots**, and pair it with your chat: the full
+walkthrough, what each bot status means (**Running**, **Waiting for Start**, **Token rejected**, **Not responding**),
+the **Alerts** switch, **Test**, **Re-pair**, a revoked token and **Remove** are in
+[Settings › Telegram bots](09-settings.md#telegram-bots).
 
-1. In Telegram, open [@BotFather](https://t.me/BotFather) and send `/newbot`. Give it a name, then a username ending in "bot". Make a new bot just for Clipper: a bot another app already uses (one with a webhook) is refused.
-2. Paste the token BotFather sends back (it looks like `123456789:AAE…`) and click **Verify**. Clipper checks it with Telegram and stores it encrypted.
-3. Click **Open @yourbot and tap Start**. Telegram opens the bot; tap **Start**. The bot answers **Paired. This chat runs your Clipper now.**, and the card updates by itself to **Paired with** your chat. (Or send the `/start …` command the card shows, in a private chat with the bot. The code works for 15 minutes.)
-4. Click **Send test message**. **Test message delivered** means the bot can reach you.
-
-Add as many bots as you like, each paired with its own chat. Each bot answers only its chat and ignores everyone else without a reply, including group chats.
-
-### Your bots in Settings
-
-Each bot has a status, an **Alerts** switch, **Test**, **Pair** or **Re-pair**, and **Remove**:
-
-| Status | What it means | What to do |
-|---|---|---|
-| **Running** | The bot is polling Telegram (checked every 10 seconds) | Nothing |
-| **Waiting for Start** | Not paired with a chat yet | **Pair**, then open the bot and tap **Start** |
-| **Token rejected** | Telegram refused the token (revoked or regenerated in @BotFather) | In @BotFather, `/token` for that bot, and paste the new token under **Add another bot**: it keeps its chat. Or **Remove** it. **Test** and **Re-pair** are off until then |
-| **Not responding** | Paired, but not heard from in 90 seconds: Clipper's bot service is down, or another program uses the same token | If it lasts, make sure nothing else runs this bot, or tell the operator |
-
-- **Alerts** on: this bot's chat gets your failure alerts. Turn it off for bots you only use to run Clipper.
-- **Test** sends a message straight from Clipper, and shows Telegram's reason if it fails. It is off for a bot waiting for **Start** or with a rejected token.
-- **Re-pair** moves the bot to another chat: open it from the new chat and tap **Start**. The old chat keeps working until then.
-- **Remove** stops the bot within about 10 seconds. The bot itself stays in Telegram; delete it in @BotFather if you like.
-
-When adding a bot fails, the card says why:
-
-| Message | Code | What to do |
-|---|---|---|
-| Telegram refused the token | `TOKEN_REJECTED` | Copy it again from @BotFather |
-| Another app receives this bot's messages | `BOT_IN_USE` | Make a new bot for Clipper with `/newbot` |
-| Another Clipper user has added this bot | `BOT_TAKEN` | A bot belongs to one Clipper user: make your own |
+In short: send @BotFather `/newbot`, paste the token and click **Verify**, click **Open @yourbot and tap Start**, tap
+**Start** in Telegram, and the bot answers **Paired. This chat runs your Clipper now.** Each bot answers only its chat
+and ignores everyone else without a reply, including group chats. Use a different bot on the live app and on the dev
+site.
 
 ## Before you start
 
@@ -198,9 +175,10 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 | Time to answer a question the bot asked | 10 minutes |
 
 - When the bot asks for text, reply with it; `-` clears an optional field, and `/cancel` or any command drops the question.
+- Alerts and **Open in Clipper** buttons link to the site the bot belongs to: a dev-site bot opens the dev site.
 - Anything you send while the bot is down is ignored, so an old **Post now** tap never publishes hours later. The bot says so when it is back: send it again.
 - A confirm button acts once; a second tap only answers **Already done.** Open forms and lists expire when the bot restarts (**This has expired: run the command again**); buttons on cards keep working.
 - While publishing is off, **Post now** answers **Publishing is off … nothing can post now**.
 - The web app alone has free drag for the logo and crop, a live preview before rendering, and the saved captions and covers from [Customizations](04-customizations.md).
 
-← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Workflows](../workflows.md) →
+← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Settings and your account](09-settings.md) →

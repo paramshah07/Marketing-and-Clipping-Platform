@@ -3,10 +3,13 @@
 **Turn viral clips into branded Instagram Reels, and have them published on schedule, from a browser or from
 Telegram.**
 
-> **Live app:** [https://145-241-239-46.sslip.io](https://145-241-239-46.sslip.io)
->
-> Sign up there with a username and password while spots are left (15 users in all). You bring your own
-> [Zernio](https://zernio.com) account for publishing. Questions: pjsrsns@gmail.com.
+> [!IMPORTANT]
+> **Production is still on the old version.** https://145-241-239-46.sslip.io runs the single-operator Clipper behind
+> a shared browser password, with no sign-up. This README and the [user guide](docs/guide/README.md) describe the
+> multi-user version, which runs today on the dev site (https://dev.145-241-239-46.sslip.io, where posts really go
+> out) and reaches production when the release pull request
+> [#20](https://github.com/paramshah07/Marketing-and-Clipping-Platform/pull/20) is merged. See
+> [Environments](#environments).
 
 ![Clipper's calendar: a week of branded Reels in each account's posting slots, with finished renders waiting in the Ready to schedule tray](docs/images/hero.png)
 
@@ -39,9 +42,10 @@ By hand, that is a production line of small steps where any slip costs money or 
 ## Who it's for
 
 A handful of people, each running their own Instagram pages and placing advertisers' logos and links on short
-clips. Each user signs up with a username and password, brings their own Zernio API key and their own Telegram bots,
-and sees only their own clips, brands, accounts and posts. There are no roles, teams or billing: it is a working tool
-for the person doing the posting, made for the late-night session where tomorrow's posts get queued.
+clips. Up to 15 users in all, the operator included. Each signs up with a username and password (no email), brings
+their own [Zernio](https://zernio.com) account and their own Telegram bots, and sees only their own clips, brands,
+accounts and posts. There are no roles, teams or billing: it is a working tool for the person doing the posting,
+made for the late-night session where tomorrow's posts get queued.
 
 ## How Clipper solves it
 
@@ -65,13 +69,25 @@ flowchart LR
 | Silent failures | A failed post raises an alert from your Telegram bots and a badge in the app. Its **Recover** page offers the one fix that applies: retry, re-render, or reconnect the account. |
 | No Meta developer app | Publishing goes through [Zernio](https://zernio.com), which holds its own approved Meta app, with each user's own Zernio key. Clipper never talks to Meta directly. |
 
-## Two front doors, the same powers
+## What's in it
+
+| Part | What you do there |
+|---|---|
+| Sign up, **Set up Clipper**, **Settings** | Make your account, paste your Zernio API key, see your Instagram accounts, add Telegram bots, change your password ([Getting started](docs/guide/01-getting-started.md), [Settings](docs/guide/09-settings.md)) |
+| **Library** | Upload videos, import a link or every link in a document, follow each clip's status, find what was published ([Library](docs/guide/02-library.md)) |
+| **Editor** | Place the logo, crop, pick a cover and a caption, render, and schedule the finished renders ([Editor](docs/guide/03-editor.md)) |
+| **Customizations** | Brands (logo, link, caption template, auto-approve), saved captions and saved covers, each with a default ([Customizations](docs/guide/04-customizations.md)) |
+| **Calendar** | Each account's week of posting slots: **Auto-schedule**, drag, approve drafts, edit a post ([Calendar](docs/guide/05-calendar.md)) |
+| **Accounts** | The Instagram accounts of your Zernio account, synced, each with its time zone, slots, daily cap and minimum gap ([Accounts](docs/guide/06-accounts.md)) |
+| Publishing and **Recover** | Posts go out at their slot with your Zernio key; a failed one gets a Recover page with its one remedy ([Publishing and recovery](docs/guide/07-publishing-and-recovery.md)) |
+| Telegram | Any number of your own bots, each paired with one private chat: alerts, and most of the app from the chat ([Telegram bot](docs/guide/08-telegram-bot.md)) |
+
+### Two front doors, the same powers
 
 Clipper can be run from the web app or from Telegram. Each user adds their own bots, made with @BotFather, in
 **Settings**, as many as they like, and pairs each with one private chat. A bot calls the same API as the browser, as
 its owner, so every rule and check applies the same way wherever a tap comes from, and it only ever sees its owner's
-data. Failure alerts arrive in the chats of the bots with alerts on, with the fix one tap away. (The operator's
-bots, **@Postyclipper_bot**, **@Clipspammerbot** and **@Autoposter_giftok_bot**, carried over as they were.)
+data. Failure alerts arrive in the chats of the bots with alerts on, with the fix one tap away.
 
 ```mermaid
 flowchart LR
@@ -95,39 +111,67 @@ A few things stay in the browser:
 - **Big files.** Telegram bots can't receive videos over 20 MB, so send the link instead.
 - **Settings.** Your Zernio key, your bots and your password are managed in the browser.
 
-The full side-by-side is in [docs/telegram-bot.md](docs/telegram-bot.md#4-parity-with-the-web-app); how to use
-the bots, with example chats, is in the [Telegram bot guide](docs/guide/08-telegram-bot.md).
+The full side-by-side is in [docs/telegram-bot.md](docs/telegram-bot.md#4-parity-with-the-web-app).
 
-## A night with Clipper
+## Environments
 
-After [signing up and setting up](docs/guide/01-getting-started.md) once:
+Both run on one Oracle Cloud VM, behind the same Caddy.
 
-1. **Collect.** Paste tomorrow's list of links into **Import links** in the [Library](docs/guide/02-library.md),
-   or send the document to a bot.
-2. **Brand.** Open each clip in the [Editor](docs/guide/03-editor.md). The default brand, caption and cover
-   are already in place: adjust the logo or crop if you like, then **Render**.
-3. **Schedule.** Select the finished renders in the [Calendar](docs/guide/05-calendar.md) and
-   **Auto-schedule** them into the account's slots. Approve the drafts.
-4. **Sleep.** Each Reel goes out at its slot. If one fails, Telegram says which and offers the fix
-   ([Publishing and recovery](docs/guide/07-publishing-and-recovery.md)).
+| | Production (the live app) | Dev site (staging) |
+|---|---|---|
+| Address | https://145-241-239-46.sslip.io | https://dev.145-241-239-46.sslip.io |
+| Branch | `prod` | `dev` |
+| Deploys | Every push to `prod`, that is every merged `dev` → `prod` release | Every push to `dev` once CI passes on it |
+| Runs today | The single-operator version: a shared browser password in front, no sign-up, setup or settings pages; the operator's Zernio key and three Telegram bots come from the server's `.env` | The multi-user version |
+| After release [#20](https://github.com/paramshah07/Marketing-and-Clipping-Platform/pull/20) | The multi-user version: no shared password, the app's own sign-in and sign-up. The operator (username `clipper`) keeps everything from before, key and bots included | Unchanged |
+| Sign-in | Today: the shared password (the operator only). After the release: the app's own | The app's own; sign up at `/signup` while spots are left |
+| Publishing | On | **On: posts scheduled there really go out to Instagram** and can't be deleted through Zernio |
+| Data | The real data; a database dump every night, 7 kept | A copy of production's, replaced about every 5 days (05:00 UTC on the 1st, 6th, 11th, 16th, 21st, 26th and 31st): everyone signs in again, and everything made there (clips, renders, posts, files, brands, saved captions and covers, Instagram account settings) is gone. Production's users arrive with their production password, without their Zernio key or bots (the operator's key is put back). Accounts made on the dev site are kept, with their password, Zernio key and bots, and nothing else |
 
-Every step, with diagrams: [docs/workflows.md](docs/workflows.md).
+After the release only the address tells them apart: both footers can read **Publishing live**. Use each Telegram
+bot on one site only (a bot polled from two places stops answering in both), and on the dev site schedule only what
+should really go out.
+For users: [Which site to use](docs/guide/01-getting-started.md#which-site-to-use). Server details:
+[docs/deploy.md](docs/deploy.md) (staging: [section 7](docs/deploy.md#7-staging-dev-on-the-vm)).
 
-## Documentation
+## For users
 
-| Read | For |
-|---|---|
-| [User guide](docs/guide/README.md) | Every page of the app, with annotated screenshots. Start at [Getting started](docs/guide/01-getting-started.md): sign up and set up. |
-| [Workflows](docs/workflows.md) | The nightly routine, a failed post, adding an account, shipping a change, backups. |
-| [Deploy runbook](docs/deploy.md) | The VM, branches and releases, the automatic deploy, backups and restore, trying a pull request. |
-| [Multi-user](docs/multi-user.md) | Users, isolation, secrets, each user's Zernio key and bots, the threat model, the operator's commands. |
-| [All documentation](docs/README.md) | The full index, with reference and historical records. |
+Five steps from nothing to a scheduled Reel. Until the release, do them on the dev site (and expect its data to be
+replaced within 5 days); after it, on production ([When the release lands](docs/guide/01-getting-started.md#when-the-release-lands)).
 
----
+1. **Sign up.** Open `/signup`, pick a username and a password of 8 or more characters, and click **Create account**
+   ([Create your account](docs/guide/01-getting-started.md#create-your-account)). There is no email and no reset link: if you forget your
+   password, ask the operator.
+2. **Add your Zernio key.** Make a Zernio account (its first 2 connected accounts are free), create an API key,
+   paste it into **Set up Clipper** and click **Verify**
+   ([Zernio API key](docs/guide/09-settings.md#zernio-api-key)).
+3. **Connect Instagram in Zernio.** A Business or Creator account, one Zernio profile per account, then **Re-check**
+   in Clipper ([Instagram accounts](docs/guide/09-settings.md#instagram-accounts),
+   [Accounts](docs/guide/06-accounts.md)).
+4. **Add a Telegram bot** (optional, for alerts and the chat): make one with @BotFather, paste its token, click
+   **Verify**, open the bot from Clipper and tap **Start** ([Telegram bots](docs/guide/09-settings.md#telegram-bots)).
+5. **Make your first post.** Set the account's posting slots, add a brand with its logo, bring in a clip, render it
+   in the Editor, and schedule it on the Calendar
+   ([First-time setup](docs/guide/01-getting-started.md#first-time-setup-after-set-up-clipper),
+   [the nightly routine](docs/workflows.md#the-nightly-routine)).
 
-## Engineering
+The whole guide, page by page with annotated screenshots: [docs/guide](docs/guide/README.md). Stuck:
+[Troubleshooting and FAQ](docs/guide/10-troubleshooting.md). Questions and bug
+reports: [open an issue](https://github.com/paramshah07/Marketing-and-Clipping-Platform/issues) (never paste a
+password, key or token into one).
 
-### Architecture
+## For developers
+
+Everything a contributor needs, from a first local stack to a merged pull request, is in
+[CONTRIBUTING.md](CONTRIBUTING.md). In short:
+
+- Changes land on `dev` by pull request; CI runs the backend suite and the frontend checks; a merge deploys the dev
+  site; a `dev` → `prod` pull request, opened by a maintainer, is a release.
+- Run the stack in your own clone, under its own compose project (`-p`), with throwaway secrets and publishing off.
+  Never with production's values.
+- The rules the code must follow, and every command: [CLAUDE.md](CLAUDE.md).
+
+## Architecture at a glance
 
 ```mermaid
 flowchart LR
@@ -141,10 +185,20 @@ flowchart LR
   publisher -.->|"alerts"| tg
 ```
 
-Everything runs as one Docker Compose stack. Caddy is the only public entry point and adds HTTPS; the app signs users
-in itself. The api keeps its records in Postgres and the video files in `./data`, one folder per user, and queues
-renders, downloads and publishes as jobs in the same database. The worker runs renders and downloads, one job per
-user at a time so no user waits behind another's batch; the publisher, every minute, publishes whatever is due.
+One Docker Compose stack ([compose.yml](compose.yml)):
+
+| Service | What it does |
+|---|---|
+| `caddy` | The only public entry point, on the VM only ([compose.prod.yml](compose.prod.yml)): HTTPS for production and `dev.<host>`; strips the bot service's headers and hides `/api/internal/*` ([Caddyfile](Caddyfile)) |
+| `api` | FastAPI: sign-in, every route, and in production the built React app. Connects as `clipper_app`, which row-level security binds |
+| `worker` | Queue `media`: probe, download (yt-dlp) and render (ffmpeg), one job per user at a time. Holds no secret |
+| `publisher` | Queue `default`: publishes due posts every minute with each user's Zernio key, syncs accounts every 6 hours, sends alerts, re-queues stalled jobs |
+| `bot` | Runs every user's Telegram bots by long polling; calls the api as each bot's owner. No database access |
+| `postgres` | PostgreSQL 16: the data and the job queue |
+| `migrate` | Runs once at every start: Alembic migrations, the queue's schema, the api's database role, user 1 |
+
+Outside the stack: [Zernio](https://zernio.com) publishes to Instagram with each user's own key, and Telegram
+carries the bots. Video files live in `./data`, one folder per user, served only to their owner.
 
 Choices that keep it simple and safe:
 
@@ -162,65 +216,31 @@ Choices that keep it simple and safe:
 - **Bots are clients, not a second backend.** They have no database access and call the api like the browser
   does, as their owner, so every rule lives in one place.
 
-Stack: Python 3.12 · FastAPI · SQLAlchemy 2 · Procrastinate · PostgreSQL 16 · ffmpeg · yt-dlp · React 19 ·
-Vite · Tailwind v4 · TanStack Query · Caddy · Docker Compose. More in [docs/PLAN.md](docs/PLAN.md).
+## Tech stack
 
-### Deployment
+| Layer | Tools |
+|---|---|
+| Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async, psycopg 3), Alembic, uv |
+| Auth and tenancy | Username + password (bcrypt), server-side sessions in an HttpOnly cookie, Postgres row-level security, secrets sealed with Fernet |
+| Jobs | Procrastinate on PostgreSQL 16 (no Redis) |
+| Video | ffmpeg and ffprobe (subprocess), yt-dlp |
+| Publishing | Zernio REST API over httpx |
+| Frontend | React 19, Vite, TypeScript, Tailwind v4, shadcn/ui, TanStack Query, react-router, a client generated from the OpenAPI schema |
+| Telegram | Bot API over httpx, long polling, no bot framework |
+| Ops | Docker Compose, Caddy, GitHub Actions, one Oracle Cloud Arm VM |
 
-- **Production** is one Oracle Cloud Always Free Arm VM (2 OCPU, 12 GB) running the stack with
-  `compose.prod.yml` on top: code and the built frontend baked into the images, Caddy on ports 80 and 443,
-  everything else on 127.0.0.1.
-- **Branches.** Changes land on `dev` (the default branch) through pull requests, checked by CI (backend tests,
-  frontend type check, lint, tests and build). A `dev` → `prod` pull request is a release.
-- **Every push to `prod` deploys.** The **Deploy** GitHub Actions workflow SSHes into the VM with a key that
-  can only run `git pull && sh deploy.sh`; `deploy.sh` makes the app's secrets on its first run, rebuilds what
-  changed and fails the run unless the api answers within two minutes.
-- **Backups:** a nightly database dump on the VM, the last seven kept.
+More in [docs/PLAN.md](docs/PLAN.md) and [CLAUDE.md](CLAUDE.md).
 
-The runbook, from server setup to restore: [docs/deploy.md](docs/deploy.md).
+## Documentation
 
-### Local development
-
-> [!WARNING]
-> Never run `docker compose up` with a `.env` that holds the production Zernio key and bot tokens (the
-> operator's Mac has one): a local stack would publish the same schedule as the VM and fight its bots. Never put
-> `SECRETS_KEY` in such a `.env` either. Use `./review.sh`.
-
-`./review.sh` copies production's database and the operator's files to your machine (it only reads from the VM,
-and drops every other user's rows) and runs your branch as a separate `clipper-review` stack with publishing off,
-keys blanked and no bots. Sign in as the operator; the script prints how to set a password on the copy. You need
-Docker, Node 22 and SSH access to the VM.
-
-```sh
-./review.sh                                   # api on http://127.0.0.1:8000
-(cd frontend && npm install && npm run dev)   # the app on http://localhost:5173
-./review.sh down                              # remove the review stack and its database
-```
-
-Tests:
-
-```sh
-docker compose run --rm worker pytest                         # backend and bots; starts only Postgres (+ migrate), no bots, no publishing
-cd frontend && npm test && npm run typecheck && npm run lint  # frontend
-```
-
-Shipping a change: open a pull request into `dev`, try it with `gh pr checkout <number> && ./review.sh`, merge, then
-release with a `dev` → `prod` pull request and check the live app ([workflows](docs/workflows.md#shipping-a-change)).
-The rules the code must follow, and every command: [CLAUDE.md](CLAUDE.md).
-
-### Project layout
-
-```
-backend/            FastAPI api, Procrastinate tasks (app/tasks), Telegram bot service (app/bot), Alembic, tests
-  openapi.json      the API schema; the frontend client is generated from it
-frontend/           React app: src/routes, src/components, src/lib, src/api (generated, never edited by hand)
-  e2e/              Playwright: the acceptance run and the documentation screenshots
-docs/               user guide, workflows, runbook, reference, historical records
-compose.yml         the stack: postgres, migrate, api, worker, publisher, bot
-compose.prod.yml    production overlay: Caddy, code baked into the images, the app's secrets required
-compose.review.yml  review overlay: publishing off, keys and secrets blanked, no bots
-Caddyfile           HTTPS in front of production; hides the bot service's internal routes
-deploy.sh           run on the VM by the Deploy workflow; adds the app's secrets to .env once
-review.sh           your branch on your machine, against a copy of production (the operator's data only)
-.github/workflows/  ci.yml (tests on every pull request), deploy.yml (every push to prod)
-```
+| Read | For |
+|---|---|
+| [User guide](docs/guide/README.md) | Every page of the app, with annotated screenshots. Start at [Getting started](docs/guide/01-getting-started.md) |
+| [Troubleshooting and FAQ](docs/guide/10-troubleshooting.md) | What to do when something doesn't work: sign-in, your key, Instagram, a bot, storage, links, the dev site |
+| [Workflows](docs/workflows.md) | Your first day, the nightly routine, a failed post, adding an Instagram account or a bot, a new Zernio key, shipping a change, backups |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Running Clipper locally, tests, making changes, the branch workflow, the pull request checklist |
+| [CLAUDE.md](CLAUDE.md) | The stack, every command, and the hard rules the code must follow |
+| [Multi-user](docs/multi-user.md) | Users, isolation, secrets, each user's Zernio key and bots, the threat model, the operator's commands |
+| [Telegram bots](docs/telegram-bot.md) | The bots' design: the supervisor, pairing, security, parity with the web app |
+| [Deploy runbook](docs/deploy.md) | The VM, branches and releases, the automatic deploys, the dev site, backups and restore |
+| [All documentation](docs/README.md) | The full index, with reference and historical records |

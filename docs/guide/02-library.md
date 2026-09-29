@@ -27,7 +27,7 @@ You can switch pages while files upload; they keep going. Reloading or closing t
 
 ## Import a clip from a link
 
-1. Paste the video's URL into the field in the drop zone: a single video on TikTok, Instagram, YouTube, X or Facebook. (The operator's account can import from many other sites too.)
+1. Paste the video's URL into the field in the drop zone: a single video on TikTok, Instagram, YouTube, X or Facebook. Any other link (a profile, a playlist, another site) is refused with "…: only a link to one video on YouTube, Instagram, TikTok, X, Facebook can be imported". (The operator's account can import from many other sites too.)
 2. Optional: add the creator's `@handle`. Leave it empty and Clipper takes the handle from the site where it can (TikTok, Instagram, YouTube, X). A handle you type always wins.
 3. Click **Import**. The row shows **Downloading**, then **Probing**, then **Ready**.
 
@@ -118,7 +118,7 @@ On this tab the search box looks through captions and clip names.
 > [!NOTE]
 > A re-render has no cover, so Instagram picks a frame. If the brand has no caption template, the caption is empty: write one in the **Schedule…** popover, or render from the Editor, where you can set a cover too.
 
-- Uploads, imports and renders count against your storage (5 GB unless the operator changed it; **Settings** › **Account** shows it). When it is full, each is refused with **your storage is full**: delete clips or renders to make room.
+- Uploads, imports and renders count against your storage (5 GB unless the operator changed it; **Settings** › **Account** shows it, see [Storage](09-settings.md#storage)). When it is full, each is refused with **your storage is full**: delete clips or renders to make room.
 - The **Renders** column counts every render made from the clip, including failed ones.
 - Hover the **Added** time to see the exact date and time.
 - A new clip fades in once when it turns **Ready** while the page is open.
