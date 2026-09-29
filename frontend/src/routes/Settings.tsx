@@ -223,7 +223,8 @@ function InstagramCard({ n, me, check, onChecked }: { n?: number; me: Me; check:
   const keyed = me.zernio.status === "valid"
   const list = accounts.data ?? []
   const usable = list.filter((a) => a.connection_status === "connected" && !a.disabled_at).length
-  const state = recheck.isPending ? (
+  // the list waits on Zernio (each account's publishing limit): until it answers, "None found" would be a guess
+  const state = recheck.isPending || accounts.isPending ? (
     <Chip tone="accent" spin>
       Checking
     </Chip>
