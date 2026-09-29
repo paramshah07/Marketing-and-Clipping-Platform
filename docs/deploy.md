@@ -415,7 +415,7 @@ own sign-in protects every account and shows each user only their own data, as i
 | | |
 |---|---|
 | Checkout | `~/clipper-dev`, tracking `origin/dev`; its `.env` sets `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=true`, and copies `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` and `ZERNIO_API_KEY` from production's (its own copy: it stays when production's `.env` drops the key after the multi-user release; to rebuild, take it from the password manager). Never `TELEGRAM_*` (`compose.staging.yml` blanks them for its migrate anyway): a bot token polled from two places breaks the real bot. `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
-| Stack | `compose.staging.yml`: its own Postgres (no host port), the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), no Caddy, the render worker on one CPU with one ffmpeg thread, `IDEMPOTENCY_SALT=staging:` on the api |
+| Stack | `compose.staging.yml`: its own Postgres (no host port), the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), no Caddy, the render worker one job at a time at a quarter of production's CPU weight (both cores while production is idle), `IDEMPOTENCY_SALT=staging:` on the api |
 | Deploys | `.github/workflows/deploy-dev.yml`, after CI passes on a push to `dev` (or **Actions** › **Deploy staging** › **Run workflow**). Its key's forced command: `command="cd /home/ubuntu/clipper-dev && git pull -q --ff-only && exec sh deploy.sh",restrict …` |
 | Data | `staging-refresh.sh`, by cron every 5 days at 05:00 UTC (after the 04:00 backup): `0 5 */5 * * cd /home/ubuntu/clipper-dev && sh staging-refresh.sh >> /home/ubuntu/staging-refresh.log 2>&1` |
 
@@ -452,7 +452,7 @@ at the next refresh, like everything else made on staging. To refresh now: `ssh 
 Zernio key (other users paste their own on staging to publish from it), and cannot be deleted through Zernio: use a
 test account, or schedule only what should really go out. `PUBLISHING_ENABLED=false` in `~/clipper-dev/.env`, then
 `sh deploy.sh` there, turns it off. Bots work there too with their own @BotFather token (never one production
-uses). Renders run on one CPU, slower than production's.
+uses). Renders get both cores while production is idle and yield to production's renders.
 
 **Rebuilding it**: clone `dev` into `~/clipper-dev` (the VM's `github` key reads the repo), write its `.env` as
 above, add the deploy key's line to `~/.ssh/authorized_keys` and the private half to the `DEPLOY_DEV_SSH_KEY`
