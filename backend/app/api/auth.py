@@ -226,7 +226,7 @@ async def _active_users(s: AsyncSession) -> int:
 async def signup_status() -> SignupStatus:
     async with SessionLocal() as s:
         left = max(0, settings.MAX_USERS - await _active_users(s))
-    return SignupStatus(open=left > 0, remaining=left)
+    return SignupStatus(open=left > 0, remaining=left, max_users=settings.MAX_USERS)
 
 
 @router.post("/auth/signup", status_code=201)

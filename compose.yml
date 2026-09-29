@@ -68,14 +68,13 @@ services:
     depends_on: { migrate: { condition: service_completed_successfully } }
 
   # the media queue: probe, download (yt-dlp), render (ffmpeg), one job per user at a time. Two at once on the
-  # VM's 2 OCPU, one ffmpeg thread each. Holds no secret: a hostile video or site that takes over ffmpeg or
-  # yt-dlp finds no key to read.
+  # VM's 2 OCPU, FFMPEG_THREADS (2) each: a lone user's render gets both cores, two users' share them. Holds no
+  # secret: a hostile video or site that takes over ffmpeg or yt-dlp finds no key to read.
   worker:
     <<: *backend
     build: { context: ./backend, target: worker }
     environment:
       <<: [*env, *no-sealed, *no-bot-secret, *no-import]
-      FFMPEG_THREADS: ${FFMPEG_THREADS:-1}
     command: ["python", "-m", "app.worker", "--queues=media", "--concurrency=2", "--shutdown-graceful-timeout=60"]
     init: true  # PID 1 forwards signals and reaps ffmpeg children
     stop_grace_period: 90s  # longer than --shutdown-graceful-timeout

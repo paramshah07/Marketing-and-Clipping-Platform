@@ -86,7 +86,7 @@ def test_new_hashes_cost_12_and_any_bcrypt_verifies(monkeypatch):
 
 def test_signup_login_logout(browser):
     r = browser.get("/api/auth/signup-status")
-    assert r.json() == {"open": True, "remaining": 1000 - active()}
+    assert r.json() == {"open": True, "remaining": 1000 - active(), "max_users": 1000}
     assert code(signup(browser, "A")) == "USERNAME_INVALID"
     assert code(signup(browser, "-bad")) == "USERNAME_INVALID"
     assert code(signup(browser, "alice.t", "short")) == "PASSWORD_TOO_SHORT"
@@ -241,7 +241,7 @@ def test_disabled_user(browser, monkeypatch):
 
 def test_signup_cap_counts_active_users_and_is_race_free(browser, client, monkeypatch):
     monkeypatch.setattr(settings, "MAX_USERS", active() + 1)
-    assert browser.get("/api/auth/signup-status").json() == {"open": True, "remaining": 1}
+    assert browser.get("/api/auth/signup-status").json() == {"open": True, "remaining": 1, "max_users": settings.MAX_USERS}
 
     async def race():
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", headers=ORIGIN) as c:
@@ -250,11 +250,11 @@ def test_signup_cap_counts_active_users_and_is_race_free(browser, client, monkey
     results = client.portal.call(race)
     assert sorted(r.status_code for r in results) == [201, 403, 403, 403]
     assert {code(r) for r in results if r.status_code == 403} == {"SIGNUPS_FULL"}
-    assert browser.get("/api/auth/signup-status").json() == {"open": False, "remaining": 0}
+    assert browser.get("/api/auth/signup-status").json() == {"open": False, "remaining": 0, "max_users": settings.MAX_USERS}
     winner = next(r.json()["username"] for r in results if r.status_code == 201)
     monkeypatch.setattr(sys, "argv", ["app.cli", "disable-user", winner])
     cli.main()  # a disabled user frees a spot
-    assert browser.get("/api/auth/signup-status").json() == {"open": True, "remaining": 1}
+    assert browser.get("/api/auth/signup-status").json() == {"open": True, "remaining": 1, "max_users": settings.MAX_USERS}
 
 
 def test_login_and_signup_throttles(browser):

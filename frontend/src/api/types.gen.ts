@@ -1195,6 +1195,10 @@ export type SignupStatus = {
      * Remaining
      */
     remaining: number;
+    /**
+     * Max Users
+     */
+    max_users: number;
 };
 
 /**

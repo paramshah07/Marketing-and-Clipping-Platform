@@ -243,11 +243,12 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 
 | Service | Queue | Runs | Concurrency |
 |---|---|---|---|
-| `worker` | `media` | `probe_clip`, `download_clip`, `render` (ffmpeg, yt-dlp) | 2 jobs, `FFMPEG_THREADS=1` each |
+| `worker` | `media` | `probe_clip`, `download_clip`, `render` (ffmpeg, yt-dlp) | 2 jobs, `FFMPEG_THREADS=2` each |
 | `publisher` | `default` | `dispatch`, `publish_post`, `sync_accounts`, `retry_stalled_jobs`, alerts | 8 jobs (async, network-bound) |
 
 - **One media job per user at a time**: every media job gets the lock `media:u{uid}`, so the worker's second slot
-  goes to another user.
+  goes to another user. A lone user's render still gets both cores (2 ffmpeg threads), but waits behind their own
+  running download. The upgrade is two lanes per user (`media:u{uid}:{n}`, the `ponytail:` in `pipeline._defer`).
 - **Fair-share priority**: a job's priority is its base minus the number of the user's jobs of the same kind already
   waiting, so a user with 30 queued renders never delays another user's first one. Single jobs (uploads, one link,
   renders) have base 0; list imports -100000, so every single job goes before any list import. Within one user,

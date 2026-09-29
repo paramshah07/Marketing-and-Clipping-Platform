@@ -29,7 +29,7 @@ from app.core.db import SyncSession, engine
 from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.schemas import CropConfig, OverlayConfig
-from app.services import zernio
+from app.services import errors, zernio
 from conftest import zernio_key
 
 CHAT = 4242
@@ -88,6 +88,7 @@ def test_captions_and_names_match_the_web_app():
     assert fmt.placement({"brand_id": None, "overlay_config": None, "crop_config": {"x": 0, "y": 0, "w": 0.3, "h": 1}}) == "9:16 crop"
     card = "<b>x</b>\n<blockquote>" + "y" * 2000 + "</blockquote>"
     assert fmt.shorten(card, 1024) == "<b>x</b>" and fmt.visible("a &amp; <b>b</b>") == 5
+    assert set(errors.CAUSES) <= set(screens.TITLES)  # a failed post's card has a title, never the raw code
 
 
 def test_parse_when():
@@ -567,6 +568,7 @@ def test_schedule_and_posts(env, monkeypatch):
 def test_recover_ready_drafts(env):
     ids = seed(env)
     more = seed(env, auto_approve=False)
+    third = seed(env)
 
     async def scenario(phone, tg, bot):
         with SyncSession() as s:  # a failure nothing was ever POSTed for: Retry now reschedules it at once
@@ -584,6 +586,23 @@ def test_recover_ready_drafts(env):
         await phone.tap("Retry now")
         with SyncSession() as s:
             assert s.get(Post, p.id).status == "SCHEDULED"
+        # KEY_CHANGED: the first POST went out under the previous key, so the Reel may be live. Fix asks first
+        with SyncSession() as s:
+            k = Post(render_id=third["render"], account_id=third["account"], caption="c", status="DEAD_LETTER", error_code="KEY_CHANGED",
+                     scheduled_for=datetime.now(UTC) - timedelta(hours=1), idempotency_key=f"k{third['render']}",
+                     first_post_at=datetime.now(UTC) - timedelta(hours=1), key_gen=1)  # fmt: skip
+            s.add(k)
+            s.commit()
+        await phone.say(f"/p{k.id}")
+        assert "Sent with your previous Zernio key" in phone.text()
+        card = max(tg.messages)
+        assert "Instagram first" in await phone.tap("Re-render and retry", card)
+        with SyncSession() as s:
+            assert s.get(Post, k.id).status == "DEAD_LETTER"
+        await phone.tap("I checked: re-render", card)
+        with SyncSession() as s:
+            k = s.get(Post, k.id)
+            assert k.status == "SCHEDULED" and k.render_id != third["render"] and job("render", render_id=k.render_id)
         # the ready tray: select one render, auto-schedule it
         bot.last_account = more["account"]
         await phone.say("/ready")

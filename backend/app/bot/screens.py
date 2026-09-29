@@ -43,8 +43,12 @@ TITLES = {  # Recover.tsx: a failure's short title; PostOut.cause has the senten
     "TOO_LONG": "Video too long for a Reel", "TOO_SHORT": "Video too short for a Reel", "RENDER_FAILED": "Render failed",
     "WORKER_CRASHED": "Worker crashed while publishing", "MISSED": "Missed its slot",
     "NO_FREE_SLOT": "No free slot to move to", "WINDOW_EXPIRED": "Outcome unknown", "UNKNOWN": "Zernio reported a failure",
+    "KEY_CHANGED": "Sent with your previous Zernio key", "ZERNIO_KEY_INVALID": "Zernio refused your key",
+    "ZERNIO_PAYMENT_REQUIRED": "Zernio payment failed", "ZERNIO_KEY_MISSING": "No Zernio key",
+    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit",
 }  # fmt: skip
-MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED"}  # Recover.tsx: the Reel may be live already
+KEY_CODES = {"ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING"}  # Recover.tsx: fixed in Settings
+MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED", "KEY_CHANGED"}  # Recover.tsx: the Reel may be live already
 NO_ACCOUNT = "No account can post: connect one in Zernio, then /accounts and Sync accounts."
 TIME_Q = "Send the time in @{u}'s zone ({tz}): 18:30, 6:30pm, tomorrow 9am, fri 13:00, 2026-10-02 09:00 or now."
 MENU = [
@@ -851,7 +855,7 @@ async def post_card(bot, pid):
     if s in ("DRAFT", "SCHEDULED") and not (await bot.api.get("/api/status"))["publishing_enabled"]:
         lines.append("Publishing is off: it won't go out until it is turned on.")
     lines += [f"<blockquote>{h(fmt.cut(p['caption'], 250))}</blockquote>"] if p["caption"] else []
-    return "\n".join(lines), post_rows(p) + web(f"/recover/{pid}"), r["thumbnail_url"]
+    return "\n".join(lines), post_rows(p) + web("/settings" if p["error_code"] in KEY_CODES else f"/recover/{pid}"), r["thumbnail_url"]
 
 
 @button("pa")

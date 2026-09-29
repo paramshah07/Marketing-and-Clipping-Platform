@@ -4399,12 +4399,17 @@
           "remaining": {
             "type": "integer",
             "title": "Remaining"
+          },
+          "max_users": {
+            "type": "integer",
+            "title": "Max Users"
           }
         },
         "type": "object",
         "required": [
           "open",
-          "remaining"
+          "remaining",
+          "max_users"
         ],
         "title": "SignupStatus"
       },

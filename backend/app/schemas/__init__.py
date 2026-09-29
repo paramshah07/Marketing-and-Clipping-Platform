@@ -378,6 +378,7 @@ class UserOut(BaseModel):
 class SignupStatus(BaseModel):
     open: bool
     remaining: int  # spots left before MAX_USERS
+    max_users: int
 
 
 class PasswordChange(BaseModel):

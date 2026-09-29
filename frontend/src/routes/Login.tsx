@@ -58,7 +58,7 @@ function SignIn({ fresh }: { fresh?: boolean }) {
             <input className={input} type="password" required minLength={fresh ? 8 : undefined} maxLength={128} autoComplete={fresh ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} />
             {fresh && <span className="mt-1 block text-sm text-subtle">At least 8 characters</span>}
           </label>
-          {fresh && spots.data && (full ? <p className="text-sm text-warn">Signups are full.</p> : <p className="text-sm tabular-nums text-muted">{left} spot{left === 1 ? "" : "s"} left</p>)}
+          {fresh && spots.data && (full ? <p className="text-sm text-warn">Signups are full.</p> : <p className="text-sm tabular-nums text-muted">{left} of {spots.data.max_users} spot{spots.data.max_users === 1 ? "" : "s"} left</p>)}
           {go.isError && (
             <p role="alert" className="text-sm text-bad">
               {say(go.error)}

@@ -11,7 +11,7 @@ from app.core.config import settings
 
 logging.getLogger("httpx").setLevel(logging.WARNING)  # httpx logs request URLs at INFO
 
-UNREACHABLE = "The Clipper api isn't answering. Is the stack running (docker compose up -d)?"
+UNREACHABLE = "Clipper isn't answering right now. Try again in a moment."
 
 
 class TelegramError(Exception):
