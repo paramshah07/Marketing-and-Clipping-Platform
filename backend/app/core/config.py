@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Meta's API Reel limit (15 min). Zernio's docs say 90 s, but a 120 s Reel published live on 2026-09-26.
     ZERNIO_MAX_REEL_SECONDS: int = 900
     ZERNIO_MIN_REEL_SECONDS: int = 3
+    # Prefixed to every post's Idempotency-Key. Empty in production (its keys never change); staging sets its own, so a
+    # post there never shares a key with one in production: Zernio replays a key per Zernio user, whatever the body.
+    IDEMPOTENCY_SALT: str = ""
     APP_BASE_URL: str = "http://localhost:5173"
     STATIC_DIR: Path | None = None  # production: the built frontend, served at / (compose.prod.yml); dev uses Vite
     # The operator's .env bots, read once, by `cli bootstrap` (user 1's import into telegram_bots): the first gets

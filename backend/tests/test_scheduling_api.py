@@ -2,6 +2,7 @@
 (monkeypatched), Zernio is never called (no API key), Telegram is a recorder."""
 
 import asyncio
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -495,3 +496,11 @@ def test_status_publishing_enabled(client, monkeypatch):
     monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
     assert status() == (False, "switch")
     zernio_key(1, None)
+
+
+def test_idempotency_salt_keeps_productions_keys_and_separates_stagings(monkeypatch):
+    at = datetime(2026, 10, 1, 17, tzinfo=UTC)
+    plain = hashlib.sha256(b"640:3:2026-10-01T17:00:00+00:00").hexdigest()
+    assert scheduling.idempotency_key(640, 3, at) == plain  # no salt: every key production already holds stays valid
+    monkeypatch.setattr(scheduling.settings, "IDEMPOTENCY_SALT", "staging:")
+    assert scheduling.idempotency_key(640, 3, at) not in (plain, scheduling.idempotency_key(640, 3, at, 1))

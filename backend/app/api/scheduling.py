@@ -59,7 +59,7 @@ def _now() -> datetime:
 
 
 def idempotency_key(render_id: int, account_id: int, scheduled_for: datetime, n: int = 0) -> str:
-    base = f"{render_id}:{account_id}:{scheduled_for.astimezone(UTC).isoformat()}"
+    base = f"{settings.IDEMPOTENCY_SALT}{render_id}:{account_id}:{scheduled_for.astimezone(UTC).isoformat()}"
     return hashlib.sha256((f"{base}:{n}" if n else base).encode()).hexdigest()
 
 

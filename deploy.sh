@@ -6,6 +6,8 @@
 # (the container holds the old one), then waits for the api to answer.
 set -eu
 cd "$(dirname "$0")"
+exec 9>.git/deploy.lock # one at a time with staging-refresh.sh in the same checkout
+flock 9
 # The app's own secrets, made here once and never printed (compose.prod.yml refuses to start without them):
 # SECRETS_KEY, a Fernet key, seals every user's Zernio key and bot tokens (keep a copy: losing it means every user
 # pastes them again); BOT_SERVICE_SECRET is the bearer the bot service acts as users with.
