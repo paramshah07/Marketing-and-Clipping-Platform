@@ -1,4 +1,4 @@
-"""Telegram alerts (Bot API sendMessage). Optional on localhost: a no-op unless both
+"""Telegram alerts (Bot API sendMessage), to the user the alert is about. Optional on localhost: a no-op unless both
 TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are set. Never raises, so an alert can't fail the job
 that sent it."""
 
@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
-async def notify(text: str, link: str | None = None, buttons: list[list[tuple[str, str]]] | None = None) -> bool:
-    """Send text (Telegram HTML: html.escape anything dynamic) with an optional link button, and rows of
+async def notify(
+    user_id: int, text: str, link: str | None = None, buttons: list[list[tuple[str, str]]] | None = None
+) -> bool:
+    """Send user_id text (Telegram HTML: html.escape anything dynamic) with an optional link button, and rows of
     (label, callback_data or https URL) buttons; the bot service (app/bot) answers the callbacks.
     Returns True if Telegram accepted it."""
-    if not (settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_CHAT_ID):
+    # ponytail: the .env bot is user 1's, so no one else gets alerts until their own bots (telegram_bots) do it
+    if user_id != 1 or not (settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_CHAT_ID):
         return False
     body: dict = {"chat_id": settings.TELEGRAM_CHAT_ID, "text": text, "parse_mode": "HTML"}
     rows = [[{"text": t, "url" if d.startswith("https://") else "callback_data": d} for t, d in row] for row in buttons or []]

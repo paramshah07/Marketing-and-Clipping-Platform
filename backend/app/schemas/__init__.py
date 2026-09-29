@@ -394,6 +394,22 @@ class ZernioKeyOut(BaseModel):  # the key itself never leaves the server
     error: str | None
 
 
+class ZernioKeyIn(BaseModel):
+    key: str  # sk_... or zrk_... (Zernio: API keys); never sent back
+
+
+class KeyCheck(BaseModel):  # PUT /api/me/zernio-key and its Re-check: the key, then its Instagram accounts
+    zernio: ZernioKeyOut
+    accounts: list[str]  # the key's Instagram accounts (usernames), now in Accounts
+    skipped: list[str]  # listed too, but another Clipper user already has them: not added
+    over_limit: list[str]  # beyond the Zernio plan's account limit: Zernio doesn't offer them for posting
+
+
+class Storage(BaseModel):
+    used_bytes: int  # clips and renders
+    quota_bytes: int | None  # null: unlimited
+
+
 class BotOut(BaseModel):
     id: int
     username: str | None  # @name, from getMe
@@ -417,3 +433,4 @@ class Me(BaseModel):
     setup: Setup
     zernio: ZernioKeyOut
     bots: list[BotOut]
+    storage: Storage

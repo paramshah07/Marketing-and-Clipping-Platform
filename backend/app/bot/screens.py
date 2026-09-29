@@ -162,9 +162,19 @@ def read_time(text: str, tz: str, day=None) -> datetime:
     return at
 
 
+# /api/status publishing_off: why publishing is off
+OFF_WHY = {
+    "switch": "PUBLISHING_ENABLED is off on the server",
+    "no_key": "you have no Zernio key yet: add it in Settings",
+    "key_invalid": "Zernio refused your key: update it in Settings",
+}
+
+
 async def publishing_on(bot) -> None:
-    if not (await bot.api.get("/api/status"))["publishing_enabled"]:
-        raise Alert("Publishing is off (PUBLISHING_ENABLED or ZERNIO_API_KEY in .env): nothing can post now.")
+    st = await bot.api.get("/api/status")
+    if not st["publishing_enabled"]:
+        why = OFF_WHY.get(st.get("publishing_off"), "see Settings")
+        raise Alert(f"Publishing is off ({why}): nothing can post now.")
 
 
 def post_time(p: dict) -> datetime:
@@ -611,11 +621,12 @@ async def status_cmd(bot, arg):
         st = await bot.api.get("/api/status")
     except ApiError as e:
         return await bot.send(f"<b>API offline.</b> {h(e.message)}")
+    why = OFF_WHY.get(st.get("publishing_off"), "see Settings")
     label, hint = (
         ("Database offline", "Nothing renders or publishes until the database is back.") if not st["db"] else
         ("Worker offline", "Nothing renders or publishes until the worker is back.") if not st["worker_alive"] else
-        ("Publishing off", ("Renders run. PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay "
-                            "scheduled and nothing reaches Instagram.")) if not st["publishing_enabled"] else
+        ("Publishing off", f"Renders run, but {why}: scheduled posts stay scheduled and nothing reaches Instagram.")
+        if not st["publishing_enabled"] else
         ("Publishing live", "Worker online. Scheduled posts go out at their time.")
     )  # fmt: skip
     text = (f"<b>{label}.</b> {hint}\n{st['rendering_renders']} rendering · {st['scheduled_posts']} scheduled · "

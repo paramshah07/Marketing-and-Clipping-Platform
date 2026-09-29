@@ -33,10 +33,12 @@ def test_describe():
     assert describe(None) == (None, None)
     actions = {code: describe(code)[1].action for code in CAUSES}
     assert actions["ACCOUNT_DISCONNECTED"] == "reconnect"
-    assert actions["CONTENT_REJECTED"] == actions["RENDER_FAILED"] == actions["WINDOW_EXPIRED"] == "rerender"
+    assert {c for c, a in actions.items() if a == "rerender"} == {
+        "CONTENT_REJECTED", "RENDER_FAILED", "WINDOW_EXPIRED", "KEY_CHANGED"}  # fmt: skip
     assert actions["RATE_LIMITED"] == actions["MISSED"] == "auto"
     assert {c for c, a in actions.items() if a == "retry"} == {
-        "NETWORK_ERROR", "UNKNOWN", "TOO_LONG", "TOO_SHORT", "WORKER_CRASHED", "NO_FREE_SLOT"
+        "NETWORK_ERROR", "UNKNOWN", "TOO_LONG", "TOO_SHORT", "WORKER_CRASHED", "NO_FREE_SLOT", "ZERNIO_KEY_INVALID",
+        "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING", "PROFILE_OVER_LIMIT"
     }  # fmt: skip
     cause, remedy = describe("SOMETHING_ELSE")
     assert "SOMETHING_ELSE" in cause and remedy.label == "Retry now"

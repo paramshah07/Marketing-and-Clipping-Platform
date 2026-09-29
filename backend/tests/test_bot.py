@@ -30,6 +30,7 @@ from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.schemas import CropConfig, OverlayConfig
 from app.services import zernio
+from conftest import zernio_key
 
 CHAT = 4242
 
@@ -275,7 +276,8 @@ def env(db, tmp_path, monkeypatch):
     media = next(r for r in app.routes if getattr(r, "name", None) == "media").app
     monkeypatch.setattr(media, "all_directories", [tmp_path])  # /media serves this test's files, not ./data
     zernio._quota_cache.clear()
-    return tmp_path
+    yield tmp_path
+    zernio_key(1, None)
 
 
 def run(scenario):
@@ -500,7 +502,7 @@ def test_schedule_and_posts(env, monkeypatch):
         with SyncSession() as s:
             assert s.get(Post, p.id).caption == "new words"
         assert await phone.tap("Post now", form) is not None and tg.toasts[-1] == (
-            "Publishing is off (PUBLISHING_ENABLED or ZERNIO_API_KEY in .env): nothing can post now.", True)
+            "Publishing is off (PUBLISHING_ENABLED is off on the server): nothing can post now.", True)
         # a typed time, then no confirm step: Schedule saves it
         await phone.say(f"/r{other['render']}")
         await phone.tap("Schedule…")
@@ -521,13 +523,13 @@ def test_schedule_and_posts(env, monkeypatch):
             assert s.get(Post, p2.id).status == "CANCELLED"
         # Post now with publishing on (a key that can't reach Zernio: nothing here may call it)
         monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
-        monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test_never_sent")
+        zernio_key(1, "sk_test_never_sent")
 
-        async def no_quota(zernio_account_id):
+        async def no_quota(key, zernio_account_id):
             return None
 
         monkeypatch.setattr(zernio, "publishing_limit", no_quota)
-        monkeypatch.setattr(zernio, "client", lambda **kw: pytest.fail("Zernio called"))
+        monkeypatch.setattr(zernio, "client", lambda key, **kw: pytest.fail("Zernio called"))
         await phone.say(f"/p{p.id}")
         card = max(tg.messages)
         await phone.tap("Post now", card)

@@ -3,12 +3,22 @@ name: clipper
 x-backend: &backend
   build: { context: ./backend, target: api }
   env_file: [{ path: .env, required: false }]
-  environment:
+  environment: &env
     DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
     DATA_DIR: /data
   volumes:
     - ./backend:/app
     - ./data:/data
+
+# env_file hands every .env secret to every container, and a service's `environment` wins over it: each service
+# blanks what it must not hold. (A service's own environment replaces the anchor's: *env brings the rest back.)
+x-no-sealed: &no-sealed # SECRETS_KEY opens every user's stored Zernio key: api, publisher and migrate only
+  SECRETS_KEY: ""
+x-no-bot-secret: &no-bot-secret # the bot service's credential acts as any user: api and bot only
+  BOT_SERVICE_SECRET: ""
+x-no-import: &no-import # read by migrate only (cli bootstrap: user 1 and its one-shot .env import)
+  ZERNIO_API_KEY: ""
+  CLIPPER_PASSWORD_HASH: ""
 
 services:
   postgres:
@@ -27,6 +37,7 @@ services:
   # then the api's database role and its rights, then user 1 from CLIPPER_USER / CLIPPER_PASSWORD_HASH
   migrate:
     <<: *backend
+    environment: { <<: [*env, *no-bot-secret] }
     command:
       - sh
       - -c
@@ -42,26 +53,52 @@ services:
   api:
     <<: *backend
     environment:
+      <<: [*env, *no-import]
       DATABASE_URL: postgresql+psycopg://clipper_app:${APP_DB_PASSWORD:-clipper_app}@postgres:5432/clipper
-      DATA_DIR: /data
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
     ports: ["127.0.0.1:8000:8000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
 
+  # the media queue: probe, download (yt-dlp), render (ffmpeg), one job per user at a time. Two at once on the
+  # VM's 2 OCPU, one ffmpeg thread each. Holds no secret: a hostile video or site that takes over ffmpeg or
+  # yt-dlp finds no key to read.
   worker:
     <<: *backend
     build: { context: ./backend, target: worker }
-    command: ["python", "-m", "app.worker", "--concurrency=4", "--shutdown-graceful-timeout=60"]
+    environment:
+      <<: [*env, *no-sealed, *no-bot-secret, *no-import]
+      FFMPEG_THREADS: ${FFMPEG_THREADS:-1}
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_CHAT_ID: ""
+      TELEGRAM_BOT_TOKEN_2: ""
+      TELEGRAM_BOT_TOKEN_3: ""
+    command: ["python", "-m", "app.worker", "--queues=media", "--concurrency=2", "--shutdown-graceful-timeout=60"]
     init: true  # PID 1 forwards signals and reaps ffmpeg children
     stop_grace_period: 90s  # longer than --shutdown-graceful-timeout
-    restart: unless-stopped  # a crashed/OOM-killed worker comes back; the sweeper runs inside it
+    restart: unless-stopped  # a crashed/OOM-killed worker comes back
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  # the default queue: dispatch, publish_post (each user's own Zernio key), the account sync, the stalled-job
+  # sweeper. Never ffmpeg or yt-dlp, so a slow render queue can't hold a post back.
+  publisher:
+    <<: *backend
+    build: { context: ./backend, target: worker }
+    environment:
+      <<: [*env, *no-bot-secret, *no-import]
+      TELEGRAM_BOT_TOKEN_2: ""
+      TELEGRAM_BOT_TOKEN_3: ""
+    command: ["procrastinate", "worker", "--queues=default", "--concurrency=8", "--shutdown-graceful-timeout=60"]
+    init: true
+    stop_grace_period: 90s
+    restart: unless-stopped
     depends_on: { migrate: { condition: service_completed_successfully } }
 
   # Telegram bot (docs/telegram-bot.md): a client of the api, like the browser. Without TELEGRAM_BOT_TOKEN
   # and TELEGRAM_CHAT_ID it logs why and exits 0, and on-failure leaves it stopped.
   bot:
     <<: *backend
+    environment: { <<: [*env, *no-sealed, *no-import] }
     command: ["python", "-m", "app.bot"]
     init: true  # PID 1 forwards SIGTERM: a restart takes a moment, not the 10 s stop timeout
     restart: on-failure
@@ -73,8 +110,7 @@ services:
     <<: *backend
     command: ["python", "-m", "app.bot"]
     environment:
-      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
-      DATA_DIR: /data
+      <<: [*env, *no-sealed, *no-import]
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_2}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_2}
     init: true
@@ -86,8 +122,7 @@ services:
     <<: *backend
     command: ["python", "-m", "app.bot"]
     environment:
-      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
-      DATA_DIR: /data
+      <<: [*env, *no-sealed, *no-import]
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_3}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_3}
     init: true

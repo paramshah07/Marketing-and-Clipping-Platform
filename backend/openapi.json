@@ -161,6 +161,74 @@
         }
       }
     },
+    "/api/me/zernio-key": {
+      "put": {
+        "summary": "Put Zernio Key",
+        "description": "Check the key with Zernio, store it, and pull its Instagram accounts. 422 ZERNIO_KEY_INVALID (not a key, or\nrefused); 409 ZERNIO_USER_CLAIMED (another Clipper user has that Zernio account), ZERNIO_ACCOUNT_CHANGED (your\naccounts are another Zernio account's), KEY_IN_USE (a post is publishing); 503 when keys can't be stored.",
+        "operationId": "put_zernio_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZernioKeyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Zernio Key",
+        "description": "Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later\nkey, so this can't make a second Reel. The Zernio account stays recorded, so a later key must be that account's\nwhile you have its Instagram accounts (ZERNIO_ACCOUNT_CHANGED).",
+        "operationId": "delete_zernio_key",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/me/zernio-key/check": {
+      "post": {
+        "summary": "Check Zernio Key",
+        "description": "The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked\ninvalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again.",
+        "operationId": "check_zernio_key",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyCheck"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/clips": {
       "get": {
         "summary": "List Clips",
@@ -2985,6 +3053,42 @@
         ],
         "title": "Health"
       },
+      "KeyCheck": {
+        "properties": {
+          "zernio": {
+            "$ref": "#/components/schemas/ZernioKeyOut"
+          },
+          "accounts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Accounts"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "over_limit": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Over Limit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zernio",
+          "accounts",
+          "skipped",
+          "over_limit"
+        ],
+        "title": "KeyCheck"
+      },
       "LinksOut": {
         "properties": {
           "links": {
@@ -3041,6 +3145,9 @@
             },
             "type": "array",
             "title": "Bots"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/Storage"
           }
         },
         "type": "object",
@@ -3049,7 +3156,8 @@
           "username",
           "setup",
           "zernio",
-          "bots"
+          "bots",
+          "storage"
         ],
         "title": "Me"
       },
@@ -3976,6 +4084,31 @@
         ],
         "title": "SignupStatus"
       },
+      "Storage": {
+        "properties": {
+          "used_bytes": {
+            "type": "integer",
+            "title": "Used Bytes"
+          },
+          "quota_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "used_bytes",
+          "quota_bytes"
+        ],
+        "title": "Storage"
+      },
       "SystemStatus": {
         "properties": {
           "db": {
@@ -4016,6 +4149,22 @@
           "publishing_enabled": {
             "type": "boolean",
             "title": "Publishing Enabled"
+          },
+          "publishing_off": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "switch",
+                  "no_key",
+                  "key_invalid"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publishing Off"
           }
         },
         "type": "object",
@@ -4102,6 +4251,19 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ZernioKeyIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "ZernioKeyIn"
       },
       "ZernioKeyOut": {
         "properties": {

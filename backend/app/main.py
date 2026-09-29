@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Literal
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api import auth, pipeline, recovery, scheduling
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.services import storage
 from app.tasks.queue import app as queue_app
 
 logger = logging.getLogger(__name__)
@@ -32,10 +34,11 @@ async def _abandon_orphan_uploads() -> None:
     a SECURITY DEFINER function (migration 0007), as row-level security shows this session no one's rows."""
     try:
         async with SessionLocal() as s:
-            ids = (await s.execute(text("SELECT clip_id FROM abandon_orphan_uploads()"))).scalars().all()
+            rows = (await s.execute(text("SELECT clip_id, owner FROM abandon_orphan_uploads()"))).all()
             await s.commit()
-        for i in ids:
-            (settings.DATA_DIR / "raw" / f"{i}.part").unlink(missing_ok=True)
+        for i, owner in rows:  # an upload the api took before users had prefixes has none
+            for key in (storage.key(owner, f"raw/{i}.part"), f"raw/{i}.part"):
+                storage.path_for(key).unlink(missing_ok=True)
     except SQLAlchemyError:
         logger.exception("could not clean up orphaned uploads")
 
@@ -53,11 +56,16 @@ app.add_middleware(auth.CSRF)
 
 
 class Media(StaticFiles):
-    """DATA_DIR at /media, for signed-in users (Range and ETag as StaticFiles does them)."""
+    """DATA_DIR at /media, each file for its owner only (storage.owner: another user's is a 404, like a missing one).
+    Range and ETag as StaticFiles does them. `path` is StaticFiles' normalised one: u/1/../2/x arrives as u/2/x."""
 
     async def get_response(self, path: str, scope):
-        await auth.signed_in(Request(scope))
-        return await super().get_response(path, scope)
+        user = await auth.signed_in(Request(scope))
+        if storage.owner(path) != user.id:
+            raise StarletteHTTPException(404)
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "private"  # a shared cache must never hand it to someone else
+        return response
 
 
 app.mount("/media", Media(directory=settings.DATA_DIR), name="media")
@@ -84,7 +92,12 @@ class SystemStatus(BaseModel):
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
     rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
     scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
-    publishing_enabled: bool  # PUBLISHING_ENABLED and ZERNIO_API_KEY: off, SCHEDULED posts never go out
+    publishing_enabled: bool  # PUBLISHING_ENABLED and your Zernio key is valid: off, your SCHEDULED posts never go out
+    # why it is off: the server's switch (PUBLISHING_ENABLED), or your key (none yet, or Zernio refused it)
+    publishing_off: Literal["switch", "no_key", "key_invalid"] | None = None
+
+
+KEY_OFF = {"none": "no_key", "invalid": "key_invalid"}  # users.zernio_key_status -> SystemStatus.publishing_off
 
 
 @app.get("/api/health")
@@ -95,9 +108,9 @@ async def health() -> Health:
 @app.get("/api/status")
 async def status(request: Request, response: Response) -> SystemStatus:
     """The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so."""
-    publishing = bool(settings.PUBLISHING_ENABLED and settings.ZERNIO_API_KEY)
     try:
         user = await auth.current_user(request, response)
+        off = "switch" if not settings.PUBLISHING_ENABLED else KEY_OFF.get(user.zernio_key_status)
         async with SessionLocal(info={"uid": user.id}) as s:
             last, alive = (
                 await s.execute(
@@ -118,11 +131,12 @@ async def status(request: Request, response: Response) -> SystemStatus:
             rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
                 db=True, worker_alive=alive, worker_last_heartbeat=last, failed_posts=failed,
-                rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=publishing,
+                rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=off is None,
+                publishing_off=off,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
-        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publishing_enabled=publishing)
+        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publishing_enabled=False)
 
 
 class SPA(StaticFiles):

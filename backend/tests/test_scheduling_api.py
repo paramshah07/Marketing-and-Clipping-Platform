@@ -17,7 +17,7 @@ from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.services import zernio
 from app.tasks import accounts as account_sync
-from conftest import as_user
+from conftest import as_user, zernio_key
 
 NOW = datetime(2030, 1, 7, 8, 0, tzinfo=UTC)  # a Monday, winter: London = UTC
 M, H, D = timedelta(minutes=1), timedelta(hours=1), timedelta(days=1)
@@ -32,8 +32,7 @@ def client(db):
 
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
-    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "")  # quota -> None, never a real call
-    zernio._quota_cache.clear()
+    zernio._quota_cache.clear()  # user 1 has no Zernio key here: quota None, never a real call
     clock = {"now": NOW}
     monkeypatch.setattr(scheduling, "_now", lambda: clock["now"])
     return clock
@@ -312,7 +311,7 @@ def test_auto_schedule_race_does_not_double_book(client):
 def test_sync_upsert(client, monkeypatch):
     sent = []
 
-    async def fake_notify(text, link=None, buttons=None):
+    async def fake_notify(uid, text, link=None, buttons=None):
         sent.append(text)
         return True
 
@@ -447,12 +446,22 @@ def test_status_counts(client):
     after = client.get("/api/status").json()
     assert after["rendering_renders"] - before["rendering_renders"] == 1
     assert after["scheduled_posts"] - before["scheduled_posts"] == 1
-    assert after["publishing_enabled"] is False  # no ZERNIO_API_KEY (env fixture)
+    assert after["publishing_enabled"] is False  # user 1 has no Zernio key here
 
 
 def test_status_publishing_enabled(client, monkeypatch):
-    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test")
-    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
-    assert client.get("/api/status").json()["publishing_enabled"] is False
+    """On only with the server's switch and the user's own valid key; publishing_off says which one it is."""
+
+    def status():
+        s = client.get("/api/status").json()
+        return s["publishing_enabled"], s["publishing_off"]
+
     monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
-    assert client.get("/api/status").json()["publishing_enabled"] is True
+    assert status() == (False, "no_key")
+    zernio_key(1, "sk_test", status="invalid")
+    assert status() == (False, "key_invalid")
+    zernio_key(1, "sk_test")
+    assert status() == (True, None)
+    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
+    assert status() == (False, "switch")
+    zernio_key(1, None)

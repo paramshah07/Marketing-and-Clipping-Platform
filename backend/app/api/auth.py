@@ -4,7 +4,7 @@ for). The request's Db session carries that user's id (app.core.db) and Postgres
 every query to their rows, so a forgotten filter fails closed.
 
 users and sessions have no row-level security: only this module and the CLI touch them, always by id or
-token. Errors are {"detail": {"code", "message"}}, as in scheduling."""
+token. Errors are {"detail": {"code", "message"}}, as in scheduling. Each user's own Zernio key: /api/me/zernio-key."""
 
 import hashlib
 import hmac
@@ -28,8 +28,23 @@ from starlette.datastructures import Headers
 
 from app.core.config import settings
 from app.core.db import SessionLocal
-from app.models import Account, AuthSession, TelegramBot, User
-from app.schemas import BotOut, Credentials, Me, PasswordChange, Setup, SignupStatus, UserOut, ZernioKeyOut
+from app.core.secrets import seal, unseal
+from app.models import Account, AuthSession, Post, TelegramBot, User
+from app.schemas import (
+    BotOut,
+    Credentials,
+    KeyCheck,
+    Me,
+    PasswordChange,
+    Setup,
+    SignupStatus,
+    Storage,
+    UserOut,
+    ZernioKeyIn,
+    ZernioKeyOut,
+)
+from app.services import storage, zernio
+from app.tasks import accounts as account_sync
 
 router = APIRouter(prefix="/api")
 
@@ -272,18 +287,23 @@ def bot_out(b: TelegramBot, now: datetime) -> BotOut:
                   last_seen_at=b.last_seen_at, created_at=b.created_at)  # fmt: skip
 
 
+def _zernio_out(u: User) -> ZernioKeyOut:
+    return ZernioKeyOut(status=u.zernio_key_status, last4=u.zernio_key_last4, email=u.zernio_email, name=u.zernio_name,
+                        checked_at=u.zernio_checked_at, error=u.zernio_error)  # fmt: skip
+
+
 @router.get("/me")
 async def me(user: CurrentUser, s: Db) -> Me:
     now = _now()
     bots = (await s.scalars(select(TelegramBot).order_by(TelegramBot.id))).all()
     usable = exists().where(Account.connection_status == "connected", Account.disabled_at.is_(None))
+    quota, used = (await s.execute(storage.USAGE, {"u": user.id})).one()
     return Me(
         id=user.id, username=user.username,
         setup=Setup(zernio=user.zernio_key_status == "valid", instagram=await s.scalar(select(usable)),
                     telegram=any(b.chat_id is not None and not b.error for b in bots)),
-        zernio=ZernioKeyOut(status=user.zernio_key_status, last4=user.zernio_key_last4, email=user.zernio_email,
-                            name=user.zernio_name, checked_at=user.zernio_checked_at, error=user.zernio_error),
-        bots=[bot_out(b, now) for b in bots],
+        zernio=_zernio_out(user), bots=[bot_out(b, now) for b in bots],
+        storage=Storage(used_bytes=used, quota_bytes=quota),
     )  # fmt: skip
 
 
@@ -303,3 +323,134 @@ async def change_password(body: PasswordChange, user: CurrentUser, request: Requ
         await s.execute(update(User).where(User.id == user.id).values(password_hash=hashed))
         await s.execute(delete(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token_sha256 != keep))
         await s.commit()
+
+
+# ---------------------------------------------------------------- the user's Zernio key
+#
+# Stored sealed (app.core.secrets), never sent back (last4 only). zernio_key_gen counts the credentials: a post that
+# may be live never replays under another (publish._send, KEY_CHANGED). Changing or removing the key takes the user
+# row FOR UPDATE, which waits out publish_post's claim (FOR SHARE), and is refused while a post is PUBLISHING.
+
+KEY_SHAPE = re.compile(r"(sk|zrk)_[A-Za-z0-9_-]{8,196}")  # a full-access or restricted Zernio key, up to 200 chars
+REFUSED = "Zernio refused the key"
+CLAIMED = "this Zernio account is already connected to another Clipper user"
+
+
+async def zernio_key(s: AsyncSession) -> str | None:
+    """The request user's Zernio key; None when there is none (or SECRETS_KEY can't open it)."""
+    return unseal(await s.scalar(select(User.zernio_key_enc).where(User.id == s.info["uid"])))
+
+
+async def _verify(key: str) -> dict | None:
+    """GET /v1/auth/verify: the key's Zernio user ({userId, name, email, ...}), None when Zernio refuses the key.
+    502 when Zernio can't be asked."""
+    try:
+        who = await zernio.verify(key)
+    except zernio.ZernioError as e:
+        if e.status == 401:
+            return None
+        raise _err(502, "ZERNIO_ERROR", f"could not check the key with Zernio: {e}") from None
+    return who if who.get("valid") is True and who.get("userId") else None
+
+
+def _verified(who: dict) -> dict:
+    return {"zernio_user_id": who["userId"], "zernio_email": who.get("email"), "zernio_name": who.get("name"),
+            "zernio_key_status": "valid", "zernio_checked_at": _now(), "zernio_error": None}  # fmt: skip
+
+
+async def _not_elsewhere(s: AsyncSession, uid: int, who: dict) -> None:
+    """One Clipper user per Zernio user: Zernio scopes idempotency keys per user, and it keeps two users off one
+    Instagram account."""
+    if await s.scalar(select(User.id).where(User.zernio_user_id == who["userId"], User.id != uid)):
+        raise _err(409, "ZERNIO_USER_CLAIMED", CLAIMED)
+
+
+async def _not_publishing(s: AsyncSession, uid: int) -> None:
+    """Under the user row's FOR UPDATE: no post may be publishing with the key it is about to lose."""
+    if await s.scalar(select(exists().where(Post.user_id == uid, Post.status == "PUBLISHING"))):
+        raise _err(409, "KEY_IN_USE", "a post is publishing with your key right now: try again in a minute")
+
+
+async def _sync(s: AsyncSession, u: User, key: str) -> KeyCheck:
+    """Pull the key's Instagram accounts (GET /v1/accounts) into the user's, and name the ones Zernio holds back
+    because they are beyond the plan's limit (includeOverLimit)."""
+    try:
+        parsed = zernio.parse_accounts(await zernio.list_accounts(key))
+        skipped = await account_sync.upsert(s, u.id, parsed)
+        every = zernio.parse_accounts(await zernio.list_accounts(key, over_limit=True))
+    except zernio.ZernioError as e:
+        raise _err(502, "ZERNIO_ERROR", f"the key is saved, but listing its accounts failed ({e}): Re-check") from None
+    listed = {p["zernio_account_id"] for p in parsed}
+    over_limit = [p["username"] for p in every if p["zernio_account_id"] not in listed]
+    found = [p["username"] for p in parsed if p["username"] not in skipped]
+    return KeyCheck(zernio=_zernio_out(u), accounts=found, skipped=skipped, over_limit=over_limit)
+
+
+@router.put("/me/zernio-key")
+async def put_zernio_key(body: ZernioKeyIn, user: CurrentUser, s: Db) -> KeyCheck:
+    """Check the key with Zernio, store it, and pull its Instagram accounts. 422 ZERNIO_KEY_INVALID (not a key, or
+    refused); 409 ZERNIO_USER_CLAIMED (another Clipper user has that Zernio account), ZERNIO_ACCOUNT_CHANGED (your
+    accounts are another Zernio account's), KEY_IN_USE (a post is publishing); 503 when keys can't be stored."""
+    key = body.key.strip()
+    if not KEY_SHAPE.fullmatch(key):
+        raise _err(422, "ZERNIO_KEY_INVALID", "a Zernio API key starts with sk_ or zrk_ (Zernio: Settings, API keys)")
+    try:
+        sealed = seal(key)
+    except RuntimeError:
+        raise _err(503, "SECRETS_KEY_MISSING", "this server can't store keys yet (SECRETS_KEY is not set)") from None
+    if (who := await _verify(key)) is None:
+        raise _err(422, "ZERNIO_KEY_INVALID", f"{REFUSED}: copy it again from Zernio's API keys page")
+    u = await s.get(User, user.id, with_for_update=True)  # until the commit
+    await _not_elsewhere(s, u.id, who)
+    has_accounts = select(exists().where(Account.user_id == u.id))
+    if u.zernio_user_id not in (None, who["userId"]) and await s.scalar(has_accounts):
+        raise _err(409, "ZERNIO_ACCOUNT_CHANGED", "this key is another Zernio account's; your Instagram accounts and "
+                   "posts belong to the Zernio account you connected first")  # fmt: skip
+    await _not_publishing(s, u.id)
+    if unseal(u.zernio_key_enc) != key:  # another credential: what may be live under the old one never replays
+        u.zernio_key_gen += 1
+    u.zernio_key_enc, u.zernio_key_last4 = sealed, key[-4:]
+    for k, v in _verified(who).items():
+        setattr(u, k, v)
+    try:
+        await s.commit()
+    except IntegrityError:  # uq_users_zernio_user_id: another user connected it meanwhile
+        raise _err(409, "ZERNIO_USER_CLAIMED", CLAIMED) from None
+    return await _sync(s, u, key)
+
+
+@router.post("/me/zernio-key/check")
+async def check_zernio_key(user: CurrentUser, s: Db) -> KeyCheck:
+    """The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked
+    invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again."""
+    u = await s.get(User, user.id)
+    if (key := unseal(u.zernio_key_enc)) is None:
+        raise _err(409, "ZERNIO_KEY_MISSING", "there is no Zernio key to check: paste yours first")
+    who = await _verify(key)
+    if who is not None:
+        await _not_elsewhere(s, u.id, who)
+    refused = {"zernio_key_status": "invalid", "zernio_error": REFUSED, "zernio_checked_at": _now()}
+    values = _verified(who) if who else refused
+    # the key as read: a new one stored meanwhile has its own check
+    await s.execute(update(User).where(User.id == u.id, User.zernio_key_enc == u.zernio_key_enc).values(**values))
+    try:
+        await s.commit()
+    except IntegrityError:
+        raise _err(409, "ZERNIO_USER_CLAIMED", CLAIMED) from None
+    u = await s.get(User, user.id, populate_existing=True)
+    if who is None:
+        return KeyCheck(zernio=_zernio_out(u), accounts=[], skipped=[], over_limit=[])
+    return await _sync(s, u, key)
+
+
+@router.delete("/me/zernio-key", status_code=204)
+async def delete_zernio_key(user: CurrentUser, s: Db) -> None:
+    """Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later
+    key, so this can't make a second Reel. The Zernio account stays recorded, so a later key must be that account's
+    while you have its Instagram accounts (ZERNIO_ACCOUNT_CHANGED)."""
+    await s.get(User, user.id, with_for_update=True)
+    await _not_publishing(s, user.id)
+    none = {"zernio_key_enc": None, "zernio_key_last4": None, "zernio_key_status": "none", "zernio_checked_at": None,
+            "zernio_error": None}  # fmt: skip
+    await s.execute(update(User).where(User.id == user.id).values(**none))
+    await s.commit()

@@ -10,8 +10,12 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str  # postgresql+psycopg://..., set by compose
     DATA_DIR: Path  # set by compose
-    ZERNIO_API_KEY: str = ""  # required to publish
+    # Each user's own key is in users.zernio_key_enc; this one is read once, by `cli bootstrap` (user 1's import)
+    ZERNIO_API_KEY: str = ""
     ZERNIO_BASE_URL: str = "https://zernio.com/api/v1"
+    # Fernet key(s) sealing users' secrets (app.core.secrets), comma-separated: the first seals, any opens.
+    # Only the api, publisher and migrate get it; blank: no key can be read (every user's Zernio key is "missing").
+    SECRETS_KEY: str = ""
     # Meta's API Reel limit (15 min). Zernio's docs say 90 s, but a 120 s Reel published live on 2026-09-26.
     ZERNIO_MAX_REEL_SECONDS: int = 900
     ZERNIO_MIN_REEL_SECONDS: int = 3
@@ -28,6 +32,7 @@ class Settings(BaseSettings):
     # Users (docs: multi-user). Open signup until MAX_USERS non-disabled users exist (the operator counts).
     MAX_USERS: int = 15
     USER_QUOTA_BYTES: int = 5 * 1024**3  # a new user's storage cap (users.quota_bytes)
+    MIN_FREE_BYTES: int = 3 * 1024**3  # no upload, import or render when DATA_DIR's disk has less free
     # The bot service's credential: the api honours X-Clipper-User only with this bearer. Blank: bots off.
     BOT_SERVICE_SECRET: str = ""
     APP_DB_PASSWORD: str = "clipper_app"  # the api's role (cli db-grants); postgres is never published off-host

@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from sqlalchemy import delete, select, update
 
 from app.api.auth import MAX_PASSWORD, MIN_PASSWORD, USERNAME, hash_password
+from app.core import secrets
 from app.core.config import settings
 from app.core.db import SyncSession
 from app.models import AuthSession, Brand, Render, SourceClip, User, cas
@@ -58,10 +59,29 @@ def db_grants() -> None:
     print("db-grants: clipper_app ok")
 
 
+def import_env(user: User) -> None:
+    """The one-shot .env import into user 1, the operator (users.env_imported_at): ZERNIO_API_KEY becomes its sealed
+    Zernio key, generation 1 (migration 0007 gave the posts it may already have sent key_gen 1, so those still
+    replay), valid without a network call (a Re-check fills in the Zernio user). The code never reads the .env key
+    after this. It waits, unstamped, until a SECRETS_KEY can seal (whatever .env holds). Every .env secret user 1
+    takes over is imported here, in this one step."""
+    if user.env_imported_at is not None:
+        return
+    if not secrets.ready():
+        return print("bootstrap: SECRETS_KEY is not set: the .env import into user 1 waits for it")
+    key = settings.ZERNIO_API_KEY.strip()
+    if key and user.zernio_key_enc is None:
+        user.zernio_key_enc, user.zernio_key_last4 = secrets.seal(key), key[-4:]
+        user.zernio_key_status, user.zernio_key_gen = "valid", 1
+    user.env_imported_at = datetime.now(UTC)
+    print(f"bootstrap: .env imported into user 1 (Zernio key: {'yes' if key else 'none in .env'})")
+
+
 def bootstrap() -> None:
     """User 1, the operator, from the migrate service's env. Idempotent, and a missing or bad value is skipped
     with a message, never a failed migrate: CLIPPER_USER renames it; CLIPPER_PASSWORD_HASH (a bcrypt hash, or
-    the base64 of one so compose doesn't interpolate its $) becomes its password while it has none."""
+    the base64 of one so compose doesn't interpolate its $) becomes its password while it has none; then the
+    one-shot .env import (import_env)."""
     name, hashed = settings.CLIPPER_USER.strip().lower(), settings.CLIPPER_PASSWORD_HASH.strip()
     with SyncSession() as s, s.begin():
         if (user := s.get(User, 1, with_for_update=True)) is None:
@@ -81,6 +101,7 @@ def bootstrap() -> None:
                 user.password_hash = hashed
             else:
                 print("bootstrap: CLIPPER_PASSWORD_HASH is not a bcrypt hash (or the base64 of one): skipped")
+        import_env(user)
     print(f"bootstrap: user 1 is {user.username!r}, password {'set' if user.password_hash else 'not set'}")
 
 

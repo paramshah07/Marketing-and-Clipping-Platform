@@ -4,12 +4,15 @@ up through the api (the cookie path). B gets a 404 for every A id in every route
 rows in any list; defaults and counts are per user; and the database itself refuses a row with no user or a
 reference to another user's row."""
 
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text, update
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
@@ -20,7 +23,8 @@ from app.cli import db_grants
 from app.core.config import settings
 from app.core.db import SessionLocal, engine
 from app.main import app
-from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip, User
+from app.services import zernio
 from app.tasks import accounts as account_sync
 from conftest import TEST_URL, as_user
 
@@ -29,6 +33,7 @@ A = as_user(1)
 OWNED = {"source_clips", "brands", "saved_captions", "saved_covers", "renders", "accounts", "posts", "telegram_bots"}
 JPEG = b"\xff\xd8\xff\xe0" + bytes(100)
 PNG = b"\x89PNG\r\n\x1a\n"
+PNG_RGBA = PNG + b"\0\0\0\rIHDR" + bytes(8) + b"\x08\x06" + bytes(7) + b"\0\0\0\0IDAT\0\0\0\0\0\0\0\0IEND\0\0\0\0"
 
 
 @pytest.fixture(scope="module")
@@ -41,6 +46,8 @@ def client(db, tmp_path_factory):
         for module in (auth, main):
             mp.setattr(module, "SessionLocal", async_sessionmaker(app_engine, expire_on_commit=False))
         mp.setattr(settings, "DATA_DIR", tmp_path_factory.mktemp("data"))
+        media = next(r for r in app.routes if getattr(r, "name", None) == "media").app
+        mp.setattr(media, "all_directories", [settings.DATA_DIR])  # /media serves this module's files
         mp.setattr(settings, "ZERNIO_API_KEY", "")  # quota -> None: never a Zernio call
         mp.setattr(settings, "APP_BASE_URL", "http://localhost:5173")
         mp.setattr(settings, "MAX_USERS", 1000)
@@ -245,3 +252,86 @@ def test_startup_sweep_sees_every_users_uploads(db, client):
     client.portal.call(main._abandon_orphan_uploads)  # as clipper_app, whose own view is empty
     with Session(db) as s:
         assert [s.get(SourceClip, i).error_code for i in ids] == ["UPLOAD_ABANDONED"] * 2
+
+
+def test_media_is_each_owners_only(client):
+    """Critique B4: a file is its owner's (u/{id}/..., or user 1's for a legacy key with no prefix), judged on the path
+    StaticFiles normalised (u/B/../1/x is u/1/x), so another user's file is a 404, the same as a missing one. Range
+    (the <video> element) and ETag still work, and no shared cache may keep it."""
+    b = client.b
+    files = {"renders/legacy.mp4": A, "u/1/renders/new.mp4": A, f"u/{b}/renders/b.mp4": {}}  # key -> its owner's headers
+    for key in files:
+        (settings.DATA_DIR / key).parent.mkdir(parents=True, exist_ok=True)
+        (settings.DATA_DIR / key).write_bytes(bytes(range(256)))
+    for key, owner_headers in files.items():
+        r = client.get(f"/media/{key}", headers=owner_headers)
+        assert (r.status_code, r.headers["cache-control"], r.content[:3]) == (200, "private", b"\0\1\2"), key
+        assert client.get(f"/media/{key}", headers=A if owner_headers == {} else {}).status_code == 404, key
+        assert client.get(f"/media/{key}", headers={"If-None-Match": r.headers["etag"]} | owner_headers).status_code == 304
+    r = client.get(f"/media/u/{b}/renders/b.mp4", headers={"Range": "bytes=0-9"})
+    assert (r.status_code, r.content) == (206, bytes(range(10)))
+    climbs = [f"u/{b}/%2e%2e/1/renders/new.mp4", f"u/{b}/%2e%2e/%2e%2e/renders/legacy.mp4"]
+    for path in [*climbs, f"u/{b}/../1/renders/new.mp4", "u/abc/x.mp4", "u/%C2%B2/renders/b.mp4", "u/", f"u/{b}"]:
+        assert client.get(f"/media/{path}").status_code == 404, path
+    assert [client.get(f"/media/{p}", headers=A).status_code for p in climbs] == [200, 200]  # they are user 1's files
+
+
+def test_new_files_go_under_their_owners_prefix(client):
+    brand = client.post("/api/brands", json={"name": "B logo"}).json()
+    logo = client.post(f"/api/brands/{brand['id']}/logo", files={"file": ("l.png", PNG_RGBA)}).json()["logo_url"]
+    assert logo.startswith(f"/media/u/{client.b}/logos/{brand['id']}-")
+    assert client.get(logo).status_code == 200 and client.get(logo, headers=A).status_code == 404
+
+
+def test_a_key_listing_another_users_account_skips_it(db, client, a, monkeypatch):
+    """Critique A6 under B's row-level security: A's account (another member of one Zernio team) is skipped and
+    reported (INSERT ... ON CONFLICT DO NOTHING never sees A's row), B's own is added, and A's is untouched."""
+    with Session(db) as s:
+        theirs = s.get(Account, a["account"]).zernio_account_id
+    mine = uuid.uuid4().hex
+    fixtures = Path(__file__).parent / "fixtures" / "zernio"
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/auth/verify"):
+            d = json.loads((fixtures / "live_auth_verify.json").read_text())
+            d["body"]["userId"] = uuid.uuid4().hex
+        else:
+            d = json.loads((fixtures / "accounts.json").read_text())
+            one = d["body"]["accounts"][0]
+            d["body"]["accounts"] = [one | {"_id": theirs, "username": "a_acct"}, one | {"_id": mine, "username": "b.own"}]
+        return httpx.Response(d["status"], json=d["body"])
+
+    real = zernio.client
+    monkeypatch.setattr(zernio, "client", lambda key, **kw: real(key, transport=httpx.MockTransport(handler), **kw))
+    r = client.put("/api/me/zernio-key", json={"key": "sk_" + "c3" * 32})
+    assert r.status_code == 200, r.text
+    assert (r.json()["accounts"], r.json()["skipped"]) == (["b.own"], ["a_acct"])
+    with Session(db) as s:
+        assert s.scalar(select(Account.user_id).where(Account.zernio_account_id == mine)) == client.b
+        assert (s.get(Account, a["account"]).user_id, s.get(Account, a["account"]).username) == (1, "a_acct")
+    assert [x["username"] for x in client.get("/api/accounts").json()] == ["b.own"]
+    assert client.delete("/api/me/zernio-key").status_code == 204
+
+
+def test_storage_quota_and_disk_floor(db, client, monkeypatch):
+    """New files need room: past the user's quota (users.quota_bytes, a new user's USER_QUOTA_BYTES) 507
+    QUOTA_EXCEEDED; the disk under MIN_FREE_BYTES 507 DISK_FULL for everyone. User 1 has no quota."""
+    assert client.get("/api/me").json()["storage"] == {"used_bytes": 0, "quota_bytes": settings.USER_QUOTA_BYTES}
+    with Session(db) as s:
+        s.add(SourceClip(user_id=client.b, origin="upload", status="READY", size_bytes=3000))
+        s.execute(update(User).where(User.id == client.b).values(quota_bytes=2000))
+        s.commit()
+    assert client.get("/api/me").json()["storage"] == {"used_bytes": 3000, "quota_bytes": 2000}
+    url = {"url": "https://www.tiktok.com/@b/video/7000000000000000009"}
+    for r in [client.post("/api/clips/from-url", json=url), client.post("/api/clips/from-urls", json={"urls": [url["url"]]}),
+              client.post("/api/clips", files={"file": ("x.mp4", b"0" * 100)}), client.post("/api/renders", json={"clip_id": 1})]:  # fmt: skip
+        assert (r.status_code, r.json()["detail"]["code"]) == (507, "QUOTA_EXCEEDED"), r.text
+    assert "storage is full" in r.json()["detail"]["message"]
+    assert client.get("/api/me", headers=A).json()["storage"]["quota_bytes"] is None
+    assert client.post("/api/clips/from-url", json=url, headers=A).status_code == 201
+    monkeypatch.setattr(settings, "MIN_FREE_BYTES", 10**18)
+    r = client.post("/api/clips/from-url", json=url, headers=A)
+    assert (r.status_code, r.json()["detail"]["code"]) == (507, "DISK_FULL")
+    with Session(db) as s:
+        s.execute(update(User).where(User.id == client.b).values(quota_bytes=None))
+        s.commit()
