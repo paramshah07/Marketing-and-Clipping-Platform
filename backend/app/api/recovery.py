@@ -4,12 +4,13 @@ import secrets
 import shutil
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.api.auth import current_user
 from app.api.pipeline import Db, _defer
 from app.api.scheduling import _err, idempotency_key, load_post_out
 from app.core.config import settings
@@ -21,7 +22,7 @@ from app.tasks import accounts as account_sync
 from app.tasks import publish
 from app.tasks.media import render
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 CHECK_TIMEOUT_S = 15  # the Recover button waits on this GET: never the publisher's 300 s
 
@@ -116,7 +117,7 @@ async def _reconnect(s: AsyncSession, post: Post) -> None:
     post failing ACCOUNT_DISCONNECTED marks its account disconnected; this also catches posts a sync left
     behind). Still disconnected: the post stays as it is."""
     try:
-        await account_sync.sync(s)
+        await account_sync.sync(s, s.info["uid"])
     except zernio.ZernioError as e:
         raise _err(502, "ZERNIO_ERROR", str(e)) from e
     acc = await s.get(Account, post.account_id, populate_existing=True)

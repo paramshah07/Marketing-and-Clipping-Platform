@@ -27,7 +27,7 @@ from app.models import Brand, Render, SavedCaption, SourceClip, cas
 from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
-from conftest import needs_ffmpeg
+from conftest import as_user, needs_ffmpeg
 
 PNG = b"\x89PNG\r\n\x1a\n"
 JPEG = b"\xff\xd8\xff\xe0" + bytes(100)  # the magic bytes are all the api checks
@@ -44,7 +44,7 @@ def png(color_type: int, *chunks: bytes) -> bytes:
 
 @pytest.fixture(scope="module")
 def client(db):
-    with TestClient(app) as c:
+    with TestClient(app, headers=as_user()) as c:
         yield c
         c.portal.call(engine.dispose)  # its connections belong to this client's event loop
 

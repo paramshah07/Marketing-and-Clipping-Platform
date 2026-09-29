@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,7 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DataError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import pipeline, recovery, scheduling
+from app.api import auth, pipeline, recovery, scheduling
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.tasks.queue import app as queue_app
@@ -28,13 +28,11 @@ async def lifespan(_: FastAPI):
 
 async def _abandon_orphan_uploads() -> None:
     """Uploads stream through this one api process, so an UPLOADING row at startup lost its request (e.g. a
-    --reload mid-upload). Fail it and drop its partial file instead of leaving a spinner for 24 h."""
+    --reload mid-upload). Fail it and drop its partial file instead of leaving a spinner for 24 h. Every user's:
+    a SECURITY DEFINER function (migration 0007), as row-level security shows this session no one's rows."""
     try:
         async with SessionLocal() as s:
-            ids = (await s.execute(text(
-                "UPDATE source_clips SET status = 'FAILED', error_code = 'UPLOAD_ABANDONED',"
-                " error_detail = 'the api restarted during the upload' WHERE status = 'UPLOADING' RETURNING id"
-            ))).scalars().all()  # fmt: skip
+            ids = (await s.execute(text("SELECT clip_id FROM abandon_orphan_uploads()"))).scalars().all()
             await s.commit()
         for i in ids:
             (settings.DATA_DIR / "raw" / f"{i}.part").unlink(missing_ok=True)
@@ -42,12 +40,28 @@ async def _abandon_orphan_uploads() -> None:
         logger.exception("could not clean up orphaned uploads")
 
 
-# route.name as the operation id gives the generated TS client clean function names
-app = FastAPI(title="Clipper", lifespan=lifespan, generate_unique_id_function=lambda route: route.name)
+# route.name as the operation id gives the generated TS client clean function names. Production (STATIC_DIR)
+# serves no /docs or /openapi.json: only health and sign-in answer without a user (dump_openapi.py still works).
+app = FastAPI(
+    title="Clipper", lifespan=lifespan, generate_unique_id_function=lambda route: route.name,
+    openapi_url=None if settings.STATIC_DIR else "/openapi.json",
+)  # fmt: skip
 app.add_middleware(
     CORSMiddleware, allow_origins=[settings.APP_BASE_URL], allow_methods=["*"], allow_headers=["*"]
 )
-app.mount("/media", StaticFiles(directory=settings.DATA_DIR), name="media")
+app.add_middleware(auth.CSRF)
+
+
+class Media(StaticFiles):
+    """DATA_DIR at /media, for signed-in users (Range and ETag as StaticFiles does them)."""
+
+    async def get_response(self, path: str, scope):
+        await auth.signed_in(Request(scope))
+        return await super().get_response(path, scope)
+
+
+app.mount("/media", Media(directory=settings.DATA_DIR), name="media")
+app.include_router(auth.router)
 app.include_router(pipeline.router)
 app.include_router(scheduling.router)
 app.include_router(recovery.router)
@@ -67,7 +81,6 @@ class SystemStatus(BaseModel):
     db: bool
     worker_alive: bool  # a worker heartbeat within the last 30 s
     worker_last_heartbeat: datetime | None
-    jobs: dict[str, int]  # procrastinate job counts by status
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
     rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
     scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
@@ -80,10 +93,12 @@ async def health() -> Health:
 
 
 @app.get("/api/status")
-async def status() -> SystemStatus:
+async def status(request: Request, response: Response) -> SystemStatus:
+    """The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so."""
     publishing = bool(settings.PUBLISHING_ENABLED and settings.ZERNIO_API_KEY)
     try:
-        async with SessionLocal() as s:
+        user = await auth.current_user(request, response)
+        async with SessionLocal(info={"uid": user.id}) as s:
             last, alive = (
                 await s.execute(
                     text(
@@ -92,7 +107,6 @@ async def status() -> SystemStatus:
                     )
                 )
             ).one()
-            jobs = await s.execute(text("SELECT status::text, count(*) FROM procrastinate_jobs GROUP BY status"))
             failed, scheduled = (
                 await s.execute(
                     text(
@@ -103,14 +117,12 @@ async def status() -> SystemStatus:
             ).one()
             rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
-                db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed,
+                db=True, worker_alive=alive, worker_last_heartbeat=last, failed_posts=failed,
                 rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=publishing,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
-        return SystemStatus(
-            db=False, worker_alive=False, worker_last_heartbeat=None, jobs={}, publishing_enabled=publishing
-        )
+        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publishing_enabled=publishing)
 
 
 class SPA(StaticFiles):

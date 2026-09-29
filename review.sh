@@ -18,6 +18,7 @@ ssh "$VM" 'cd clipper && docker compose exec -T postgres pg_dump -U clipper -Fc 
 rsync -a "$VM:clipper/data/" data/
 dc down -v
 dc up -d --build --wait postgres
-dc exec -T postgres pg_restore -U clipper -d clipper --no-owner --exit-on-error --single-transaction < /tmp/clipper-review.dump
+# -x: no GRANTs (the api's role doesn't exist here yet; migrate's db-grants makes it and grants afresh)
+dc exec -T postgres pg_restore -U clipper -d clipper --no-owner -x --exit-on-error --single-transaction < /tmp/clipper-review.dump
 dc up -d --build api worker
 echo "review stack up (publishing off, no bots): cd frontend && npm run dev, then open http://localhost:5173"

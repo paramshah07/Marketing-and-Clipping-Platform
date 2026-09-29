@@ -23,7 +23,8 @@ services:
       timeout: 5s
       retries: 30
 
-  # one-shot: app tables via Alembic, then Procrastinate's schema (its --apply is not idempotent, so guard it)
+  # one-shot: app tables via Alembic, then Procrastinate's schema (its --apply is not idempotent, so guard it),
+  # then the api's database role and its rights, then user 1 from CLIPPER_USER / CLIPPER_PASSWORD_HASH
   migrate:
     <<: *backend
     command:
@@ -32,11 +33,17 @@ services:
       - >-
         alembic upgrade head &&
         if procrastinate healthchecks >/dev/null 2>&1; then echo "procrastinate schema: already applied";
-        else procrastinate schema --apply; fi
+        else procrastinate schema --apply; fi &&
+        python -m app.cli db-grants && python -m app.cli bootstrap
     depends_on: { postgres: { condition: service_healthy } }
 
+  # connects as clipper_app, not the superuser: Postgres row-level security keeps each user to their own rows.
+  # (A service's environment replaces the anchor's, so DATA_DIR is repeated.)
   api:
     <<: *backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://clipper_app:${APP_DB_PASSWORD:-clipper_app}@postgres:5432/clipper
+      DATA_DIR: /data
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
     ports: ["127.0.0.1:8000:8000"]

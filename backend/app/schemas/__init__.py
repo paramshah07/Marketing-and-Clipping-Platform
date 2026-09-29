@@ -360,3 +360,60 @@ class AutoScheduleOut(BaseModel):
 
 class RemedyIn(BaseModel):
     action: Literal["reconnect", "rerender", "retry"] | None = None  # None: the post's mapped remedy
+
+
+# ---------------------------------------------------------------- users (app/api/auth.py)
+
+
+class Credentials(BaseModel):  # signup and login
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+
+
+class SignupStatus(BaseModel):
+    open: bool
+    remaining: int  # spots left before MAX_USERS
+
+
+class PasswordChange(BaseModel):
+    current: str
+    new: str
+
+
+class ZernioKeyOut(BaseModel):  # the key itself never leaves the server
+    status: Literal["none", "valid", "invalid"]
+    last4: str | None
+    email: str | None  # the key's Zernio user (GET /v1/auth/verify)
+    name: str | None
+    checked_at: datetime | None
+    error: str | None
+
+
+class BotOut(BaseModel):
+    id: int
+    username: str | None  # @name, from getMe
+    chat_title: str | None  # the paired chat
+    alerts: bool
+    # running: seen in the last 90 s; waiting: for /start <code>; rejected: Telegram refused the token
+    health: Literal["running", "waiting", "rejected", "not_responding"]
+    last_seen_at: datetime | None
+    created_at: datetime
+
+
+class Setup(BaseModel):  # the setup checklist: a valid key, a usable account, a paired bot
+    zernio: bool
+    instagram: bool
+    telegram: bool
+
+
+class Me(BaseModel):
+    id: int
+    username: str
+    setup: Setup
+    zernio: ZernioKeyOut
+    bots: list[BotOut]

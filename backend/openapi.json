@@ -5,6 +5,162 @@
     "version": "0.1.0"
   },
   "paths": {
+    "/api/auth/signup-status": {
+      "get": {
+        "summary": "Signup Status",
+        "operationId": "signup_status",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/signup": {
+      "post": {
+        "summary": "Signup",
+        "description": "Username + password, nothing else; signs the new user in. Open until MAX_USERS users exist.",
+        "operationId": "signup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "summary": "Login",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "summary": "Logout",
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "summary": "Me",
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/password": {
+      "post": {
+        "summary": "Change Password",
+        "description": "Signs out every other session of the user; this browser stays signed in.",
+        "operationId": "change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/clips": {
       "get": {
         "summary": "List Clips",
@@ -1678,6 +1834,7 @@
     "/api/status": {
       "get": {
         "summary": "Status",
+        "description": "The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so.",
         "operationId": "status",
         "responses": {
           "200": {
@@ -1965,6 +2122,78 @@
           "name"
         ],
         "title": "Body_upload_cover"
+      },
+      "BotOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "chat_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chat Title"
+          },
+          "alerts": {
+            "type": "boolean",
+            "title": "Alerts"
+          },
+          "health": {
+            "type": "string",
+            "enum": [
+              "running",
+              "waiting",
+              "rejected",
+              "not_responding"
+            ],
+            "title": "Health"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "chat_title",
+          "alerts",
+          "health",
+          "last_seen_at",
+          "created_at"
+        ],
+        "title": "BotOut"
       },
       "BrandCreate": {
         "properties": {
@@ -2652,6 +2881,24 @@
         "type": "object",
         "title": "CoverPatch"
       },
+      "Credentials": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Credentials"
+      },
       "CropConfig": {
         "properties": {
           "x": {
@@ -2772,6 +3019,40 @@
         ],
         "title": "LinksOut"
       },
+      "Me": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "setup": {
+            "$ref": "#/components/schemas/Setup"
+          },
+          "zernio": {
+            "$ref": "#/components/schemas/ZernioKeyOut"
+          },
+          "bots": {
+            "items": {
+              "$ref": "#/components/schemas/BotOut"
+            },
+            "type": "array",
+            "title": "Bots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "setup",
+          "zernio",
+          "bots"
+        ],
+        "title": "Me"
+      },
       "NextSlot": {
         "properties": {
           "scheduled_for": {
@@ -2829,6 +3110,24 @@
         ],
         "title": "OverlayConfig",
         "description": "Logo box as fractions of the 1080x1920 output: top-left x, y and width (height follows the logo,\nso only y < 1 is checked here)."
+      },
+      "PasswordChange": {
+        "properties": {
+          "current": {
+            "type": "string",
+            "title": "Current"
+          },
+          "new": {
+            "type": "string",
+            "title": "New"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current",
+          "new"
+        ],
+        "title": "PasswordChange"
       },
       "Placed": {
         "properties": {
@@ -3636,6 +3935,47 @@
         ],
         "title": "RenderOut"
       },
+      "Setup": {
+        "properties": {
+          "zernio": {
+            "type": "boolean",
+            "title": "Zernio"
+          },
+          "instagram": {
+            "type": "boolean",
+            "title": "Instagram"
+          },
+          "telegram": {
+            "type": "boolean",
+            "title": "Telegram"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zernio",
+          "instagram",
+          "telegram"
+        ],
+        "title": "Setup"
+      },
+      "SignupStatus": {
+        "properties": {
+          "open": {
+            "type": "boolean",
+            "title": "Open"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          }
+        },
+        "type": "object",
+        "required": [
+          "open",
+          "remaining"
+        ],
+        "title": "SignupStatus"
+      },
       "SystemStatus": {
         "properties": {
           "db": {
@@ -3657,13 +3997,6 @@
               }
             ],
             "title": "Worker Last Heartbeat"
-          },
-          "jobs": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "type": "object",
-            "title": "Jobs"
           },
           "failed_posts": {
             "type": "integer",
@@ -3690,7 +4023,6 @@
           "db",
           "worker_alive",
           "worker_last_heartbeat",
-          "jobs",
           "publishing_enabled"
         ],
         "title": "SystemStatus"
@@ -3712,6 +4044,24 @@
           "reason"
         ],
         "title": "Unplaced"
+      },
+      "UserOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "title": "UserOut"
       },
       "ValidationError": {
         "properties": {
@@ -3752,6 +4102,85 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ZernioKeyOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "none",
+              "valid",
+              "invalid"
+            ],
+            "title": "Status"
+          },
+          "last4": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last4"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "last4",
+          "email",
+          "name",
+          "checked_at",
+          "error"
+        ],
+        "title": "ZernioKeyOut"
       }
     }
   }

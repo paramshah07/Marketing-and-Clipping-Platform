@@ -17,6 +17,7 @@ from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.services import zernio
 from app.tasks import accounts as account_sync
+from conftest import as_user
 
 NOW = datetime(2030, 1, 7, 8, 0, tzinfo=UTC)  # a Monday, winter: London = UTC
 M, H, D = timedelta(minutes=1), timedelta(hours=1), timedelta(days=1)
@@ -24,7 +25,7 @@ M, H, D = timedelta(minutes=1), timedelta(hours=1), timedelta(days=1)
 
 @pytest.fixture(scope="module")
 def client(db):
-    with TestClient(app) as c:
+    with TestClient(app, headers=as_user()) as c:
         yield c
         c.portal.call(engine.dispose)  # its connections belong to this client's event loop
 
@@ -292,7 +293,7 @@ def test_auto_schedule_race_does_not_double_book(client):
 
     async def race():
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        async with httpx.AsyncClient(transport=transport, base_url="http://t", headers=as_user()) as c:
             return await asyncio.gather(*(c.post("/api/posts/auto-schedule", json={"account_id": aid, "render_ids": b})
                                           for b in batches))  # fmt: skip
 
@@ -322,7 +323,7 @@ def test_sync_upsert(client, monkeypatch):
 
     async def upsert(*rows):
         async with SessionLocal() as s:
-            await account_sync.upsert(s, list(rows))
+            await account_sync.upsert(s, 1, list(rows))
 
     client.portal.call(upsert, row)
     a = next(x for x in client.get("/api/accounts").json() if x["zernio_account_id"] == zid)
@@ -371,7 +372,7 @@ def test_parallel_creates_at_one_instant(client):
     aid, rids = account(), [render(), render()]
 
     async def race():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", headers=as_user()) as c:
             return await asyncio.gather(*(c.post("/api/posts", json={
                 "render_id": rid, "account_id": aid, "scheduled_for": iso(NOW + D)}) for rid in rids))  # fmt: skip
 

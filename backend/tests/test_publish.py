@@ -25,6 +25,7 @@ from app.tasks import accounts as account_sync
 from app.tasks import publish
 from app.tasks.publish import dispatch, publish_post
 from app.tasks.queue import app
+from conftest import as_user
 
 FIX = Path(__file__).parent / "fixtures" / "zernio"
 PRESIGN = json.loads((FIX / "presign.json").read_text())["body"]
@@ -523,7 +524,7 @@ def test_cancel_while_publishing_is_refused(db, env, monkeypatch):
     crash_at(monkeypatch, "before_post")
     with pytest.raises(Crash):
         go(pid)
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         r = c.post(f"/api/posts/{pid}/cancel")
         c.portal.call(engine.dispose)
     assert r.status_code == 409 and r.json()["detail"]["code"] == "STATE_CONFLICT"
@@ -546,7 +547,7 @@ def test_cancel_before_the_worker_wins(db, env, monkeypatch):
 
 
 def remedy(post_id: int, action: str | None = None) -> httpx.Response:
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         r = c.post(f"/api/posts/{post_id}/remedy", json={"action": action})
         c.portal.call(engine.dispose)
     return r
@@ -671,7 +672,7 @@ def test_remedy_reconnect(db, env, monkeypatch, connected):
         s.execute(update(Account).where(Account.id == acc).values(connection_status="disconnected"))
         s.commit()
 
-    async def sync(s):  # stands in for the Zernio account sync (GET /v1/accounts)
+    async def sync(s, uid):  # stands in for the Zernio account sync (GET /v1/accounts)
         await s.execute(
             update(Account)
             .where(Account.id == acc)
@@ -716,7 +717,7 @@ def test_reconnect_reslot_keeps_the_20h_clock_of_the_first_post(db, env, monkeyp
 
     async def sync():
         async with publish.SessionLocal() as s:
-            await account_sync.upsert(s, parsed)
+            await account_sync.upsert(s, 1, parsed)
 
     run(sync())  # disconnected -> connected: its ACCOUNT_DISCONNECTED posts move to the next free slot
     p = row(db, pid)
@@ -878,7 +879,7 @@ def test_403_marks_the_account_disconnected_and_the_next_sync_reslots(db, env, m
 
     async def sync():
         async with publish.SessionLocal() as s:
-            await account_sync.upsert(s, parsed)
+            await account_sync.upsert(s, 1, parsed)
 
     run(sync())
     assert [(row(db, p).status, row(db, p).error_code, row(db, p).scheduled_for) for p in (pid, sibling)] == [
@@ -897,7 +898,7 @@ def test_rerender_keeps_the_old_render_out_of_the_ready_tray(db, env, monkeypatc
                   overlay_config=None, crop_config=None))  # fmt: skip
         s.commit()
         clip, superseded = r.source_clip_id, r.superseded_at
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         tray = c.get("/api/renders", params={"clip_id": clip, "status": "READY", "unscheduled": True}).json()
         c.portal.call(engine.dispose)
     assert superseded is not None and tray == []  # the new render has the post; the old one is superseded
@@ -912,7 +913,7 @@ def test_delete_render_takes_its_cancelled_posts_but_not_a_live_one(db, env):
                    status="SCHEDULED", idempotency_key=uuid.uuid4().hex))  # fmt: skip
         s.commit()
         rid_gone, rid_kept = s.get(Post, gone).render_id, p.render_id
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert c.delete(f"/api/renders/{rid_gone}").status_code == 204
         assert c.delete(f"/api/renders/{rid_kept}").status_code == 409
         c.portal.call(engine.dispose)
@@ -956,7 +957,7 @@ def test_cover_api(db, env):
     def covers():
         return sorted(f"/media/covers/{p.name}" for p in (env.dir / "covers").iterdir())
 
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert put_cover(c, rid, b"\x89PNG\r\n\x1a\n").status_code == 415
         assert put_cover(c, rid, COVER + bytes(8 * 1024**2)).status_code == 413
         assert (put_cover(c, 10**9).status_code, c.delete(f"/api/renders/{10**9}/cover").status_code) == (404, 404)
@@ -1045,7 +1046,7 @@ def test_rerender_copies_the_cover(db, env):
         new_key = s.get(Render, p.render_id).cover_key
     assert new_key.startswith(f"covers/{p.render_id}-") and (env.dir / new_key).read_bytes() == COVER
     assert (p.zernio_media_url, p.zernio_cover_url) == (None, None)
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert c.delete(f"/api/renders/{old}").status_code == 204
         c.portal.call(engine.dispose)
     assert not (env.dir / old_key).exists() and (env.dir / new_key).read_bytes() == COVER

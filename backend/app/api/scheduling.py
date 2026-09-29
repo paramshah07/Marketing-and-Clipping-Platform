@@ -14,10 +14,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.auth import current_user
 from app.api.pipeline import Db
 from app.core.config import settings
 from app.models import Account, Brand, Post, Render, SourceClip, cas
@@ -40,7 +41,7 @@ from app.services.errors import describe
 from app.services.storage import url_for
 from app.tasks import accounts as account_sync
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 MIN_LEAD = timedelta(minutes=-1)  # "now" is fine (the dispatcher takes it within a minute); a minute-precise picker puts it up to 60 s back
 AUTO_LEAD = slots.AUTO_LEAD  # automatic placement (auto-schedule, next-slot, late approve) skips nearer slots
@@ -176,7 +177,7 @@ async def list_accounts(s: Db) -> list[AccountOut]:
 async def sync_accounts(s: Db) -> list[AccountOut]:
     """Pull GET /v1/accounts from Zernio (read-only) and upsert Instagram accounts by zernio_account_id."""
     try:
-        await account_sync.sync(s)
+        await account_sync.sync(s, s.info["uid"])
     except zernio.ZernioError as e:
         raise _err(502, "ZERNIO_ERROR", str(e)) from e
     return await _accounts_out(s)

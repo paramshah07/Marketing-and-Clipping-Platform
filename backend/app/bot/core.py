@@ -242,6 +242,9 @@ async def main() -> int:
     if not (settings.TELEGRAM_BOT_TOKEN and settings.TELEGRAM_CHAT_ID):
         log.warning("Telegram bot off: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env, then docker compose up -d bot")
         return 0
+    if not settings.BOT_SERVICE_SECRET:  # the api answers the bot only with it
+        log.warning("Telegram bot off: set BOT_SERVICE_SECRET in .env (api and bot), then docker compose up -d api bot")
+        return 0
     bot = Bot(Telegram(settings.TELEGRAM_BOT_TOKEN), Clipper(settings.CLIPPER_API_URL), settings.TELEGRAM_CHAT_ID)
     try:
         await bot.run()

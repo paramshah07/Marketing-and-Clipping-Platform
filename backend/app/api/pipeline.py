@@ -15,8 +15,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.api.auth import Db, current_user
 from app.core.config import settings
-from app.core.db import SessionLocal
 from app.models import Brand, Post, Render, SavedCaption, SavedCover, SourceClip, cas
 from app.schemas import (
     BrandCreate,
@@ -41,7 +41,7 @@ from app.schemas import (
 from app.services import links, storage
 from app.tasks.media import download_clip, probe_clip, render
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
 MAX_LOGO_BYTES = 10 * 1024**2
@@ -50,14 +50,6 @@ MAX_COVER_BYTES = 8 * 1024**2  # Instagram's image limit (Zernio: Instagram medi
 # A list import must not starve the rest: its downloads queue behind renders and single imports (priority)
 # and run two at a time (lanes), which also keeps the sites' rate limits further away.
 BULK_PRIORITY, BULK_LANES = -10, 2
-
-
-async def _db():
-    async with SessionLocal() as s:
-        yield s
-
-
-Db = Annotated[AsyncSession, Depends(_db)]
 
 
 async def _defer(s: AsyncSession, task, options: dict | None = None, **kwargs) -> None:

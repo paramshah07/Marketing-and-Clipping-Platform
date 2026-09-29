@@ -618,9 +618,8 @@ async def status_cmd(bot, arg):
                             "scheduled and nothing reaches Instagram.")) if not st["publishing_enabled"] else
         ("Publishing live", "Worker online. Scheduled posts go out at their time.")
     )  # fmt: skip
-    jobs = " · ".join(f"{n} {s}" for s, n in sorted(st["jobs"].items())) or "none"
     text = (f"<b>{label}.</b> {hint}\n{st['rendering_renders']} rendering · {st['scheduled_posts']} scheduled · "
-            f"{st['failed_posts']} failed\nJobs: {jobs}")  # fmt: skip
+            f"{st['failed_posts']} failed")  # fmt: skip
     rows = [[(f"Failed posts ({st['failed_posts']})", "ls:failed")]] if st["failed_posts"] else []
     await bot.send(text, rows + [[("Calendar", "ls:calendar"), ("Ready", "ls:ready"), ("Drafts", "ls:drafts")]])
 

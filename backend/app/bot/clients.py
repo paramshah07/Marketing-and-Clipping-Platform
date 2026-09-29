@@ -7,6 +7,8 @@ import logging
 
 import httpx
 
+from app.core.config import settings
+
 logging.getLogger("httpx").setLevel(logging.WARNING)  # httpx logs request URLs at INFO
 
 UNREACHABLE = "The Clipper api isn't answering. Is the stack running (docker compose up -d)?"
@@ -76,8 +78,10 @@ def _error(status: int, body) -> ApiError:
 
 
 class Clipper:
-    def __init__(self, base_url: str, transport: httpx.AsyncBaseTransport | None = None):
-        self.http = httpx.AsyncClient(base_url=base_url, timeout=120, transport=transport)
+    def __init__(self, base_url: str, transport: httpx.AsyncBaseTransport | None = None, user_id: int = 1):
+        # every call (and /media fetch) as user_id: the api honours X-Clipper-User only with the service's bearer
+        headers = {"Authorization": f"Bearer {settings.BOT_SERVICE_SECRET}", "X-Clipper-User": str(user_id)}
+        self.http = httpx.AsyncClient(base_url=base_url, timeout=120, transport=transport, headers=headers)
 
     async def __call__(self, method: str, path: str, **kw):
         try:

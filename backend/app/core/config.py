@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     FFMPEG_THREADS: int = 2
     YTDLP_COOKIES_FILE: str = ""
     MAX_UPLOAD_BYTES: int = 2 * 1024**3
+    # Users (docs: multi-user). Open signup until MAX_USERS non-disabled users exist (the operator counts).
+    MAX_USERS: int = 15
+    USER_QUOTA_BYTES: int = 5 * 1024**3  # a new user's storage cap (users.quota_bytes)
+    # The bot service's credential: the api honours X-Clipper-User only with this bearer. Blank: bots off.
+    BOT_SERVICE_SECRET: str = ""
+    APP_DB_PASSWORD: str = "clipper_app"  # the api's role (cli db-grants); postgres is never published off-host
+    # bootstrap only (the migrate service): user 1's username, and its password as a bcrypt hash (or base64 of one)
+    CLIPPER_USER: str = ""
+    CLIPPER_PASSWORD_HASH: str = ""
 
     @field_validator("ZERNIO_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "YTDLP_COOKIES_FILE", mode="before")
     @classmethod
