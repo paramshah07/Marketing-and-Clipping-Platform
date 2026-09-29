@@ -5,6 +5,12 @@
 # (the container holds the old one), then waits for the api to answer.
 set -eu
 cd "$(dirname "$0")"
+# The app's own secrets, made here once and never printed (compose.prod.yml refuses to start without them):
+# SECRETS_KEY, a Fernet key, seals every user's Zernio key and bot tokens (keep a copy: losing it means every user
+# pastes them again); BOT_SERVICE_SECRET is the bearer the bot service acts as users with.
+[ -z "$(tail -c1 .env)" ] || echo >> .env  # a last line without its newline would swallow the first one added
+grep -q '^SECRETS_KEY=.' .env || echo "SECRETS_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
+grep -q '^BOT_SERVICE_SECRET=.' .env || echo "BOT_SERVICE_SECRET=$(openssl rand -hex 32)" >> .env
 docker compose up -d --build --remove-orphans
 git diff --quiet 'HEAD@{1}' HEAD -- Caddyfile 2>/dev/null || docker compose restart caddy
 for _ in $(seq 60); do

@@ -1,7 +1,9 @@
 // Documentation screenshots: drives the real UI in Google Chrome and writes docs/images/*.png with numbered
 // callouts, plus docs/images/manifest.json (file, page, title, alt, callouts [{n, selector, label}]) that the
 // legend tables in docs/guide/* follow.
-//   ./review.sh && (cd frontend && npm run dev)    then, from frontend/:    node e2e/docs-screenshots.mjs
+//   ./review.sh && (cd frontend && npm run dev)    then, from frontend/:
+//   CLIPPER_E2E_USER=clipper CLIPPER_E2E_PASSWORD=… node e2e/docs-screenshots.mjs    (the operator's account on the copy;
+//   the password comes from the environment, never from this file)
 //   ONLY=calendar,accounts node e2e/docs-screenshots.mjs    retake some;  PREP=0 reuses the last run's data step
 // Review stack only (a copy of production, publishing off). Before shooting, prep() shapes that copy so every screen
 // has something to show: test brands archived; "Late-night pick" and "Deep dive" made the default caption and cover;
@@ -21,8 +23,24 @@ const OUT = `${ROOT}docs/images/`
 const ONLY = process.env.ONLY?.split(",")
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 
+const USER = process.env.CLIPPER_E2E_USER
+const PASSWORD = process.env.CLIPPER_E2E_PASSWORD
+if (!USER || !PASSWORD) {
+  console.error("Set CLIPPER_E2E_USER and CLIPPER_E2E_PASSWORD: a Clipper user of the review stack")
+  process.exit(2)
+}
+// what the browser sends through the dev server: its origin, same-origin (the api's CSRF check)
+const SITE = { origin: new URL(BASE).origin, "sec-fetch-site": "same-origin" }
+async function signIn() {
+  const r = await fetch(`${API}/api/auth/login`, { method: "POST", headers: { ...SITE, "content-type": "application/json" }, body: JSON.stringify({ username: USER, password: PASSWORD }) })
+  if (!r.ok) throw new Error(`sign-in as ${USER}: HTTP ${r.status} ${await r.text()}`)
+  return r.headers.getSetCookie().find((c) => c.startsWith("clipper_session=")).split(";")[0].slice("clipper_session=".length)
+}
+const SESSION = await signIn() // the api calls below and every browser context use this session
+
 async function api(method, path, body) {
-  const r = await fetch(`${API}/api${path}`, { method, headers: body ? { "content-type": "application/json" } : {}, body: body && JSON.stringify(body) })
+  const headers = { ...SITE, cookie: `clipper_session=${SESSION}`, ...(body ? { "content-type": "application/json" } : {}) }
+  const r = await fetch(`${API}/api${path}`, { method, headers, body: body && JSON.stringify(body) })
   const data = r.status === 204 ? null : await r.json().catch(() => null)
   if (!r.ok) throw new Error(`${method} ${path}: HTTP ${r.status} ${JSON.stringify(data)}`)
   return data
@@ -572,6 +590,7 @@ try {
 for (const s of shots(data)) {
   if (ONLY && !ONLY.includes(s.file.replace(".png", ""))) continue
   const ctx = await browser.newContext({ viewport: s.viewport ?? { width: 1440, height: 900 }, colorScheme: "dark", timezoneId: "Europe/London", locale: "en-GB" })
+  await ctx.addCookies([{ name: "clipper_session", value: SESSION, url: BASE }])
   const page = await ctx.newPage()
   page.on("pageerror", (e) => log("pageerror", s.file, e.message))
   page.on("dialog", (dlg) => dlg.dismiss()) // nothing here should confirm anything

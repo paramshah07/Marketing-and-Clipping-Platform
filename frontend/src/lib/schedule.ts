@@ -219,6 +219,20 @@ export function apiError(e: unknown): { code?: string; message: string } {
   return { message: errorText(e) }
 }
 
+// The few codes whose api message speaks to whoever runs the server, not to you
+const SAY: Record<string, string> = {
+  CROSS_SITE: "The server refused a request from this address: it expects another one (APP_BASE_URL).",
+  SECRETS_KEY_MISSING: "This server can't store keys or bot tokens yet (SECRETS_KEY is not set): ask whoever runs it.",
+  USERNAME_TAKEN: "That username is taken: pick another.", // the api's starts with the name, which must keep its case
+}
+
+/** An api error as one sentence. The api's messages are written for people ("the current password is wrong"). */
+export function say(e: unknown) {
+  const { code, message } = apiError(e)
+  const s = (code && SAY[code]) || message
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 // Chrome's ICU list uses old names the backend's tzdata (no backward links) rejects: store the current ones.
 const CANONICAL: Record<string, string> = {
   "Africa/Asmera": "Africa/Asmara",

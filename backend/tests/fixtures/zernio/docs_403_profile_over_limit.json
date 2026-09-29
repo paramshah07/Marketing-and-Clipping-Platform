@@ -1,0 +1,9 @@
+{
+  "status": 403,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "code": "PROFILE_OVER_LIMIT"
+  }
+}

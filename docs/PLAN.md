@@ -13,9 +13,13 @@ path). Spec: `docs/spec.md`. Research: `.context/research/*.md`
 - Rev 3 (2026-09-28): **production = one Oracle Cloud Always Free Arm VM** (2 OCPU / 12 GB, Pay As You Go
   account so it is never reclaimed as idle), same compose + `compose.prod.yml` (images carry the code and the
   built frontend, the api serves it at `/`), public at `<ip>.sslip.io` behind Caddy: HTTPS plus one shared
-  password (basic auth), since there is no login. Runbook: `docs/deploy.md`.
+  password (basic auth), since there is no login. Runbook: `docs/deploy.md`. (The shared password went in rev 5.)
 - Rev 4 (2026-09-28): no content-ownership tag anywhere; a **Customizations** tab holds brands, saved captions
   and saved covers, one of each marked default (what the Editor preselects).
+- Rev 5 (2026-09-28): **multi-user** (section 9). Open signup (username + password) up to `MAX_USERS` = 15;
+  each user brings their own Zernio key and any number of Telegram bots; Postgres row-level security keeps each
+  user to their own rows; the operator is user 1. Caddy's basic auth is gone (the app signs users in). Design,
+  threat model, capacity and runbook: `docs/multi-user.md`.
 - Rev 2: **publish via Zernio** (operator can't create a Meta developer account) · **localhost-first,
   not production-grade**: no Cloudflare Access/Tunnel, no VPS, no R2 for now.
 
@@ -221,3 +225,21 @@ clip is longer than the 15 min Reel limit. **Recover** — remedy labels per §4
 Routes: `/library` (Clips | Published), `/editor/:clipId`, `/calendar`, `/accounts`,
 `/customizations/:tab` (brands | captions | covers; `/customizations` and `/brands` redirect to brands),
 `/recover/:postId`.
+
+## 9. Multi-user (rev 5, 2026-09-28)
+The full design is `docs/multi-user.md`; the rules are CLAUDE.md's hard constraints 3, 4 and 9 to 11. What it changes
+in this plan:
+- §2: auth exists. Services: postgres, migrate (+ `db-grants`, `bootstrap`), api (as `clipper_app`), worker (queue
+  `media`, 2 jobs, no secrets), publisher (queue `default`: dispatch, publish, sync, sweeper), bot (one supervisor for
+  every user's bots). `./data` keys are `u/{uid}/…`; unprefixed keys are user 1's.
+- §3: tables `users`, `sessions`, `telegram_bots`; `user_id` + row-level security on the 7 tables above and
+  `telegram_bots`; composite FKs; per-user defaults; `posts.key_gen` (migrations 0007 to 0009).
+- §4: every Zernio call uses the post owner's key; a replay needs the same key generation (`KEY_CHANGED`); key-level
+  refusals pause the user (`ZERNIO_KEY_INVALID`, `ZERNIO_PAYMENT_REQUIRED`); dispatch skips users without a valid key.
+- §5: every route but `/health`, `/auth/*` and the SPA needs a user. New: `/auth/signup|login|logout|signup-status`,
+  `/me`, `/me/password`, `/me/zernio-key` (+ `/check`), `/me/bots` (+ `/{id}/pair|test`), and the bot service's
+  `/internal/*`. `/status` is per user and gains `publisher_alive` and `publishing_off`.
+- §6: `ZERNIO_API_KEY` and `TELEGRAM_*` (+ `_2`, `_3`) are read once, by the operator's one-shot import. New:
+  `SECRETS_KEY`, `BOT_SERVICE_SECRET`, `MAX_USERS`, `USER_QUOTA_BYTES`, `MIN_FREE_BYTES`, `APP_DB_PASSWORD`,
+  `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` (`.env.example`).
+- §8: routes `/login`, `/signup` (outside the Shell), `/setup`, `/settings`.

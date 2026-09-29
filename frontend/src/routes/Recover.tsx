@@ -8,7 +8,7 @@ import { cancelPostMutation, getPostOptions, getPostQueryKey, listAccountsOption
 import { ZERNIO_URL } from "@/components/AccountBits"
 import { Chip } from "@/components/bits"
 import { BROWSER_TZ, FAILED, STATUS_LABEL, apiError, localParts, shortWhen } from "@/lib/schedule"
-import { cn, label, mmss, shortUrl } from "@/lib/utils"
+import { PUBLISHING_OFF, cn, label, mmss, shortUrl } from "@/lib/utils"
 
 const TONE: Partial<Record<PostOut["status"], "accent" | "ok" | "bad" | "warn">> = { DRAFT: "warn", SCHEDULED: "accent", PUBLISHING: "accent", PUBLISHED: "ok", FAILED: "bad", DEAD_LETTER: "bad" }
 const HEADLINE: Record<PostOut["status"], string> = {
@@ -32,8 +32,15 @@ const TITLES: Record<string, string> = {
   MISSED: "Missed its slot",
   NO_FREE_SLOT: "No free slot to move to",
   WINDOW_EXPIRED: "Outcome unknown",
+  KEY_CHANGED: "Sent with your previous Zernio key",
+  ZERNIO_KEY_INVALID: "Zernio refused your key",
+  ZERNIO_PAYMENT_REQUIRED: "Zernio payment failed",
+  ZERNIO_KEY_MISSING: "No Zernio key",
+  PROFILE_OVER_LIMIT: "Beyond your Zernio plan's limit",
   UNKNOWN: "Zernio reported a failure",
 }
+// Fixed in Settings (your Zernio key), then Retry
+const KEY_CODES = new Set(["ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING"])
 const DOES: Record<Remedy["action"], string> = {
   reconnect: "Reconnect the account in Zernio, then check here: its failed posts move to the next free slots. The next account sync does the same.",
   rerender: "Creates a fresh render and publishes it in the next free slot",
@@ -43,7 +50,7 @@ const DOES: Record<Remedy["action"], string> = {
 const ICONS = { reconnect: Link2, rerender: RefreshCw, retry: RotateCw, auto: RotateCw }
 const MAX_RESTARTS = 3 // backend publish.MAX_ORPHAN_REDEFERS, then DEAD_LETTER WORKER_CRASHED
 // The Reel may already be live (publish.AMBIGUOUS): a re-render gets a new idempotency key, so ask first.
-const MAYBE_LIVE = new Set(["NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED"])
+const MAYBE_LIVE = new Set(["NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED", "KEY_CHANGED"])
 
 const inFlight = (p?: PostOut) => !!p && (p.status === "PUBLISHING" || (p.status === "SCHEDULED" && Date.parse(p.scheduled_for) < Date.now() + 120_000))
 
@@ -122,7 +129,16 @@ export function Recover() {
             <>
               {p.cause && <p className="mt-5 text-md">{p.cause}</p>}
               {said && <p className="mt-2 text-sm text-muted">Instagram said: “{said}”</p>}
-              {st.data?.publishing_enabled === false && <p className="mt-2 text-sm text-warn">Publishing is off on this machine: a retry waits until it is turned on.</p>}
+              {st.data?.publishing_off && (
+                <p className="mt-2 text-sm text-warn">
+                  {PUBLISHING_OFF[st.data.publishing_off].why} A retry waits until then.
+                </p>
+              )}
+              {(KEY_CODES.has(p.error_code ?? "") || (st.data?.publishing_off && st.data.publishing_off !== "switch")) && (
+                <Link to="/settings" className="mt-2 inline-block text-sm text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                  Open Settings
+                </Link>
+              )}
               {fix && <RemedyButton remedy={fix} busy={remedy.isPending} onClick={apply} />}
               {fix && (
                 <p className="mt-2 text-center text-sm tabular-nums text-muted">

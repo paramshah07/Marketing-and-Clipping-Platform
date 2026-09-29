@@ -1,36 +1,42 @@
 # Production on the cloud VM (docs/deploy.md), layered on compose.yml:
 #   docker compose -f compose.yml -f compose.prod.yml up -d --build
 # Code and the built frontend are baked into the images (no ./backend bind mount, no --reload), so after a
-# git pull, `up -d --build` recreates exactly the services whose image changed. There is no login, so Caddy
-# (HTTPS + one shared password, ./Caddyfile) is the only published port; everything else stays on 127.0.0.1.
+# git pull, `up -d --build` recreates exactly the services whose image changed. Caddy (HTTPS, ./Caddyfile) is the
+# only published port; everything else stays on 127.0.0.1. The app signs users in itself.
 
 x-prod: &prod
   volumes: !override [./data:/data]
+  # the address Caddy serves: the sign-in cookie is Secure (and __Host-) and every change must come from this origin
+  # because it is https; alert and pairing links point here. From CLIPPER_HOST, so it can't be missing or http.
+  environment: &base-url
+    APP_BASE_URL: https://${CLIPPER_HOST:?set CLIPPER_HOST in .env}
   logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }  # the disk never fills with logs
 
 services:
-  postgres:
-    logging: *logs
-    healthcheck:  # over TCP: on a fresh volume the entrypoint's init server is socket-only, so healthy = the real one
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U clipper -d clipper"]
-  migrate: *prod
+  postgres: { logging: *logs }
+  migrate: *prod # also user 1 from .env: CLIPPER_USER / CLIPPER_PASSWORD_HASH, and once its Zernio key and bots
   api:
     <<: *prod
     build: { context: ./backend, target: api-prod, additional_contexts: { frontend: ./frontend } }
-    command: !override ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    environment: { STATIC_DIR: /app/static }
+    # the client's address from Caddy's X-Forwarded-For, trusted only from docker's default network pools (Caddy
+    # is on the compose network): the sign-in throttles key on it
+    command: !override ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
+                        "--proxy-headers", "--forwarded-allow-ips", "172.16.0.0/12,192.168.0.0/16"]
+    environment:
+      <<: *base-url
+      STATIC_DIR: /app/static
+      # deploy.sh adds both to the VM's .env before it starts anything; checked here, so nothing starts without them
+      SECRETS_KEY: ${SECRETS_KEY:?run deploy.sh, which adds SECRETS_KEY to .env}
+      BOT_SERVICE_SECRET: ${BOT_SERVICE_SECRET:?run deploy.sh, which adds BOT_SERVICE_SECRET to .env}
   worker: *prod
+  publisher: *prod
   bot: *prod
-  bot2: *prod
-  bot3: *prod
   caddy:
     image: caddy:2
     restart: unless-stopped
     ports: ["80:80", "443:443"]  # the only public ports: 80 for the certificate challenge and the redirect
     environment:  # from the VM's .env
       CLIPPER_HOST: ${CLIPPER_HOST:?set CLIPPER_HOST in .env}
-      CLIPPER_USER: ${CLIPPER_USER:?set CLIPPER_USER in .env}
-      CLIPPER_PASSWORD_HASH: ${CLIPPER_PASSWORD_HASH:?set CLIPPER_PASSWORD_HASH in .env}
       CLIPPER_ACME_EMAIL: ${CLIPPER_ACME_EMAIL:?set CLIPPER_ACME_EMAIL in .env}
     volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data]  # caddy_data keeps the certificate
     depends_on: { api: { condition: service_started } }

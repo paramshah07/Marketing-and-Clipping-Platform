@@ -1,27 +1,27 @@
 """Recovery (Phase 5): apply a failed post's remedy. docs/PLAN.md section 4."""
 
 import secrets
-import shutil
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.api import scheduling
+from app.api.auth import current_user, zernio_key
 from app.api.pipeline import Db, _defer
 from app.api.scheduling import _err, idempotency_key, load_post_out
 from app.core.config import settings
-from app.models import Account, Post, Render, cas
+from app.models import Account, Post, Render, User, cas
 from app.schemas import PostOut, RemedyIn
 from app.services import publisher, slots, storage, zernio
 from app.services.errors import RETRY, describe
-from app.tasks import accounts as account_sync
 from app.tasks import publish
 from app.tasks.media import render
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 CHECK_TIMEOUT_S = 15  # the Recover button waits on this GET: never the publisher's 300 s
 
@@ -37,7 +37,7 @@ async def _zernio_state(s: AsyncSession, post: Post) -> str | None:
     if not post.zernio_post_id:
         return None
     try:
-        async with publisher.client(timeout=CHECK_TIMEOUT_S) as c:
+        async with publisher.client(await zernio_key(s), timeout=CHECK_TIMEOUT_S) as c:
             zpost = await publisher.get_post(c, post.zernio_post_id)
     except (zernio.ZernioError, publisher.NetworkError, publisher.Later, publisher.Rejected):
         return None
@@ -56,9 +56,14 @@ async def _retry(s: AsyncSession, post: Post) -> None:
         return await _cas(s, post, status="SCHEDULED", scheduled_for=datetime.now(UTC), **fresh)
     if post.first_post_at is not None:
         # a POST may have gone out: same key and media URL, and publish_post's 20 h guard still counts
-        # from first_post_at. Straight to PUBLISHING (no reslot) so the replay happens now.
-        if not (settings.PUBLISHING_ENABLED and settings.ZERNIO_API_KEY):
-            raise _err(409, "PUBLISHING_DISABLED", "publishing is off, so the retry would wait in PUBLISHING")
+        # from first_post_at. Straight to PUBLISHING (no reslot) so the replay happens now. FOR SHARE, as publish_post's
+        # claim: a key change waits for this commit, then sees the post PUBLISHING and is refused.
+        u = await s.get(User, s.info["uid"], with_for_update={"read": True})
+        if not (settings.PUBLISHING_ENABLED and u.zernio_key_status == "valid"):
+            raise _err(409, "PUBLISHING_DISABLED", "publishing is off (or your Zernio key isn't working), so the retry "
+                       "would wait in PUBLISHING")  # fmt: skip
+        if post.key_gen != u.zernio_key_gen:  # publish_post would refuse the replay: say so now, with its remedy
+            return await _cas(s, post, status="DEAD_LETTER", error_code="KEY_CHANGED", error_detail=None)
         await _cas(s, post, status="PUBLISHING", **fresh)
         raw = await (await s.connection()).get_raw_connection()
         job = publish.publish_post.configure(
@@ -84,7 +89,8 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
         return
     if post.zernio_post_id and state in (None, "PROCESSING"):
         raise _err(409, "MAYBE_PUBLISHED", "Zernio may still publish the earlier attempt; check again shortly")
-    if publish.maybe_live(post) and post.error_code != "WINDOW_EXPIRED":  # WINDOW_EXPIRED: operator checked
+    # WINDOW_EXPIRED, KEY_CHANGED: no replay can go out any more, and their cause says to check Instagram first
+    if publish.maybe_live(post) and post.error_code not in ("WINDOW_EXPIRED", "KEY_CHANGED"):
         raise _err(409, "MAYBE_PUBLISHED", "the earlier attempt may be live: Retry now replays it with the same key")
     old = await s.get(Render, post.render_id)
     acc = await slots.lock_account(s, post.account_id)
@@ -105,8 +111,8 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
         error_code=None, error_detail=None, alerted_at=None, attempt_count=0,
     )  # fmt: skip
     if old.cover_key:  # a copy, not the same file: deleting either render never breaks the other
-        new.cover_key = f"covers/{new.id}-{secrets.token_hex(4)}.jpg"
-        await run_in_threadpool(shutil.copyfile, storage.path_for(old.cover_key), storage.path_for(new.cover_key))
+        new.cover_key = storage.key(s.info["uid"], f"covers/{new.id}-{secrets.token_hex(4)}.jpg")
+        await run_in_threadpool(storage.copy, old.cover_key, new.cover_key)
     await _defer(s, render, render_id=new.id)
 
 
@@ -115,10 +121,7 @@ async def _reconnect(s: AsyncSession, post: Post) -> None:
     move to their next free slots (the sync itself does that on a disconnected -> connected change, and a
     post failing ACCOUNT_DISCONNECTED marks its account disconnected; this also catches posts a sync left
     behind). Still disconnected: the post stays as it is."""
-    try:
-        await account_sync.sync(s)
-    except zernio.ZernioError as e:
-        raise _err(502, "ZERNIO_ERROR", str(e)) from e
+    await scheduling.sync(s)
     acc = await s.get(Account, post.account_id, populate_existing=True)
     if acc.connection_status == "connected" and acc.disabled_at is None:
         await publish.reslot_disconnected(s, acc.id)

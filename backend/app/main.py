@@ -1,8 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Literal
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,9 +12,10 @@ from sqlalchemy import text
 from sqlalchemy.exc import DataError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import pipeline, recovery, scheduling
+from app.api import auth, bots, pipeline, recovery, scheduling
 from app.core.config import settings
 from app.core.db import SessionLocal
+from app.services import storage
 from app.tasks.queue import app as queue_app
 
 logger = logging.getLogger(__name__)
@@ -28,26 +30,48 @@ async def lifespan(_: FastAPI):
 
 async def _abandon_orphan_uploads() -> None:
     """Uploads stream through this one api process, so an UPLOADING row at startup lost its request (e.g. a
-    --reload mid-upload). Fail it and drop its partial file instead of leaving a spinner for 24 h."""
+    --reload mid-upload). Fail it and drop its partial file instead of leaving a spinner for 24 h. Every user's:
+    a SECURITY DEFINER function (migration 0007), as row-level security shows this session no one's rows."""
     try:
         async with SessionLocal() as s:
-            ids = (await s.execute(text(
-                "UPDATE source_clips SET status = 'FAILED', error_code = 'UPLOAD_ABANDONED',"
-                " error_detail = 'the api restarted during the upload' WHERE status = 'UPLOADING' RETURNING id"
-            ))).scalars().all()  # fmt: skip
+            rows = (await s.execute(text("SELECT clip_id, owner FROM abandon_orphan_uploads()"))).all()
             await s.commit()
-        for i in ids:
-            (settings.DATA_DIR / "raw" / f"{i}.part").unlink(missing_ok=True)
+        for i, owner in rows:  # an upload the api took before users had prefixes has none
+            for key in (storage.key(owner, f"raw/{i}.part"), f"raw/{i}.part"):
+                storage.path_for(key).unlink(missing_ok=True)
     except SQLAlchemyError:
         logger.exception("could not clean up orphaned uploads")
 
 
-# route.name as the operation id gives the generated TS client clean function names
-app = FastAPI(title="Clipper", lifespan=lifespan, generate_unique_id_function=lambda route: route.name)
+# route.name as the operation id gives the generated TS client clean function names. Production (STATIC_DIR)
+# serves no /docs or /openapi.json: only health and sign-in answer without a user (dump_openapi.py still works).
+app = FastAPI(
+    title="Clipper", lifespan=lifespan, generate_unique_id_function=lambda route: route.name,
+    openapi_url=None if settings.STATIC_DIR else "/openapi.json",
+)  # fmt: skip
 app.add_middleware(
     CORSMiddleware, allow_origins=[settings.APP_BASE_URL], allow_methods=["*"], allow_headers=["*"]
 )
-app.mount("/media", StaticFiles(directory=settings.DATA_DIR), name="media")
+app.add_middleware(auth.CSRF)
+
+
+class Media(StaticFiles):
+    """DATA_DIR at /media, each file for its owner only (storage.owner: another user's is a 404, like a missing one).
+    Range and ETag as StaticFiles does them. `path` is StaticFiles' normalised one: u/1/../2/x arrives as u/2/x."""
+
+    async def get_response(self, path: str, scope):
+        user = await auth.signed_in(Request(scope))
+        if storage.owner(path) != user.id:
+            raise StarletteHTTPException(404)
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "private"  # a shared cache must never hand it to someone else
+        return response
+
+
+app.mount("/media", Media(directory=settings.DATA_DIR), name="media")
+app.include_router(auth.router)
+app.include_router(bots.router)
+app.include_router(bots.internal)
 app.include_router(pipeline.router)
 app.include_router(scheduling.router)
 app.include_router(recovery.router)
@@ -65,13 +89,26 @@ class Health(BaseModel):
 
 class SystemStatus(BaseModel):
     db: bool
-    worker_alive: bool  # a worker heartbeat within the last 30 s
+    worker_alive: bool  # the media worker (renders, downloads): a heartbeat within 30 s from a worker not the publisher
     worker_last_heartbeat: datetime | None
-    jobs: dict[str, int]  # procrastinate job counts by status
+    publisher_alive: bool  # the publisher (dispatch, publishing, alerts): the same, from one that runs its jobs
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
     rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
     scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
-    publishing_enabled: bool  # PUBLISHING_ENABLED and ZERNIO_API_KEY: off, SCHEDULED posts never go out
+    publishing_enabled: bool  # PUBLISHING_ENABLED and your Zernio key is valid: off, your SCHEDULED posts never go out
+    # why it is off: the server's switch (PUBLISHING_ENABLED), or your key (none yet, or Zernio refused it)
+    publishing_off: Literal["switch", "no_key", "key_invalid"] | None = None
+
+
+KEY_OFF = {"none": "no_key", "invalid": "key_invalid"}  # users.zernio_key_status -> SystemStatus.publishing_off
+# procrastinate_workers has no queue column: a live worker is the publisher once it has run a default-queue job (its
+# dispatch every minute), else the media worker. ponytail: a publisher younger than a minute counts as the media worker.
+WORKERS = text(
+    "SELECT (SELECT max(last_heartbeat) FROM procrastinate_workers),"
+    " count(*) FILTER (WHERE NOT publisher) > 0, count(*) FILTER (WHERE publisher) > 0"
+    " FROM (SELECT EXISTS (SELECT 1 FROM procrastinate_jobs j WHERE j.worker_id = w.id AND j.queue_name = 'default')"
+    "  AS publisher FROM procrastinate_workers w WHERE w.last_heartbeat > now() - interval '30 seconds') alive"
+)
 
 
 @app.get("/api/health")
@@ -80,19 +117,13 @@ async def health() -> Health:
 
 
 @app.get("/api/status")
-async def status() -> SystemStatus:
-    publishing = bool(settings.PUBLISHING_ENABLED and settings.ZERNIO_API_KEY)
+async def status(request: Request, response: Response) -> SystemStatus:
+    """The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so."""
     try:
-        async with SessionLocal() as s:
-            last, alive = (
-                await s.execute(
-                    text(
-                        "SELECT max(last_heartbeat), coalesce(max(last_heartbeat) > now() - interval '30 seconds', false)"
-                        " FROM procrastinate_workers"
-                    )
-                )
-            ).one()
-            jobs = await s.execute(text("SELECT status::text, count(*) FROM procrastinate_jobs GROUP BY status"))
+        user = await auth.current_user(request, response)
+        off = "switch" if not settings.PUBLISHING_ENABLED else KEY_OFF.get(user.zernio_key_status)
+        async with SessionLocal(info={"uid": user.id}) as s:
+            last, alive, publisher = (await s.execute(WORKERS)).one()
             failed, scheduled = (
                 await s.execute(
                     text(
@@ -103,14 +134,14 @@ async def status() -> SystemStatus:
             ).one()
             rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
-                db=True, worker_alive=alive, worker_last_heartbeat=last, jobs=dict(jobs.all()), failed_posts=failed,
-                rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=publishing,
+                db=True, worker_alive=alive, worker_last_heartbeat=last, publisher_alive=publisher, failed_posts=failed,
+                rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=off is None,
+                publishing_off=off,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
-        return SystemStatus(
-            db=False, worker_alive=False, worker_last_heartbeat=None, jobs={}, publishing_enabled=publishing
-        )
+        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publisher_alive=False,
+                            publishing_enabled=False)  # fmt: skip
 
 
 class SPA(StaticFiles):

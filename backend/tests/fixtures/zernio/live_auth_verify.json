@@ -1,0 +1,1 @@
+{"status": 200, "headers": {}, "body": {"valid": true, "userId": "000000000000000000000001", "name": "Operator", "email": "operator@example.com", "authType": "api_key", "scope": null}}

@@ -4,7 +4,9 @@ simulated by raising from publish._pause, the PUBLISH_DEBUG_PAUSE hook, at the n
 
 import asyncio
 import json
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,19 +14,20 @@ from types import SimpleNamespace
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.db import engine
 from app.main import app as api_app
-from app.models import Account, Post, Render, SourceClip, cas
+from app.models import Account, Post, Render, SourceClip, User, cas
 from app.services import publisher, slots, zernio
 from app.services.errors import CATEGORY
 from app.tasks import accounts as account_sync
 from app.tasks import publish
 from app.tasks.publish import dispatch, publish_post
 from app.tasks.queue import app
+from conftest import as_user, zernio_key
 
 FIX = Path(__file__).parent / "fixtures" / "zernio"
 PRESIGN = json.loads((FIX / "presign.json").read_text())["body"]
@@ -87,10 +90,13 @@ class Crash(BaseException):
 def env(db, tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
+    zernio_key(1, "sk_test")  # user 1 (the posts' owner) publishes with its own key, generation 1
     alerts: list[tuple[str, str]] = []
+    uids: list[int] = []  # whom each alert went to
 
-    async def record(text_, link=None, buttons=None):
+    async def record(uid, text_, link=None, buttons=None):
         alerts.append((text_, link))
+        uids.append(uid)
         return True
 
     monkeypatch.setattr(publish, "notify", record)
@@ -102,16 +108,16 @@ def env(db, tmp_path, monkeypatch):
     monkeypatch.setattr(slots, "next_free_slot", next_slot)
     zernio._quota_cache.clear()
     use(monkeypatch, Zernio({}))  # nothing ever reaches the real Zernio: an unrouted call fails the test
-    return SimpleNamespace(alerts=alerts, dir=tmp_path)
+    yield SimpleNamespace(alerts=alerts, uids=uids, dir=tmp_path)
+    zernio_key(1, None)
 
 
 REAL_CLIENT = zernio.client
 
 
 def use(monkeypatch, z: Zernio) -> Zernio:
-    """The real Zernio clients (base URL, auth, timeouts) over a MockTransport."""
-    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test")
-    monkeypatch.setattr(zernio, "client", lambda **kw: REAL_CLIENT(transport=httpx.MockTransport(z), **kw))
+    """The real Zernio clients (base URL, the user's key, timeouts) over a MockTransport."""
+    monkeypatch.setattr(zernio, "client", lambda key, **kw: REAL_CLIENT(key, transport=httpx.MockTransport(z), **kw))
     return z
 
 
@@ -124,29 +130,30 @@ def crash_at(monkeypatch, point: str) -> None:
 
 
 def make_post(
-    db, env, status="SCHEDULED", at=None, render_status="READY", duration=12.0, account_id=None, **post
+    db, env, status="SCHEDULED", at=None, render_status="READY", duration=12.0, account_id=None, user_id=1, **post
 ) -> int:
     with Session(db) as s:
         if account_id is None:
-            acc = Account(
-                zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username="ig_acct", timezone="Europe/London"
-            )
+            acc = Account(user_id=user_id, zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username="ig_acct",
+                          timezone="Europe/London")  # fmt: skip
             s.add(acc)
             s.flush()
             account_id = acc.id
-        clip = SourceClip(origin="upload", status="READY", original_filename="c.mp4")
+        clip = SourceClip(user_id=user_id, origin="upload", status="READY", original_filename="c.mp4")
         s.add(clip)
         s.flush()
         (env.dir / "renders").mkdir(exist_ok=True)
         key = f"renders/{uuid.uuid4().hex}.mp4"
         (env.dir / key).write_bytes(bytes(range(256)) * 10_000)  # 2.5 MB: several 1 MB chunks
-        r = Render(source_clip_id=clip.id, status=render_status, output_key=key, duration_s=duration,
+        r = Render(user_id=user_id, source_clip_id=clip.id, status=render_status, output_key=key, duration_s=duration,
                    overlay_config={"x": 0.1}, crop_config={"x": 0.2}, caption="render caption")  # fmt: skip
         s.add(r)
         s.flush()
         at = at or now() - timedelta(minutes=1)
-        p = Post(render_id=r.id, account_id=account_id, caption="caption #reel", scheduled_for=at, status=status,
-                 idempotency_key=uuid.uuid4().hex, **post)  # fmt: skip
+        if post.get("first_post_at"):  # sent under user 1's current key unless said otherwise
+            post.setdefault("key_gen", 1)
+        p = Post(user_id=user_id, render_id=r.id, account_id=account_id, caption="caption #reel", scheduled_for=at,
+                 status=status, idempotency_key=uuid.uuid4().hex, **post)  # fmt: skip
         s.add(p)
         s.commit()
         return p.id
@@ -523,7 +530,7 @@ def test_cancel_while_publishing_is_refused(db, env, monkeypatch):
     crash_at(monkeypatch, "before_post")
     with pytest.raises(Crash):
         go(pid)
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         r = c.post(f"/api/posts/{pid}/cancel")
         c.portal.call(engine.dispose)
     assert r.status_code == 409 and r.json()["detail"]["code"] == "STATE_CONFLICT"
@@ -546,7 +553,7 @@ def test_cancel_before_the_worker_wins(db, env, monkeypatch):
 
 
 def remedy(post_id: int, action: str | None = None) -> httpx.Response:
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         r = c.post(f"/api/posts/{post_id}/remedy", json={"action": action})
         c.portal.call(engine.dispose)
     return r
@@ -661,8 +668,6 @@ def test_remedy_rerender(db, env, monkeypatch):
 
 @pytest.mark.parametrize("connected", [True, False])
 def test_remedy_reconnect(db, env, monkeypatch, connected):
-    from app.api import recovery
-
     pid = make_post(db, env, status="FAILED", error_code="ACCOUNT_DISCONNECTED")
     acc = row(db, pid).account_id
     sibling = make_post(db, env, status="DEAD_LETTER", error_code="ACCOUNT_DISCONNECTED", account_id=acc)
@@ -671,7 +676,8 @@ def test_remedy_reconnect(db, env, monkeypatch, connected):
         s.execute(update(Account).where(Account.id == acc).values(connection_status="disconnected"))
         s.commit()
 
-    async def sync(s):  # stands in for the Zernio account sync (GET /v1/accounts)
+    async def sync(s, uid, key):  # stands in for the Zernio account sync (GET /v1/accounts)
+        assert (uid, key) == (1, "sk_test")
         await s.execute(
             update(Account)
             .where(Account.id == acc)
@@ -679,7 +685,7 @@ def test_remedy_reconnect(db, env, monkeypatch, connected):
         )
         await s.commit()
 
-    monkeypatch.setattr(recovery.account_sync, "sync", sync)
+    monkeypatch.setattr(account_sync, "sync", sync)
     r = remedy(pid)
     assert r.status_code == 200
     expected = ("SCHEDULED", None) if connected else ("FAILED", "ACCOUNT_DISCONNECTED")
@@ -716,7 +722,7 @@ def test_reconnect_reslot_keeps_the_20h_clock_of_the_first_post(db, env, monkeyp
 
     async def sync():
         async with publish.SessionLocal() as s:
-            await account_sync.upsert(s, parsed)
+            await account_sync.upsert(s, 1, parsed)
 
     run(sync())  # disconnected -> connected: its ACCOUNT_DISCONNECTED posts move to the next free slot
     p = row(db, pid)
@@ -878,7 +884,7 @@ def test_403_marks_the_account_disconnected_and_the_next_sync_reslots(db, env, m
 
     async def sync():
         async with publish.SessionLocal() as s:
-            await account_sync.upsert(s, parsed)
+            await account_sync.upsert(s, 1, parsed)
 
     run(sync())
     assert [(row(db, p).status, row(db, p).error_code, row(db, p).scheduled_for) for p in (pid, sibling)] == [
@@ -897,7 +903,7 @@ def test_rerender_keeps_the_old_render_out_of_the_ready_tray(db, env, monkeypatc
                   overlay_config=None, crop_config=None))  # fmt: skip
         s.commit()
         clip, superseded = r.source_clip_id, r.superseded_at
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         tray = c.get("/api/renders", params={"clip_id": clip, "status": "READY", "unscheduled": True}).json()
         c.portal.call(engine.dispose)
     assert superseded is not None and tray == []  # the new render has the post; the old one is superseded
@@ -912,7 +918,7 @@ def test_delete_render_takes_its_cancelled_posts_but_not_a_live_one(db, env):
                    status="SCHEDULED", idempotency_key=uuid.uuid4().hex))  # fmt: skip
         s.commit()
         rid_gone, rid_kept = s.get(Post, gone).render_id, p.render_id
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert c.delete(f"/api/renders/{rid_gone}").status_code == 204
         assert c.delete(f"/api/renders/{rid_kept}").status_code == 409
         c.portal.call(engine.dispose)
@@ -954,9 +960,9 @@ def test_cover_api(db, env):
         s.commit()
 
     def covers():
-        return sorted(f"/media/covers/{p.name}" for p in (env.dir / "covers").iterdir())
+        return sorted(f"/media/u/1/covers/{p.name}" for p in (env.dir / "u/1/covers").glob("*"))
 
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert put_cover(c, rid, b"\x89PNG\r\n\x1a\n").status_code == 415
         assert put_cover(c, rid, COVER + bytes(8 * 1024**2)).status_code == 413
         assert (put_cover(c, 10**9).status_code, c.delete(f"/api/renders/{10**9}/cover").status_code) == (404, 404)
@@ -964,7 +970,7 @@ def test_cover_api(db, env):
         assert covers() == []  # refused uploads leave no file
         first = put_cover(c, rid).json()["cover_url"]
         second = put_cover(c, rid).json()["cover_url"]
-        assert first != second and second.startswith(f"/media/covers/{rid}-") and covers() == [second]
+        assert first != second and second.startswith(f"/media/u/1/covers/{rid}-") and covers() == [second]
         assert c.delete(f"/api/renders/{rid}/cover").json()["cover_url"] is None and covers() == []
         assert put_cover(c, rid).status_code == 200
         assert c.delete(f"/api/renders/{rid}").status_code == 204 and covers() == []
@@ -1043,9 +1049,239 @@ def test_rerender_copies_the_cover(db, env):
     p = row(db, pid)
     with Session(db) as s:
         new_key = s.get(Render, p.render_id).cover_key
-    assert new_key.startswith(f"covers/{p.render_id}-") and (env.dir / new_key).read_bytes() == COVER
+    assert new_key.startswith(f"u/1/covers/{p.render_id}-") and (env.dir / new_key).read_bytes() == COVER
     assert (p.zernio_media_url, p.zernio_cover_url) == (None, None)
-    with TestClient(api_app) as c:
+    with TestClient(api_app, headers=as_user()) as c:
         assert c.delete(f"/api/renders/{old}").status_code == 204
         c.portal.call(engine.dispose)
     assert not (env.dir / old_key).exists() and (env.dir / new_key).read_bytes() == COVER
+
+
+# ---------------------------------------------------------------- each user's own Zernio key
+
+
+def new_user(db, **values) -> int:
+    with Session(db) as s:
+        u = User(username=f"p.{uuid.uuid4().hex[:10]}", **values)
+        s.add(u)
+        s.commit()
+        return u.id
+
+
+def user(db, uid: int) -> User:
+    with Session(db) as s:
+        return s.get(User, uid)
+
+
+def only_these_due(db) -> None:
+    """Other tests' leftovers must not be dispatched here."""
+    with Session(db) as s:
+        s.execute(update(Post).where(Post.status.in_(["SCHEDULED", "PUBLISHING"])).values(status="CANCELLED"))
+        s.commit()
+
+
+def test_each_post_goes_out_with_its_owners_key_and_generation(db, env, monkeypatch):
+    other = new_user(db)
+    zernio_key(other, "sk_other", gen=4)
+    mine, theirs = make_post(db, env), make_post(db, env, user_id=other)
+    z = use(monkeypatch, Zernio(routes() | {PRESIGN_: ["presign"] * 2, PUT_: [None] * 2, POST_: ["docs_create_published"] * 2}))
+    go(mine)
+    go(theirs)
+    assert [row(db, p).status for p in (mine, theirs)] == ["PUBLISHED"] * 2
+    assert [r.headers["authorization"] for r in z.sent(POST_)] == ["Bearer sk_test", "Bearer sk_other"]
+    assert [r.headers["authorization"] for r in z.limits] == ["Bearer sk_test", "Bearer sk_other"]  # the quota read too
+    assert [row(db, p).key_gen for p in (mine, theirs)] == [1, 4]  # set with first_post_at, in the same CAS
+
+
+def test_a_maybe_live_post_never_replays_under_another_key(db, env, monkeypatch):
+    """Critique A1: Zernio replays an Idempotency-Key per credential, so a post first sent under key generation 1 is
+    never POSTed under generation 2 (DEAD_LETTER KEY_CHANGED); Retry says so at once, and Re-render is its remedy.
+    The same generation replays as always."""
+    zernio_key(1, "sk_new", gen=2)
+    maybe = {"zernio_media_url": PRESIGN["publicUrl"], "first_post_at": now() - timedelta(hours=1)}  # key_gen 1
+    pid = make_post(db, env, status="PUBLISHING", **maybe)
+    z = use(monkeypatch, Zernio({}))
+    go(pid)
+    assert (row(db, pid).status, row(db, pid).error_code, z.calls) == ("DEAD_LETTER", "KEY_CHANGED", [])
+    failed = make_post(db, env, status="FAILED", error_code="UNKNOWN", **maybe)  # failed before the key changed
+    for _ in range(2):
+        r = remedy(failed, "retry").json()  # no replay is queued
+        assert (r["status"], r["error_code"], r["remedy"]["action"], jobs(db, failed)) == (
+            "DEAD_LETTER", "KEY_CHANGED", "rerender", [])  # fmt: skip
+    r = remedy(failed, "rerender")  # after checking Instagram: a new render and key
+    assert (r.status_code, r.json()["status"], row(db, failed).first_post_at) == (200, "SCHEDULED", None)
+    same = make_post(db, env, status="PUBLISHING", key_gen=2, **maybe)
+    use(monkeypatch, Zernio({POST_: ["docs_replay_published"]}))
+    go(same)
+    assert row(db, same).status == "PUBLISHED"
+
+
+def test_the_claim_reads_the_key_under_the_users_row_lock(db, env, monkeypatch):
+    """publish_post reads the key FOR SHARE, in the claim's transaction: a key change in flight (FOR UPDATE) lands
+    first, and the post goes out with the new key under its generation. A user whose key is no longer valid (or who
+    is disabled) gets FAILED ZERNIO_KEY_MISSING, nothing sent (dispatch skips them; this is the race)."""
+    from app.core.secrets import seal
+
+    pid = make_post(db, env)
+    z = use(monkeypatch, Zernio(routes()))
+    with db.connect() as change, ThreadPoolExecutor(1) as pool:
+        change.execute(text("SELECT 1 FROM users WHERE id = 1 FOR UPDATE"))  # PUT /api/me/zernio-key, mid-way
+        pending = pool.submit(go, pid)
+        time.sleep(1)
+        assert not pending.done()
+        change.execute(update(User).where(User.id == 1).values(zernio_key_enc=seal("sk_rotated"), zernio_key_gen=2))
+        change.commit()
+        pending.result(timeout=30)
+    assert (row(db, pid).status, row(db, pid).key_gen) == ("PUBLISHED", 2)
+    assert {r.headers["authorization"] for k, r in z.calls if k != PUT_} | {r.headers["authorization"] for r in z.limits} == {
+        "Bearer sk_rotated"}  # fmt: skip
+    for values in ({"status": "invalid"}, {"disabled_at": now()}):
+        zernio_key(1, "sk_test", **values)
+        pid = make_post(db, env)
+        z = use(monkeypatch, Zernio({}))
+        go(pid)
+        assert (row(db, pid).status, row(db, pid).error_code, z.calls, z.limits) == ("FAILED", "ZERNIO_KEY_MISSING", [], [])
+    zernio_key(1, "sk_test", disabled_at=None)
+
+
+def test_retry_waits_for_a_key_change_then_refuses_the_replay(db, env):
+    """Critique A2: Retry of a maybe-live post takes its user's row lock as the claim does, so a key change in flight
+    (FOR UPDATE) lands first, and the replay under the new generation is refused, never queued."""
+    pid = make_post(db, env, status="FAILED", error_code="UNKNOWN", zernio_media_url=PRESIGN["publicUrl"],
+                    first_post_at=now() - timedelta(hours=1))  # fmt: skip
+    with db.connect() as change, ThreadPoolExecutor(1) as pool:
+        change.execute(text("SELECT 1 FROM users WHERE id = 1 FOR UPDATE"))  # PUT /api/me/zernio-key, mid-way
+        pending = pool.submit(remedy, pid)
+        time.sleep(1)
+        assert not pending.done()
+        change.execute(update(User).where(User.id == 1).values(zernio_key_gen=2))
+        change.commit()
+        r = pending.result(timeout=30)
+    assert (r.json()["status"], r.json()["error_code"], jobs(db, pid)) == ("DEAD_LETTER", "KEY_CHANGED", [])
+
+
+@pytest.mark.parametrize("fixture, at, code, reason", [
+    ("docs_401_unauthorized", POST_, "ZERNIO_KEY_INVALID", "Zernio refused the key"),
+    ("docs_403_insufficient_permissions", POST_, "ZERNIO_KEY_INVALID", "the key has Zernio's publishing group disabled"),
+    ("docs_402_payment_required", POST_, "ZERNIO_PAYMENT_REQUIRED", "Zernio reports a failed payment on your Zernio account"),
+    ("docs_403_not_your_account", PRESIGN_, "ZERNIO_KEY_INVALID", "Zernio refused the key"),  # presign names no account
+    ("docs_403_profile_over_limit", POST_, "PROFILE_OVER_LIMIT", None),  # the account: this user's other posts go on
+    ("docs_403_not_your_account", POST_, "UNKNOWN", None),  # an accountId outside the key's reach: this post only
+])  # fmt: skip
+def test_rejections_of_the_key_pause_its_user(db, env, monkeypatch, fixture, at, code, reason):
+    """Critique A3: on status, code, required_group and type, never the message. The key's own problems fail the post
+    and mark the user's key invalid (dispatch then skips them), with one alert about the key, after the post's commit."""
+    pid = make_post(db, env)
+    use(monkeypatch, Zernio(routes(fixture) | ({PRESIGN_: [fixture]} if at == PRESIGN_ else {})))
+    go(pid)
+    p, u = row(db, pid), user(db, 1)
+    assert (p.status, p.error_code) == ("FAILED", code)
+    assert (u.zernio_key_status, u.zernio_error) == ("invalid", reason) if reason else ("valid", None)
+    [(_, link)] = env.alerts
+    assert link.endswith("/settings" if reason else f"/recover/{pid}")
+    assert p.alerted_at is None or not reason  # the key's alert, not the post's
+
+
+def test_one_alert_per_key_flip(db, env, monkeypatch):
+    a, b = make_post(db, env, status="PUBLISHING"), make_post(db, env, status="PUBLISHING")
+    use(monkeypatch, Zernio({PRESIGN_: ["docs_401_unauthorized"] * 2}))
+    go(a)
+    go(b)
+    assert [row(db, p).error_code for p in (a, b)] == ["ZERNIO_KEY_INVALID"] * 2
+    assert len(env.alerts) == 1 and user(db, 1).zernio_key_status == "invalid"
+
+
+def test_dispatch_only_for_users_with_a_working_key(db, env, monkeypatch):
+    """No valid key (none, refused) or a disabled user: their due posts stay SCHEDULED, untouched (not even re-slotted).
+    A PUBLISHING post always gets its job, which ends it: FAILED ZERNIO_KEY_MISSING without a key that opens."""
+    only_these_due(db)
+    keyless, refused, disabled = new_user(db), new_user(db), new_user(db, disabled_at=now())
+    zernio_key(refused, "sk_refused", status="invalid")
+    zernio_key(disabled, "sk_disabled")
+    mine = make_post(db, env)
+    waiting = [make_post(db, env, user_id=u) for u in (keyless, refused, disabled)]
+    overdue = make_post(db, env, user_id=keyless, at=now() - timedelta(hours=2))
+    orphan = make_post(db, env, user_id=keyless, status="PUBLISHING")
+    run(dispatch(timestamp=0))
+    assert [len(jobs(db, p)) for p in (mine, *waiting, overdue, orphan)] == [1, 0, 0, 0, 0, 1]
+    assert (row(db, overdue).status, row(db, overdue).error_code) == ("SCHEDULED", None)
+    z = use(monkeypatch, Zernio({}))
+    go(orphan)
+    assert (row(db, orphan).status, row(db, orphan).error_code, z.calls) == ("FAILED", "ZERNIO_KEY_MISSING", [])
+    assert env.uids == [keyless]
+
+
+def test_dispatch_defers_publishes_first_and_alerts_last(db, env, monkeypatch):
+    """Critique C1: one tick serves every user, so due posts are deferred before any reslot (each locks an account and
+    searches slots), and alerts go out together at the end: a slow Telegram never makes a due post late."""
+    only_these_due(db)
+    missed = make_post(db, env, at=now() - timedelta(hours=2))  # the earliest, so first in scheduled order
+    failed = make_post(db, env, at=now() - timedelta(minutes=10), render_status="FAILED")
+    due = make_post(db, env)
+    events = []
+    real_defer, real_one = publish.defer_publish, publish._dispatch_one
+
+    async def defer(post_id, in_s=0):
+        events.append(("defer", post_id))
+        await real_defer(post_id, in_s)
+
+    async def one(s, post, render_status, now_):
+        events.append(("work", post.id))
+        await real_one(s, post, render_status, now_)
+
+    async def alert(uid, text_, link=None, buttons=None):
+        events.append(("alert", int(link.rsplit("/", 1)[1])))
+        return True
+
+    monkeypatch.setattr(publish, "defer_publish", defer)
+    monkeypatch.setattr(publish, "_dispatch_one", one)
+    monkeypatch.setattr(publish, "notify", alert)
+    run(dispatch(timestamp=0))
+    assert events == [("defer", due), ("work", missed), ("work", failed), ("alert", missed), ("alert", failed)]
+    assert (row(db, missed).error_code, row(db, failed).error_code) == ("MISSED", "RENDER_FAILED")
+
+
+def test_sync_skips_accounts_another_user_has(db, env):
+    """Critique A6: row by row, so one account held by another Clipper user (two members of one Zernio team) is
+    reported, and the rest of the sync still happens."""
+    held = row(db, make_post(db, env)).account_id
+    with Session(db) as s:
+        theirs = s.get(Account, held).zernio_account_id
+    other, new = new_user(db), uuid.uuid4().hex
+    parsed = [{"zernio_account_id": z, "zernio_profile_id": "p", "username": name, "avatar_url": None,
+               "connection_status": "connected"} for z, name in [(theirs, "held.one"), (new, "new.one")]]  # fmt: skip
+
+    async def sync():
+        async with publish.SessionLocal() as s:
+            return await account_sync.upsert(s, other, parsed)
+
+    assert run(sync()) == ["held.one"]
+    with Session(db) as s:
+        assert s.get(Account, held).user_id == 1
+        assert s.scalar(select(Account.user_id).where(Account.zernio_account_id == new)) == other
+
+
+def test_periodic_sync_runs_per_user_with_their_key(db, env, monkeypatch):
+    """Every enabled user with a valid key, each with their own; a key Zernio refuses goes invalid, with one alert."""
+    ok, refused = new_user(db), new_user(db)
+    with Session(db) as s:  # nobody else's key counts here (user 1's accounts are other tests' fixtures)
+        s.execute(update(User).where(User.id.not_in([ok, refused])).values(zernio_key_status="none"))
+        s.commit()
+    zernio_key(ok, "sk_ok")
+    zernio_key(refused, "sk_refused")
+    zid, seen = uuid.uuid4().hex, []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req.headers["authorization"])
+        d = fx("docs_401_unauthorized") if req.headers["authorization"] == "Bearer sk_refused" else fx("accounts")
+        for a in d["body"].get("accounts", []):
+            a |= {"_id": zid, "username": "synced.one"}
+        return httpx.Response(d["status"], json=d["body"])
+
+    monkeypatch.setattr(zernio, "client", lambda key, **kw: REAL_CLIENT(key, transport=httpx.MockTransport(handler), **kw))
+    run(account_sync.sync_accounts(timestamp=0))
+    assert seen == ["Bearer sk_ok", "Bearer sk_refused"]
+    with Session(db) as s:
+        assert s.scalar(select(Account.user_id).where(Account.zernio_account_id == zid)) == ok
+    assert (user(db, refused).zernio_key_status, user(db, ok).zernio_key_status) == ("invalid", "valid")
+    assert env.uids == [refused]
