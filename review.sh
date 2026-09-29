@@ -15,10 +15,11 @@ if docker ps -a --filter label=com.docker.compose.project=clipper --filter label
   echo "the Mac's own Clipper stack exists (production keys): remove it first: docker compose -p clipper down" >&2; exit 1
 fi
 ssh "$VM" 'cd clipper && docker compose exec -T postgres pg_dump -U clipper -Fc clipper' > /tmp/clipper-review.dump
-rsync -a "$VM:clipper/data/" data/
+# the operator's files only: legacy (unprefixed) keys and u/1/; other users' media stays on the VM
+rsync -a --include=/u/1/ --exclude='/u/*' "$VM:clipper/data/" data/
 dc down -v
 dc up -d --build --wait postgres
 # -x: no GRANTs (the api's role doesn't exist here yet; migrate's db-grants makes it and grants afresh)
 dc exec -T postgres pg_restore -U clipper -d clipper --no-owner -x --exit-on-error --single-transaction < /tmp/clipper-review.dump
-dc up -d --build api worker
+dc up -d --build api worker publisher
 echo "review stack up (publishing off, no bots): cd frontend && npm run dev, then open http://localhost:5173"

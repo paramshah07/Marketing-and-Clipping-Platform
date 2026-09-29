@@ -1,0 +1,28 @@
+# Every pull request to dev or prod, and every push to dev: the backend suite (in the worker image with its own
+# Postgres, as on the Mac) and the frontend's checks. The runner has no .env, so nothing here holds a key.
+name: CI
+on:
+  pull_request:
+    branches: [dev, prod]
+  push:
+    branches: [dev]
+concurrency: { group: "ci-${{ github.ref }}", cancel-in-progress: true } # a newer push replaces the run
+permissions: { contents: read }
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - run: docker compose -p ci run --rm worker pytest
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@v7
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci && npm run typecheck && npm run lint && npm test && npm run build

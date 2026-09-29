@@ -5,6 +5,7 @@
 x-safe: &safe
   environment:
     PUBLISHING_ENABLED: "false"
+    APP_BASE_URL: http://localhost:5173 # where review.sh says to open it: the sign-in's origin check and cookie follow it
     ZERNIO_API_KEY: ""
     SECRETS_KEY: ""
     BOT_SERVICE_SECRET: ""
