@@ -1,5 +1,7 @@
 // Phase 3 acceptance: drives the real UI (compose stack up + `npm run dev`) in Google Chrome.
-//   node e2e/accept.mjs
+//   CLIPPER_E2E_USER=… CLIPPER_E2E_PASSWORD=… node e2e/accept.mjs
+// Signs in through /login as that user (any user of the stack; the password comes from the environment, never
+// from this file), starting from /library so the 401 -> /login?next= -> back round trip is checked too.
 // Uploads a generated clip through the drop zone, creates a brand with a transparent logo, edits and
 // renders three configurations in the editor, then checks preview == render for each: the overlay_config
 // the UI sent, the logo's DOM box on the stage and the logo's bounding box in a frame of the rendered MP4
@@ -15,18 +17,15 @@ import { chromium } from "playwright-core"
 const ROOT = new URL("../..", import.meta.url).pathname
 const BASE = process.env.BASE_URL ?? "http://localhost:5173"
 const TOL = 0.01
+const USER = process.env.CLIPPER_E2E_USER
+const PASSWORD = process.env.CLIPPER_E2E_PASSWORD
+if (!USER || !PASSWORD) {
+  console.error("Set CLIPPER_E2E_USER and CLIPPER_E2E_PASSWORD: a Clipper user of the stack under test")
+  process.exit(2)
+}
 const worker = (cmd, opts = {}) => execFileSync("docker", ["compose", "exec", "-T", "worker", "sh", "-c", cmd], { cwd: ROOT, maxBuffer: 64 << 20, ...opts })
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 const out = {}
-
-// 1. media, made by ffmpeg in the worker: 1920x1080 dark noise + grid + a red 80x80 marker at (880, 500),
-// a 400x200 RGBA logo (green cross touching all four edges, the rest transparent) and an opaque PNG.
-log("making media in data/qa/phase3")
-worker(`set -e; mkdir -p /data/qa/phase3 && cd /data/qa/phase3
-ffmpeg -v error -y -f lavfi -i "color=c=0x1c2330:s=1920x1080:r=30:d=8,noise=alls=8:allf=t,drawgrid=w=120:h=120:t=2:c=white@0.25,drawbox=x=880:y=500:w=80:h=80:color=red:t=fill" -f lavfi -i "sine=f=440:d=8" -c:v libx264 -crf 22 -preset veryfast -pix_fmt yuv420p -c:a aac -shortest src.mp4
-ffmpeg -v error -y -f lavfi -i "color=s=400x200:c=black,format=rgba" -vf "geq=r=0:g=255:b=0:a=if(between(Y\\,80\\,119)+between(X\\,180\\,219)\\,255\\,0)" -frames:v 1 logo.png
-ffmpeg -v error -y -f lavfi -i "color=s=400x200:c=white" -frames:v 1 -pix_fmt rgb24 logo-opaque.png`)
-const MEDIA = `${ROOT}data/qa/phase3/`
 
 const browser = await chromium.launch({ channel: "chrome" })
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
@@ -34,12 +33,32 @@ const page = await ctx.newPage()
 page.on("pageerror", (e) => log("pageerror", e.message))
 const shot = (name) => page.screenshot({ path: `${ROOT}docs/phase-3-${name}.png` })
 
+// 0. sign in: /library bounces to /login?next=/library, and back after
+await page.goto(`${BASE}/library`)
+await page.waitForURL(/\/login\?next=%2Flibrary$/)
+await page.getByLabel("Username").fill(USER)
+await page.getByLabel("Password").fill(PASSWORD)
+await page.getByRole("button", { name: "Sign in" }).click()
+await page.waitForURL(/\/library$/)
+const me = await page.evaluate(() => fetch("/api/me").then((r) => r.json()))
+log("signed in as", me.username, me.id)
+const QA = `u/${me.id}/qa/phase3` // under the user's prefix: /media serves each user only their own files
+
+// 1. media, made by ffmpeg in the worker: 1920x1080 dark noise + grid + a red 80x80 marker at (880, 500),
+// a 400x200 RGBA logo (green cross touching all four edges, the rest transparent) and an opaque PNG.
+log(`making media in data/u/${me.id}/qa/phase3`)
+worker(`set -e; mkdir -p /data/${QA} && cd /data/${QA}
+ffmpeg -v error -y -f lavfi -i "color=c=0x1c2330:s=1920x1080:r=30:d=8,noise=alls=8:allf=t,drawgrid=w=120:h=120:t=2:c=white@0.25,drawbox=x=880:y=500:w=80:h=80:color=red:t=fill" -f lavfi -i "sine=f=440:d=8" -c:v libx264 -crf 22 -preset veryfast -pix_fmt yuv420p -c:a aac -shortest src.mp4
+ffmpeg -v error -y -f lavfi -i "color=s=400x200:c=black,format=rgba" -vf "geq=r=0:g=255:b=0:a=if(between(Y\\,80\\,119)+between(X\\,180\\,219)\\,255\\,0)" -frames:v 1 logo.png
+ffmpeg -v error -y -f lavfi -i "color=s=400x200:c=white" -frames:v 1 -pix_fmt rgb24 logo-opaque.png`)
+const MEDIA = `${ROOT}data/${QA}/`
+
 // 2. upload through the drop zone, throttled so the progress row is visible
 await page.goto(`${BASE}/library`, { waitUntil: "networkidle" })
-await page.evaluate(async () => {
-  const blob = await (await fetch("/media/qa/phase3/src.mp4")).blob()
+await page.evaluate(async (qa) => {
+  const blob = await (await fetch(`/media/${qa}/src.mp4`)).blob()
   window.__clip = new File([blob], "phase3-src.mp4", { type: "video/mp4" })
-})
+}, QA)
 const cdp = await ctx.newCDPSession(page)
 await cdp.send("Network.enable")
 await cdp.send("Network.emulateNetworkConditions", { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: 3_000_000 })
@@ -179,6 +198,8 @@ runs.push(await renderNow("C", cmdEnter))
 await page.locator(`li[data-render="${runs[0].render.id}"][data-status="RENDERING"], li[data-render="${runs[0].render.id}"][data-status="READY"]`).first().waitFor()
 await shot("editor-rendering")
 for (const { render } of runs) await page.locator(`li[data-render="${render.id}"][data-status="READY"]`).waitFor({ timeout: 240_000 })
+// each output's path in the worker (u/{id}/renders/… since users; the api knows)
+for (const run of runs) run.file = (await page.evaluate((id) => fetch(`/api/renders/${id}`).then((r) => r.json()), run.render.id)).output_url.replace(/^\/media\//, "/data/")
 const render = runs[0].render
 const card = page.locator(`li[data-render="${render.id}"]`)
 out.renderCard = (await card.innerText()).replace(/\s+/g, " ")
@@ -186,7 +207,7 @@ await card.getByRole("button", { name: "Preview" }).click()
 await page.waitForFunction((u) => {
   const v = document.querySelector("[data-stage=preview] video")
   return v?.src.endsWith(u) && v.videoWidth === 1080 && v.videoHeight === 1920
-}, render.output_url ?? `/media/renders/${render.id}.mp4`)
+}, `/renders/${render.id}.mp4`)
 await page.evaluate(() => {
   const v = document.querySelector("[data-stage=preview] video")
   v.currentTime = 2
@@ -213,8 +234,8 @@ function bbox(rgb, test) {
 }
 const diff = (a, b) => Math.max(...["x", "y", "w", "h"].map((k) => Math.abs(a[k] - b[k])))
 const checks = {}
-out.configs = runs.map(({ name, dom, sent, render }) => {
-  const rgb = worker(`ffmpeg -v error -ss 2 -i /data/renders/${render.id}.mp4 -frames:v 1 -f rawvideo -pix_fmt rgb24 -`)
+out.configs = runs.map(({ name, dom, sent, render, file }) => {
+  const rgb = worker(`ffmpeg -v error -ss 2 -i ${file} -frames:v 1 -f rawvideo -pix_fmt rgb24 -`)
   const green = bbox(rgb, (R, G, B) => G > 128 && R < 100 && B < 100)
   const red = bbox(rgb, (R, G, B) => R > 150 && G < 90 && B < 90)
   const o = sent.overlay_config

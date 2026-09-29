@@ -1,4 +1,4 @@
-import type { ClipOut } from "@/api"
+import type { BotOut, BotPairing, ClipOut, SystemStatus } from "@/api"
 
 export { cn } from "cn"
 
@@ -82,14 +82,47 @@ export function shortUrl(s: string) {
 /** Filename for uploads, host + path for URL imports. */
 export const clipName = (c: ClipOut) => c.original_filename || (c.source_url ? shortUrl(c.source_url) : `Clip ${c.id}`)
 
-/** FastAPI error body ({detail: string | [{loc, msg}]}) or anything else -> one line. */
-const UNREACHABLE = "The server didn't answer. Is the stack running (docker compose up -d)?"
+/** FastAPI error body ({detail: string | {code, message} | [{loc, msg}]}) or anything else -> one line. */
+const UNREACHABLE = "The server didn't answer. Try again in a moment."
 
 export function errorText(e: unknown): string {
   const d = (e as { detail?: unknown })?.detail
   if (typeof d === "string") return d
+  if (d && typeof d === "object" && "message" in d) return String(d.message) // e.g. 507 QUOTA_EXCEEDED on an upload
   if (Array.isArray(d)) return d.map((x) => `${x.loc?.slice(1).join(".")}: ${x.msg}`).join("; ")
   if (e instanceof Error) return e.message
   return typeof e === "string" && e.trim() ? e : UNREACHABLE // e.g. the dev proxy's empty 502 while the api is down
 }
 export { UNREACHABLE }
+
+/** Signed out (a 401 from the api or /media): to the sign-in page, and back here after it. A full page load, so
+ * nothing of this session stays in the query cache. */
+let leaving = false
+export function signedOut() {
+  if (leaving || /^\/(login|signup)\b/.test(location.pathname)) return
+  leaving = true
+  location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`)
+}
+
+/** ?next= on the sign-in page: a path in this app only. //host and /\host would leave the site. */
+export const nextPath = (next: string | null) => (next && /^\/(?![/\\])/.test(next) && !/^\/(login|signup)\b/.test(next) ? next : "/library")
+
+/** Why publishing is off for you (/api/status publishing_off). */
+export const PUBLISHING_OFF: Record<NonNullable<SystemStatus["publishing_off"]>, { label: string; why: string }> = {
+  switch: { label: "Publishing off", why: "Publishing is switched off on this server: scheduled posts stay Scheduled and nothing reaches Instagram." },
+  no_key: { label: "No Zernio key", why: "You have no Zernio key yet: add yours in Settings. Until then your scheduled posts stay Scheduled." },
+  key_invalid: { label: "Zernio key refused", why: "Zernio refused your key, so your publishing is paused. Update it or Re-check it in Settings." },
+}
+
+export const gb = (bytes: number) => (bytes < 1024 ** 3 ? `${Math.round(bytes / 1024 ** 2)} MB` : `${(bytes / 1024 ** 3).toFixed(1)} GB`)
+
+/** A pairing code handed out for a bot (new, or Re-pair) is still out, was used by a chat, or expired unused. The api
+ * clears `pairing` both when a chat uses the code and when it expires: a bot that had no chat has one now; a paired
+ * one (Re-pair) keeps its chat either way, so the clock tells. ponytail: a Re-pair code used in the last poll before
+ * it expires reads as expired (the row still names the chat). */
+export function pairState(bot: Pick<BotOut, "pairing" | "health">, pair: { bot: Pick<BotOut, "health">; expires_at: BotPairing["expires_at"] }, now = Date.now()) {
+  if (bot.pairing) return "waiting"
+  if (bot.health === "waiting") return "expired"
+  if (pair.bot.health === "waiting") return "paired"
+  return pair.expires_at && now < Date.parse(pair.expires_at) ? "paired" : "expired"
+}

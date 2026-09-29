@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowUpRight, ChevronDown, Plus, RefreshCw, X } from "lucide-react"
 import { useState } from "react"
+import { Link } from "react-router"
 
 import type { AccountOut, AccountPatch } from "@/api"
 import { listAccountsOptions, listAccountsQueryKey, listPostsQueryKey, syncAccountsMutation, updateAccountMutation } from "@/api/@tanstack/react-query.gen"
@@ -30,7 +31,16 @@ export function Accounts() {
           {accounts.data && <span className="text-sm tabular-nums text-subtle">{connected} connected</span>}
         </div>
         <div className="flex items-center gap-2">
-          {sync.isError && <span className="text-sm text-bad">Sync failed: {apiError(sync.error).message}</span>}
+          {sync.isError && (
+            <span className="text-sm text-bad">
+              Sync failed: {apiError(sync.error).message}
+              {apiError(sync.error).code?.startsWith("ZERNIO_KEY") && (
+                <Link to="/settings" className="ml-1.5 text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                  Settings
+                </Link>
+              )}
+            </span>
+          )}
           {sync.isSuccess && <span className="text-sm tabular-nums text-muted">Synced {sync.data.length} account{sync.data.length === 1 ? "" : "s"}</span>}
           <button className={btn.secondary} onClick={() => setDrawer(true)}>
             <Plus className="size-3.5" />
@@ -46,7 +56,15 @@ export function Accounts() {
           {accounts.isError ? (
             <Empty>Couldn't load accounts: {apiError(accounts.error).message}</Empty>
           ) : accounts.data?.length === 0 ? (
-            <Empty>No accounts yet. Connect an Instagram account in Zernio, then Sync accounts.</Empty>
+            <Empty>
+              <span>
+                No accounts yet. Add your Zernio API key in{" "}
+                <Link to="/settings" className="text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                  Settings
+                </Link>
+                , connect an Instagram account in Zernio, then Sync accounts.
+              </span>
+            </Empty>
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,400px)] items-start gap-3 p-4">
               {accounts.data?.map((a) => <AccountCard key={a.id} a={a} />)}
@@ -235,6 +253,7 @@ function NumberField(props: { label: string; value: number; min: number; max: nu
 
 function ConnectDrawer({ onClose, onSync, syncing }: { onClose: () => void; onSync: () => void; syncing: boolean }) {
   const steps = [
+    ["Add your Zernio API key", "In Settings. Clipper reads your accounts from your own Zernio account through it, and publishes with it."],
     ["Create a Zernio profile", "One profile per Instagram account, so each account keeps its own queue and limits."],
     ["Connect Instagram in that profile", "The account must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login."],
     ["Sync accounts here", "Clipper pulls the connected accounts from Zernio. New accounts start on Europe/London with a slot every hour from 07:00 to 23:00."],
@@ -257,12 +276,17 @@ function ConnectDrawer({ onClose, onSync, syncing }: { onClose: () => void; onSy
                 <div className="font-medium">{title}</div>
                 <p className="text-muted">{body}</p>
                 {i === 0 && (
+                  <Link to="/settings" className="inline-flex items-center gap-1 underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                    Open Settings
+                  </Link>
+                )}
+                {i === 1 && (
                   <a href={ZERNIO_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline decoration-line-strong underline-offset-2 hover:decoration-fg">
                     Open Zernio
                     <ArrowUpRight className="size-3.5" />
                   </a>
                 )}
-                {i === 2 && (
+                {i === 3 && (
                   <button className={cn(btn.primary, "mt-2")} disabled={syncing} onClick={onSync}>
                     <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
                     Sync accounts

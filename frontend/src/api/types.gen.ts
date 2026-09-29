@@ -168,6 +168,97 @@ export type BodyUploadCover = {
 };
 
 /**
+ * BotIn
+ */
+export type BotIn = {
+    /**
+     * Token
+     */
+    token: string;
+};
+
+/**
+ * BotOut
+ */
+export type BotOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Username
+     */
+    username: string | null;
+    /**
+     * Chat Title
+     */
+    chat_title: string | null;
+    /**
+     * Alerts
+     */
+    alerts: boolean;
+    /**
+     * Health
+     */
+    health: 'running' | 'waiting' | 'rejected' | 'not_responding';
+    /**
+     * Pairing
+     */
+    pairing: boolean;
+    /**
+     * Last Seen At
+     */
+    last_seen_at: string | null;
+    /**
+     * Created At
+     */
+    created_at: string;
+};
+
+/**
+ * BotPairing
+ */
+export type BotPairing = {
+    bot: BotOut;
+    /**
+     * Pair Url
+     */
+    pair_url: string | null;
+    /**
+     * Start
+     */
+    start: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string | null;
+};
+
+/**
+ * BotPatch
+ */
+export type BotPatch = {
+    /**
+     * Alerts
+     */
+    alerts: boolean;
+};
+
+/**
+ * BotTest
+ */
+export type BotTest = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Error
+     */
+    error: string | null;
+};
+
+/**
  * BrandCreate
  */
 export type BrandCreate = {
@@ -525,6 +616,20 @@ export type CoverPatch = {
 };
 
 /**
+ * Credentials
+ */
+export type Credentials = {
+    /**
+     * Username
+     */
+    username: string;
+    /**
+     * Password
+     */
+    password: string;
+};
+
+/**
  * CropConfig
  *
  * Crop rectangle as fractions of the source frame (after autorotate).
@@ -587,6 +692,25 @@ export type Health = {
 };
 
 /**
+ * KeyCheck
+ */
+export type KeyCheck = {
+    zernio: ZernioKeyOut;
+    /**
+     * Accounts
+     */
+    accounts: Array<string>;
+    /**
+     * Skipped
+     */
+    skipped: Array<string>;
+    /**
+     * Over Limit
+     */
+    over_limit: Array<string>;
+};
+
+/**
  * LinksOut
  */
 export type LinksOut = {
@@ -606,6 +730,27 @@ export type LinksOut = {
      * Other Count
      */
     other_count: number;
+};
+
+/**
+ * Me
+ */
+export type Me = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Username
+     */
+    username: string;
+    setup: Setup;
+    zernio: ZernioKeyOut;
+    /**
+     * Bots
+     */
+    bots: Array<BotOut>;
+    storage: Storage;
 };
 
 /**
@@ -641,6 +786,20 @@ export type OverlayConfig = {
      * Opacity
      */
     opacity?: number;
+};
+
+/**
+ * PasswordChange
+ */
+export type PasswordChange = {
+    /**
+     * Current
+     */
+    current: string;
+    /**
+     * New
+     */
+    new: string;
 };
 
 /**
@@ -1007,6 +1166,52 @@ export type RenderOut = {
 };
 
 /**
+ * Setup
+ */
+export type Setup = {
+    /**
+     * Zernio
+     */
+    zernio: boolean;
+    /**
+     * Instagram
+     */
+    instagram: boolean;
+    /**
+     * Telegram
+     */
+    telegram: boolean;
+};
+
+/**
+ * SignupStatus
+ */
+export type SignupStatus = {
+    /**
+     * Open
+     */
+    open: boolean;
+    /**
+     * Remaining
+     */
+    remaining: number;
+};
+
+/**
+ * Storage
+ */
+export type Storage = {
+    /**
+     * Used Bytes
+     */
+    used_bytes: number;
+    /**
+     * Quota Bytes
+     */
+    quota_bytes: number | null;
+};
+
+/**
  * SystemStatus
  */
 export type SystemStatus = {
@@ -1023,12 +1228,6 @@ export type SystemStatus = {
      */
     worker_last_heartbeat: string | null;
     /**
-     * Jobs
-     */
-    jobs: {
-        [key: string]: number;
-    };
-    /**
      * Failed Posts
      */
     failed_posts?: number;
@@ -1044,6 +1243,10 @@ export type SystemStatus = {
      * Publishing Enabled
      */
     publishing_enabled: boolean;
+    /**
+     * Publishing Off
+     */
+    publishing_off?: 'switch' | 'no_key' | 'key_invalid' | null;
 };
 
 /**
@@ -1058,6 +1261,20 @@ export type Unplaced = {
      * Reason
      */
     reason: string;
+};
+
+/**
+ * UserOut
+ */
+export type UserOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Username
+     */
+    username: string;
 };
 
 /**
@@ -1086,6 +1303,46 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * ZernioKeyIn
+ */
+export type ZernioKeyIn = {
+    /**
+     * Key
+     */
+    key: string;
+};
+
+/**
+ * ZernioKeyOut
+ */
+export type ZernioKeyOut = {
+    /**
+     * Status
+     */
+    status: 'none' | 'valid' | 'invalid';
+    /**
+     * Last4
+     */
+    last4: string | null;
+    /**
+     * Email
+     */
+    email: string | null;
+    /**
+     * Name
+     */
+    name: string | null;
+    /**
+     * Checked At
+     */
+    checked_at: string | null;
+    /**
+     * Error
+     */
+    error: string | null;
 };
 
 /**
@@ -1346,6 +1603,349 @@ export type RenderOutWritable = {
      */
     completed_at: string | null;
 };
+
+export type SignupStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/signup-status';
+};
+
+export type SignupStatusResponses = {
+    /**
+     * Successful Response
+     */
+    200: SignupStatus;
+};
+
+export type SignupStatusResponse = SignupStatusResponses[keyof SignupStatusResponses];
+
+export type SignupData = {
+    body: Credentials;
+    path?: never;
+    query?: never;
+    url: '/api/auth/signup';
+};
+
+export type SignupErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SignupError = SignupErrors[keyof SignupErrors];
+
+export type SignupResponses = {
+    /**
+     * Successful Response
+     */
+    201: UserOut;
+};
+
+export type SignupResponse = SignupResponses[keyof SignupResponses];
+
+export type LoginData = {
+    body: Credentials;
+    path?: never;
+    query?: never;
+    url: '/api/auth/login';
+};
+
+export type LoginErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type LoginError = LoginErrors[keyof LoginErrors];
+
+export type LoginResponses = {
+    /**
+     * Successful Response
+     */
+    200: UserOut;
+};
+
+export type LoginResponse = LoginResponses[keyof LoginResponses];
+
+export type LogoutData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/logout';
+};
+
+export type LogoutResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type LogoutResponse = LogoutResponses[keyof LogoutResponses];
+
+export type MeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/me';
+};
+
+export type MeResponses = {
+    /**
+     * Successful Response
+     */
+    200: Me;
+};
+
+export type MeResponse = MeResponses[keyof MeResponses];
+
+export type ChangePasswordData = {
+    body: PasswordChange;
+    path?: never;
+    query?: never;
+    url: '/api/me/password';
+};
+
+export type ChangePasswordErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ChangePasswordError = ChangePasswordErrors[keyof ChangePasswordErrors];
+
+export type ChangePasswordResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
+
+export type DeleteZernioKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/me/zernio-key';
+};
+
+export type DeleteZernioKeyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteZernioKeyResponse = DeleteZernioKeyResponses[keyof DeleteZernioKeyResponses];
+
+export type PutZernioKeyData = {
+    body: ZernioKeyIn;
+    path?: never;
+    query?: never;
+    url: '/api/me/zernio-key';
+};
+
+export type PutZernioKeyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PutZernioKeyError = PutZernioKeyErrors[keyof PutZernioKeyErrors];
+
+export type PutZernioKeyResponses = {
+    /**
+     * Successful Response
+     */
+    200: KeyCheck;
+};
+
+export type PutZernioKeyResponse = PutZernioKeyResponses[keyof PutZernioKeyResponses];
+
+export type CheckZernioKeyData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/me/zernio-key/check';
+};
+
+export type CheckZernioKeyResponses = {
+    /**
+     * Successful Response
+     */
+    200: KeyCheck;
+};
+
+export type CheckZernioKeyResponse = CheckZernioKeyResponses[keyof CheckZernioKeyResponses];
+
+export type ListBotsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/me/bots';
+};
+
+export type ListBotsResponses = {
+    /**
+     * Response List Bots
+     *
+     * Successful Response
+     */
+    200: Array<BotOut>;
+};
+
+export type ListBotsResponse = ListBotsResponses[keyof ListBotsResponses];
+
+export type AddBotData = {
+    body: BotIn;
+    path?: never;
+    query?: never;
+    url: '/api/me/bots';
+};
+
+export type AddBotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AddBotError = AddBotErrors[keyof AddBotErrors];
+
+export type AddBotResponses = {
+    /**
+     * Successful Response
+     */
+    201: BotPairing;
+};
+
+export type AddBotResponse = AddBotResponses[keyof AddBotResponses];
+
+export type PairBotData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/me/bots/{id}/pair';
+};
+
+export type PairBotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PairBotError = PairBotErrors[keyof PairBotErrors];
+
+export type PairBotResponses = {
+    /**
+     * Successful Response
+     */
+    200: BotPairing;
+};
+
+export type PairBotResponse = PairBotResponses[keyof PairBotResponses];
+
+export type DeleteBotData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/me/bots/{id}';
+};
+
+export type DeleteBotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteBotError = DeleteBotErrors[keyof DeleteBotErrors];
+
+export type DeleteBotResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteBotResponse = DeleteBotResponses[keyof DeleteBotResponses];
+
+export type PatchBotData = {
+    body: BotPatch;
+    path: {
+        /**
+         * Id
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/me/bots/{id}';
+};
+
+export type PatchBotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PatchBotError = PatchBotErrors[keyof PatchBotErrors];
+
+export type PatchBotResponses = {
+    /**
+     * Successful Response
+     */
+    200: BotOut;
+};
+
+export type PatchBotResponse = PatchBotResponses[keyof PatchBotResponses];
+
+export type TestBotData = {
+    body?: never;
+    path: {
+        /**
+         * Id
+         */
+        id: number;
+    };
+    query?: never;
+    url: '/api/me/bots/{id}/test';
+};
+
+export type TestBotErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TestBotError = TestBotErrors[keyof TestBotErrors];
+
+export type TestBotResponses = {
+    /**
+     * Successful Response
+     */
+    200: BotTest;
+};
+
+export type TestBotResponse = TestBotResponses[keyof TestBotResponses];
 
 export type ListClipsData = {
     body?: never;
