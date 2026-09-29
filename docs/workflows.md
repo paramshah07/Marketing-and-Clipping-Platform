@@ -6,12 +6,13 @@ Five end-to-end workflows, each as a diagram and then numbered steps. The steps 
 1. [The nightly routine](#the-nightly-routine): tomorrow's Reels, from clip to schedule
 2. [When a post fails](#when-a-post-fails): the alert, the Recover page, the one remedy
 3. [Adding an Instagram account](#adding-an-instagram-account): Zernio first, then Clipper
-4. [Shipping a change](#shipping-a-change): branch, pull request, `./review.sh`, merge, automatic deploy, verify
+4. [Shipping a change](#shipping-a-change): branch, pull request into `dev`, `./review.sh`, release to `prod`, automatic deploy, verify
 5. [Backups and restore](#backups-and-restore): the nightly dump, and putting one back safely
 
 > [!NOTE]
 > The screenshots come from a review copy of production with publishing off. The guide page linked under
-> each one explains its numbered callouts.
+> each one explains its numbered callouts. Each user runs these flows on their own clips, accounts and bots; nobody
+> sees anyone else's.
 
 ## The nightly routine
 
@@ -39,7 +40,7 @@ flowchart LR
 4. **Approve the drafts.** Posts land as **Draft** unless their brand has **Auto-approve**, and a render
    with no logo always lands as a draft. A draft never publishes. Press **Approve** on each one, or
    **Approve _n_ drafts** in the header to approve them all at once.
-5. **Leave it.** At each slot the worker publishes the post. Once it is live, the Reel shows up in
+5. **Leave it.** At each slot the publisher publishes the post with your Zernio key. Once it is live, the Reel shows up in
    **Library** › **Published**. Anything that goes wrong reaches you as in [When a post fails](#when-a-post-fails).
 
 ![Three renders selected in the Ready to schedule tray; dashed Fill previews show where Auto-schedule will place them on the board](images/calendar-schedule.png)
@@ -53,7 +54,7 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-  slot["Slot time: the worker publishes"] --> z{"Outcome"}
+  slot["Slot time: the publisher publishes"] --> z{"Outcome"}
   z -->|published| done["Published"]
   z -->|"rate limit, or slot missed by 30+ min"| moved["Moved to the next free slot<br/>Telegram alert"]
   z -->|failed| failed["Failed<br/>red badge + Telegram alert"]
@@ -69,8 +70,8 @@ flowchart TD
 
 1. **You hear about it** in three places: a red count on **Calendar** in the sidebar (it opens the oldest
    failure), an **_n_ failed** button in the Calendar header (with several, it lists them), and
-   a Telegram message from the main bot with **Open post** (the bot's card, with the remedy) and **Open in
-   Clipper** (the Recover page).
+   a Telegram message from each of your bots with alerts on, with **Open post** (the bot's card, with the remedy)
+   and **Open in Clipper** (the Recover page).
 2. **Read the cause.** The Recover page says what went wrong in plain words and quotes Instagram's own
    message. **Technical details** has the error code and the raw payload.
 3. **Apply the one remedy** it offers, or **Dismiss (cancel this post)**. Each remedy is explained in
@@ -95,15 +96,17 @@ tells you in Telegram. Every cause is listed in [Failure reasons](guide/07-publi
 
 ```mermaid
 flowchart LR
-  prof["Zernio: new profile"] --> conn["Connect Instagram<br/>Business or Creator"]
+  key["Settings: your Zernio<br/>API key (once)"] --> prof["Zernio: new profile"]
+  prof --> conn["Connect Instagram<br/>Business or Creator"]
   conn --> sync["Clipper → Accounts<br/>Sync accounts"]
   sync --> card["New card: Europe/London,<br/>slots every hour 07:00–23:00"]
   card --> set["Set time zone, slots,<br/>daily cap, minimum gap"]
   set --> use["Calendar: schedule to it"]
 ```
 
-1. **In Zernio, create a profile** for the account. Clipper publishes through Zernio, so accounts are
-   connected there, not in Clipper. Use a new profile for each Instagram account: connecting a second one
+1. **In Zernio, create a profile** for the account. Clipper publishes through your own Zernio account, so
+   accounts are connected there, not in Clipper; your Zernio API key must be in **Settings** first
+   ([Getting started](guide/01-getting-started.md#1-zernio-api-key)). Use a new profile for each Instagram account: connecting a second one
    to the same profile replaces the first. **Connect account** on the Accounts page lists these steps, with
    an **Open Zernio** link.
 2. **Connect the Instagram account** in that profile. It must be a Business or Creator account.
@@ -114,7 +117,7 @@ flowchart LR
    **Daily cap** and **Min gap** to suit the account.
 5. **Schedule to it.** It now appears in the Calendar's account picker.
 
-Clipper syncs accounts every 6 hours. When an account drops out, you get a Telegram alert with
+Clipper syncs accounts every 6 hours. When an account drops out, your bots send an alert with
 **Reconnect in Zernio** and **Sync accounts**. To stop using an account, press **Disable**: it cancels the
 account's drafts, scheduled posts and failed posts.
 
@@ -122,18 +125,20 @@ account's drafts, scheduled posts and failed posts.
 
 ```mermaid
 flowchart LR
-  br["Branch off master"] --> code["Change + tests"]
-  code --> pr["Push, open a PR"]
+  br["Branch off dev"] --> code["Change + tests"]
+  code --> pr["Push, open a PR into dev<br/>CI runs"]
   pr --> rev["./review.sh<br/>copy of production,<br/>publishing off"]
   rev -->|"needs work"| code
-  rev -->|"looks right"| merge["Merge to master"]
-  merge --> gha["GitHub Actions: Deploy<br/>SSH → git pull → deploy.sh"]
+  rev -->|"looks right"| merge["Merge into dev"]
+  merge --> rel["Release: PR dev → prod<br/>CI runs, merge"]
+  rel --> gha["GitHub Actions: Deploy<br/>SSH → git pull → deploy.sh"]
   gha --> ok["api healthy within 2 min"]
   ok --> verify["Verify on the live app"]
 ```
 
-1. **Branch** off an up-to-date `master`: `git switch master && git pull && git switch -c <branch>`.
-2. **Change and test.** The backend tests run in a container with their own database and no bots:
+1. **Branch** off an up-to-date `dev`: `git switch dev && git pull && git switch -c <branch>`.
+2. **Change and test.** The backend tests run in a container with their own database and no bots (in another
+   checkout than the operator's, add `-p <name>`: [CLAUDE.md](../CLAUDE.md)):
    ```sh
    docker compose run --rm worker pytest
    (cd frontend && npm test && npm run typecheck && npm run lint)
@@ -142,18 +147,22 @@ flowchart LR
    `docker compose run --rm --no-deps api python scripts/dump_openapi.py`, then `npm run gen:api` in
    `frontend/`. Overlay or crop geometry lives in two places and must change in both: see
    [CLAUDE.md](../CLAUDE.md).
-3. **Push and open a pull request:** `git push -u origin <branch> && gh pr create`.
+3. **Push and open a pull request into `dev`:** `git push -u origin <branch> && gh pr create` (`dev` is the default
+   base). CI runs the backend suite and the frontend checks on it.
 4. **Try it on a copy of production:**
    ```sh
    gh pr checkout <number> && ./review.sh && (cd frontend && npm run dev)
    ```
-   Open http://localhost:5173. Publishing is off and no bots run, so nothing reaches Instagram or
-   Telegram. `./review.sh down` removes the copy when you're done.
-5. **Merge the pull request.** Merging is the deploy.
-6. **Watch it go out.** **Actions** › **Deploy** on GitHub. The run passes once the api answers within 2 minutes, and its
+   Open http://localhost:5173 and sign in as the operator (`review.sh` prints how to set a password when the copy
+   has none). Publishing is off, no bots run and no key opens, so nothing reaches Instagram or Telegram.
+   `./review.sh down` removes the copy when you're done.
+5. **Merge the pull request into `dev`.** Nothing deploys yet.
+6. **Release:** open a pull request from `dev` into `prod` (`gh pr create --base prod --head dev`), let CI pass, and
+   merge it with a merge commit. The push to `prod` is the deploy.
+7. **Watch it go out.** **Actions** › **Deploy** on GitHub. The run passes once the api answers within 2 minutes, and its
    log ends with `deployed <commit>`. If it fails, read the run's log; [deploying by
    hand](deploy.md#deploying-by-hand) runs the same script again.
-7. **Verify** on https://145-241-239-46.sslip.io. The status footer should read **Publishing live**, and
+8. **Verify** on https://145-241-239-46.sslip.io. The status footer should read **Publishing live**, and
    the change should be there.
 
 > [!WARNING]
@@ -161,17 +170,18 @@ flowchart LR
 > Zernio key and bot tokens, so it would publish the same schedule and fight the VM's bots. `./review.sh`
 > refuses to start while that stack exists.
 
-A deploy is safe mid-publish. The worker gets 90 seconds to stop, and a publish that gets cut off re-runs
-with the same idempotency key. To undo a change, revert its pull request and merge the revert. If the
+A deploy is safe mid-publish. The worker and the publisher get 90 seconds to stop, and a publish that gets cut off
+re-runs with the same idempotency key. To undo a change, revert its pull request and release the revert. If the
 change added a database migration, fix forward instead: the database is already on the newer schema, so
-the reverted code's `migrate` step fails.
+the reverted code's `migrate` step fails ([the multi-user release](deploy.md#rolling-back-the-multi-user-release) has
+its own procedure).
 
 ## Backups and restore
 
 ```mermaid
 flowchart TD
   cron["Every night at 04:00, VM cron"] --> dump["pg_dump → backups/clipper-Mon.dump<br/>one per weekday, 7 kept"]
-  dump -.->|"when you need one"| off["Publishing off; stop api, worker, bots"]
+  dump -.->|"when you need one"| off["Publishing off; stop api, workers, bot"]
   off --> restore["Drop, create, pg_restore the dump"]
   restore --> up["Start migrate, api, worker, caddy"]
   up --> list["List overdue Scheduled and Publishing posts"]

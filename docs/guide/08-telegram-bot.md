@@ -1,21 +1,55 @@
 # Telegram bot
 
-The Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends the failure alerts.
+A Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends your failure alerts.
 
-The bot works through the same API as the web app, so every rule and confirmation is the same. This page shows how to use it; [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots here: the examples are chat transcripts, with buttons in `[brackets]`.
+It is your own bot, made with Telegram's @BotFather, and it works through the same API as the web app, as you: every rule and confirmation is the same, and it only ever sees your clips, renders, accounts and posts. This page shows how to add one and use it; [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots of the chat: the examples are chat transcripts, with buttons in `[brackets]`.
+
+## Add a bot
+
+In **Settings** (or step 3 of **Set up Clipper**), under **Telegram bots**:
+
+1. In Telegram, open [@BotFather](https://t.me/BotFather) and send `/newbot`. Give it a name, then a username ending in "bot". Make a new bot just for Clipper: a bot another app already uses (one with a webhook) is refused.
+2. Paste the token BotFather sends back (it looks like `123456789:AAE…`) and click **Verify**. Clipper checks it with Telegram and stores it encrypted.
+3. Click **Open @yourbot and tap Start**. Telegram opens the bot; tap **Start**. The bot answers **Paired. This chat runs your Clipper now.**, and the card updates by itself to **Paired with** your chat. (Or send the `/start …` command the card shows, in a private chat with the bot. The code works for 15 minutes.)
+4. Click **Send test message**. **Test message delivered** means the bot can reach you.
+
+Add as many bots as you like, each paired with its own chat. Each bot answers only its chat and ignores everyone else without a reply, including group chats.
+
+### Your bots in Settings
+
+Each bot has a status, an **Alerts** switch, **Test**, **Pair** or **Re-pair**, and **Remove**:
+
+| Status | What it means | What to do |
+|---|---|---|
+| **Running** | The bot is polling Telegram (checked every 10 seconds) | Nothing |
+| **Waiting for Start** | Not paired with a chat yet | **Pair**, then open the bot and tap **Start** |
+| **Token rejected** | Telegram refused the token (revoked or regenerated in @BotFather) | In @BotFather, `/token` for that bot, and paste the new token under **Add another bot**: it keeps its chat |
+| **Not responding** | Paired, but not heard from in 90 seconds: Clipper's bot service is down, or another program uses the same token | If it lasts, make sure nothing else runs this bot, or tell the operator |
+
+- **Alerts** on: this bot's chat gets your failure alerts. Turn it off for bots you only use to run Clipper.
+- **Test** sends a message straight from Clipper, and shows Telegram's reason if it fails.
+- **Re-pair** moves the bot to another chat: open it from the new chat and tap **Start**. The old chat keeps working until then.
+- **Remove** stops the bot within about 10 seconds. The bot itself stays in Telegram; delete it in @BotFather if you like.
+
+When adding a bot fails, the card says why:
+
+| Message | Code | What to do |
+|---|---|---|
+| Telegram refused the token | `TOKEN_REJECTED` | Copy it again from @BotFather |
+| Another app receives this bot's messages | `BOT_IN_USE` | Make a new bot for Clipper with `/newbot` |
+| Another Clipper user has added this bot | `BOT_TAKEN` | A bot belongs to one Clipper user: make your own |
 
 ## Before you start
 
-- Open your private chat with the Clipper bot and send `/help`. Tap `/` in the chat for the command menu.
-- Each bot answers one chat only, and ignores everyone else without a reply. Production can run up to three bots, each with its own chat, all working on the same Clipper.
-- Failure alerts go to the main bot's chat.
-- **Open in Clipper** buttons open the web app, which asks for the site's username and password first.
+- Open your private chat with your bot and send `/help`. Tap `/` in the chat for the command menu.
+- Failure alerts go to every bot of yours with **Alerts** on.
+- **Open in Clipper** buttons open the web app, which asks you to sign in first if you aren't.
 
 ## Commands
 
 | Command | What it shows |
 |---|---|
-| `/status` | Whether the database, worker and publishing are up, with rendering, scheduled and failed counts |
+| `/status` | Whether the database, workers and your publishing are up (and why not), with your rendering, scheduled and failed counts |
 | `/clips [text]` | The library, 10 per page; add text to search (also `/library`) |
 | `/renders` | Recent renders |
 | `/ready` | Renders ready to schedule, to select and auto-schedule (also `/queue`) |
@@ -124,7 +158,7 @@ Tue 29 Sep
 
 ## Failed posts and alerts
 
-When a post fails, the main bot's chat gets an alert:
+When a post fails, each of your bots with **Alerts** on sends an alert:
 
 ```text
 Bot:  @afro.yahu post 234 failed: Instagram rejected the video or caption (format, length or policy).

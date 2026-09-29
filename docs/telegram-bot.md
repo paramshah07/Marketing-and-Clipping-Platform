@@ -1,6 +1,7 @@
 # Telegram bot: spec (2026-09-27; many bots per user since 2026-09-29)
 
-Each user's own Telegram bots (made with @BotFather, added in Settings) are a second front end for Clipper.
+Each user's own Telegram bots (made with @BotFather, added in Settings) are a second front end for Clipper
+([multi-user.md](multi-user.md#5-telegram-bots) has the data model and the threat model).
 Everything the web app does can be done from the chat, and the bots run as part of the stack, attached to the
 api. The operator's three bots (@Postyclipper_bot, which sends failure alerts, and the two interactive ones) were
 imported once from `.env` into user 1 (`cli bootstrap`) and work as before.
@@ -10,7 +11,7 @@ imported once from `.env` into user 1 (`cli bootstrap`) and work as before.
 ```
 Telegram ⇄ bot (compose service, long polling) ──HTTP──> api (:8000, same endpoints as the web app)
                                                           └─ /media/* for thumbnails and MP4s
-worker ──sendMessage──> Telegram (alerts, now with buttons the bot answers)
+publisher ──sendMessage──> Telegram (alerts, to the user's bots with alerts on; buttons the bot answers)
 ```
 
 - **One compose service `bot`**, the api's image, `python -m app.bot`: a supervisor that runs every user's
@@ -68,7 +69,7 @@ worker ──sendMessage──> Telegram (alerts, now with buttons the bot answe
 
 | Web app | Bot |
 |---|---|
-| Sidebar: API / database / worker / publishing state, rendering + scheduled counts, failed badge | `/status` |
+| Sidebar: API / database / worker / publisher / publishing state (and why it is off), rendering + scheduled counts, failed badge | `/status` |
 | Library: clip table, search | `/clips [text]`, 10 per page, tap `/c12` to open |
 | Upload videos (creator handle) | Send one or more videos (an album too) → Import. A caption starting with `@name` sets the handle |
 | Import a URL (handle) | Send a message with one video link (optionally with an `@handle`) → Import |
@@ -184,7 +185,7 @@ send the PNG as a file) · Default placement (the editor's grid, size and opacit
   - a bulk import when every clip has finished (one summary);
   - a "Post now" post: Published with the link, Failed with its card, or moved to a new slot.
   Watches expire after 2 h (posts after 1 h).
-- **Worker alerts** keep their text and link and gain buttons: a post alert gets **Open post** (the post
+- **Alerts** (sent by the publisher) keep their text and link and gain buttons: a post alert gets **Open post** (the post
   card, where the remedy is); an account disconnect gets **Sync accounts** and **Reconnect in Zernio**. They go
   to every paired bot of the user the alert is about with its alerts switch on (`notify(user_id, …)`).
 

@@ -1,18 +1,102 @@
 # Getting started
 
-Sign in to Clipper, learn the layout, set up your first account and brand, and see how a normal day goes.
+Create your account, connect your Zernio key, Instagram accounts and (if you like) a Telegram bot, learn the layout,
+and see how a normal day goes.
+
+## Sign up
+
+Clipper has room for a limited number of users (15, the operator included). Each user has their own library,
+brands, accounts, posts and bots, and nobody else sees them.
+
+![The Create your account page: a username field, a password field, 2 spots left, and a Create account button](../images/sign-up.png)
+
+1. Open [https://145-241-239-46.sslip.io/signup](https://145-241-239-46.sslip.io/signup), or **Sign up** under the
+   sign-in form.
+2. Pick a **Username**: 3 to 32 characters, lower-case letters, digits, dot, dash or underscore. Anyone can see that a
+   name is taken, so don't use anything private.
+3. Pick a **Password** of at least 8 characters.
+4. Click **Create account**. You are signed in and land on **Set up Clipper**.
+
+The page shows how many spots are left. When it says **Signups are full.**, ask the operator. There is no email and
+no reset link: if you forget your password, the operator sets a new one for you.
 
 ## Sign in
 
-1. Open [https://145-241-239-46.sslip.io](https://145-241-239-46.sslip.io).
-2. Your browser asks for a username and password. For both, reach out to pjsrsns@gmail.com.
-3. Clipper opens on the **Library**.
+![The Sign in page: a username field, a password field and a Sign in button](../images/sign-in.png)
 
-There is one shared username and password and no separate user accounts, so anyone who has them can do
-everything, including publishing. Keep them to yourself.
+1. Open [https://145-241-239-46.sslip.io](https://145-241-239-46.sslip.io). Any page asks you to sign in first, and
+   takes you back to it afterwards.
+2. Enter your **Username** and **Password** and click **Sign in**.
 
-Clipper works on a phone too. The Recover page is made for one, because Telegram alerts link straight to
-it.
+You stay signed in on that browser for 30 days, renewed as you use it. **Log out** is on the **Settings** page. After
+10 wrong passwords within 15 minutes, sign-in for that username stops working from your network for up to 15 minutes.
+
+> [!NOTE]
+> The operator signs in as `clipper`. Everything from before Clipper had accounts (clips, brands, accounts, posts, the
+> Zernio key and the three Telegram bots) belongs to that account, and works as it did.
+
+Clipper works on a phone too. The Recover page is made for one, because Telegram alerts link straight to it.
+
+## Set up Clipper
+
+After signing up you land on **Set up Clipper**: three steps, each a card that shows its state live. Uploads,
+renders and brands work without them, so **Do this later** takes you to the Library; the **Setup _n_/3** badge in the
+sidebar brings you back. The same cards stay on the **Settings** page.
+
+![Set up Clipper for a new user: the Zernio API key card with its three steps and a Verify button, the Instagram accounts card waiting for the key, and the optional Telegram bots card with the Add a bot steps](../images/setup.png)
+
+### 1. Zernio API key
+
+Clipper publishes through [Zernio](https://zernio.com), with your own Zernio account. Zernio's first 2 Instagram
+accounts are free.
+
+1. Sign up or log in at [zernio.com](https://zernio.com).
+2. Open **API keys** and click **Create API key**. Keep the defaults: scope **Full** (all profiles), permission
+   **Read-write**, no expiry.
+3. Copy the key (it starts with `sk_`, and Zernio shows it once), paste it into the card and click **Verify**.
+
+Clipper checks the key with Zernio, stores it encrypted, and never shows it again. The card then reads **Connected as**
+your Zernio name and email, with the key's last four characters and when it was last checked. If Zernio refuses it,
+the card says why in red, with the error code:
+
+| Message | What to do |
+|---|---|
+| Zernio refused the key (`ZERNIO_KEY_INVALID`) | Copy it again from Zernio's **API keys** page, or make a new one |
+| Already connected to another Clipper user (`ZERNIO_USER_CLAIMED`) | One Zernio account belongs to one Clipper user. Use your own Zernio account |
+| Another Zernio account's (`ZERNIO_ACCOUNT_CHANGED`) | Your Instagram accounts came from the Zernio account you connected first: use a key from that one |
+| A post is publishing (`KEY_IN_USE`) | Wait a minute and try again |
+| Won't list your accounts with this key | The key has limited access: make a Full, Read-write one |
+
+Once connected: **Re-check** asks Zernio again (and fetches your Instagram accounts again), **Replace key** takes a
+new key, and **Remove** deletes it (your scheduled posts then stop going out until you add one again).
+
+### 2. Instagram accounts
+
+Accounts are connected in Zernio, not in Clipper: a Business or Creator account, one Zernio profile per account.
+
+1. Click **Connect in Zernio**, create a profile, and connect the Instagram account in it.
+2. Back in Clipper, click **Re-check**. Your accounts appear with a **Connected** chip.
+
+The card warns when Zernio has no accounts for you yet, when an account is already connected to another Clipper user
+(it isn't added for you), or when an account is beyond your Zernio plan's limit (Zernio won't post to it until you
+upgrade or remove one). More in [Accounts](06-accounts.md).
+
+### 3. Telegram bots (optional)
+
+A Telegram bot of your own sends you failure alerts and runs Clipper from the chat. Add as many as you like; each
+answers only the chat you pair it with. The steps, from @BotFather to the test message, are in
+[Telegram bot › Add a bot](08-telegram-bot.md#add-a-bot).
+
+## Settings
+
+**Settings** (your username at the bottom of the sidebar) has the same three cards, plus **Account**: your username,
+your storage, **Change password** and **Log out**.
+
+![The Settings page: the Zernio API key, Instagram accounts and Telegram bots cards, then Account with the username, storage used of the quota and Log out](../images/settings.png)
+
+- **Storage** is your clips and renders against your limit (5 GB unless the operator changed it). When it is full,
+  uploads, imports and renders stop until you delete some clips or renders.
+- **Change password** needs your current one, and signs out your other browsers.
 
 ## The layout
 
@@ -24,9 +108,15 @@ Every page shares a sidebar on the left and a header along the top.
 |---|---|
 | 1 | The pages: **Library**, **Calendar**, **Accounts** and **Customizations**. The Editor opens from the Library. |
 | 2 | Failed posts badge. The red number counts posts that failed; click it to open the oldest one's Recover page. It only shows when something failed. |
-| 3 | Status. The first thing standing between a post and Instagram: the api, the database, the worker, then the publishing switch. |
+| 3 | Status. The first thing standing between a post and Instagram: the api, the database, the workers, then publishing (the server's switch, or your Zernio key). |
 | 4 | Renders queued or running, and posts scheduled to go out (drafts don't count). |
 | 5 | The page header: the page title, its tabs, and its main actions on the right. |
+
+Under the status, the footer's last row is your username, which opens **Settings**, with a **Setup _n_/3** badge that
+opens **Set up Clipper** until your Zernio key and an Instagram account are in place. (The screenshot above predates
+that row.)
+
+![The sidebar footer: No Zernio key in amber, 0 rendering and 0 scheduled, and the username alice.e2e with a Setup 0/3 badge](../images/footer-no-key.png)
 
 ### The status footer
 
@@ -35,32 +125,25 @@ explanation.
 
 | Status | What it means |
 |---|---|
-| **Publishing live** (green) | All is well. Scheduled posts go out to Instagram at their time. |
-| **Publishing off** (amber) | Renders run, but nothing reaches Instagram: scheduled posts stay **Scheduled**. Expected on a review copy; on the live app, see [deploy.md](../deploy.md). |
-| **Worker offline** (red) | Nothing renders or publishes until the worker is back. |
+| **Publishing live** (green) | All is well. Your scheduled posts go out to Instagram at their time. |
+| **No Zernio key** (amber) | You have no Zernio key yet: your scheduled posts stay **Scheduled**. Click it to open **Settings**. |
+| **Zernio key refused** (red) | Zernio refused your key, so your publishing is paused. Click it, then **Re-check** or **Replace key**. |
+| **Publishing off** (amber) | The server's publishing switch is off: renders run, but nothing reaches Instagram, for anyone. Expected on a review copy; on the live app, tell the operator. |
+| **Worker offline** (red) | Nothing renders or downloads until the worker is back; ready posts still publish. When both workers are down: nothing renders or publishes. |
+| **Publisher offline** (red) | Nothing publishes and no alerts go out until the publisher is back. Renders run. |
 | **Database offline** (red) | Nothing renders or publishes until the database is back. |
 | **API offline** (red) | The server isn't answering, so nothing on the page is current. |
 
 Pages that show "Couldn't load …" during an outage reload by themselves once the server answers again.
 
-## First-time setup
+## First-time setup, after Set up Clipper
 
-Do this once. Each step links to the page that explains it in full.
+Do this once, after your Zernio key and an Instagram account are connected ([Set up Clipper](#set-up-clipper)).
+Each step links to the page that explains it in full.
 
-### 1. Connect an Instagram account
+### 1. Set when it posts
 
-Clipper publishes through Zernio, so accounts are connected there, not in Clipper.
-
-1. In Zernio, create a profile for the account: one profile per Instagram account, so each keeps its own
-   queue and limits.
-2. In that profile, connect Instagram. It must be a Business or Creator account.
-3. In Clipper, go to **Accounts** and click **Sync accounts**. The account appears as a card.
-
-**Connect account** on the same page shows these steps, with a link to Zernio. More in [Accounts](06-accounts.md).
-
-### 2. Set when it posts
-
-On the account's card:
+On the account's card, on the **Accounts** page:
 
 1. Pick the **Timezone** the account posts in. Posting times are in this zone.
 2. Set the **Times**: remove a time with its ×, add one with **Add**, or replace them all from **Presets**.
@@ -69,7 +152,7 @@ On the account's card:
 A new account starts on Europe/London with the **Every hour, 07:00–23:00** preset, a daily cap of 10 and a
 30-minute gap. Changes save as you make them.
 
-### 3. Add a brand
+### 2. Add a brand
 
 A brand is an advertiser: its logo, link and caption.
 
@@ -83,15 +166,15 @@ A brand is an advertiser: its logo, link and caption.
 Leave **Auto-approve** off while you get used to Clipper: every post then waits as a draft until you approve
 it. More in [Customizations](04-customizations.md).
 
-### 4. Optional: saved captions and covers
+### 3. Optional: saved captions and covers
 
 Under **Customizations**, **Captions** holds reusable caption text and **Covers** holds cover images
 (**Upload cover**). The default cover is preselected in the Editor; the default caption fills in when the
 brand has no caption template.
 
-### 5. Check the footer
+### 4. Check the footer
 
-The status footer should read **Publishing live**. If it reads **Publishing off**, nothing will reach
+The status footer should read **Publishing live**. If it reads anything else, nothing of yours will reach
 Instagram; see [The status footer](#the-status-footer).
 
 ## A day in Clipper
@@ -114,7 +197,8 @@ The usual routine, in the evening, to fill tomorrow's slots.
 5. **Let it run.** Every minute Clipper sends out the posts that are due, so a Reel is usually live within
    two minutes of its slot. Published posts appear under **Library** › **Published**, each with a link to its
    Reel.
-6. **Fix what failed.** If a post fails, the red badge appears on **Calendar** and Telegram sends an alert.
+6. **Fix what failed.** If a post fails, the red badge appears on **Calendar**, and your Telegram bots with alerts
+   on send an alert.
    Open the post's Recover page and apply the remedy it offers, or **Dismiss** the post. See
    [Publishing and recovery](07-publishing-and-recovery.md).
 
