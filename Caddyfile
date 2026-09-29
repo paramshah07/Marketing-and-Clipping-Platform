@@ -21,9 +21,12 @@
 	reverse_proxy clipper-api-1:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
 }
 
-# Staging (docs/deploy.md): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's data.
-# The same password: that copy is production's.
+# Staging (docs/deploy.md): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's data. No
+# shared password: its app signs every user in itself and shows each only their own data. From outside, the bot
+# service's headers and /api/internal/* don't exist (the api checks the bearer too).
 dev.{$CLIPPER_HOST} {
-	import password
+	request_header -Authorization
+	request_header -X-Clipper-User
+	respond /api/internal/* 404
 	reverse_proxy clipper-dev-api-1:8000
 }
