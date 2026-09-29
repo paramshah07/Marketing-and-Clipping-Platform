@@ -1,5 +1,5 @@
 #!/bin/sh
-# Production deploy on the VM (docs/deploy.md section 4). GitHub Actions runs it on every push to master: its SSH
+# Production deploy on the VM (docs/deploy.md section 4). GitHub Actions runs it on every push to prod (the VM's checkout tracks origin/prod): its SSH
 # key's forced command in ~/.ssh/authorized_keys is `cd ~/clipper && git pull --ff-only && exec sh deploy.sh`,
 # so this file is always the version just pulled. Rebuilds what changed, restarts Caddy if its file changed
 # (the container holds the old one), then waits for the api to answer.
