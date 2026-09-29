@@ -14,7 +14,7 @@ How production runs, how a change reaches it, and how to back it up and restore 
 | | |
 |---|---|
 | Live app | https://145-241-239-46.sslip.io. Sign up there (username and password) while spots are left; the operator signs in as `clipper` |
-| Staging | https://dev.145-241-239-46.sslip.io: the `dev` branch on a copy of production's data, refreshed every 5 days, never publishes; the operator's shared password, then the app's sign-in ([section 7](#7-staging-dev-on-the-vm)) |
+| Staging | https://dev.145-241-239-46.sslip.io: the `dev` branch on a copy of production's data, refreshed every 5 days, publishing on (posts scheduled there go out for real); the operator's shared password, then the app's sign-in ([section 7](#7-staging-dev-on-the-vm)) |
 | Host | One Oracle Cloud Always Free Arm VM: `VM.Standard.A1.Flex`, 2 OCPU / 12 GB (11 GB visible), Ubuntu 24.04, 46.6 GB boot volume (not grown yet; capacity: [multi-user.md](multi-user.md#10-capacity)) |
 | Stack | `compose.yml` with `compose.prod.yml` on top (`COMPOSE_FILE` in the VM's `.env`) |
 | Open ports | Security list: 22 (SSH), 80, 443. Caddy's 80 and 443 are the only ports Docker publishes; everything else binds to 127.0.0.1 |
@@ -408,26 +408,42 @@ gh pr checkout <number> && ./review.sh && (cd frontend && npm run dev)
 ## 7. Staging: `dev` on the VM
 
 https://dev.145-241-239-46.sslip.io runs the `dev` branch on the production VM, on a copy of production's data, so a
-change can be seen with real clips before it is released. Caddy asks for the operator's shared password first (the
+change can be seen, and published, with real clips before it is released. Caddy asks for the operator's shared password first (the
 copy is production's), then the app asks for its own sign-in: the operator is `clipper` with the same password.
 
 | | |
 |---|---|
-| Checkout | `~/clipper-dev`, tracking `origin/dev`; its `.env` sets `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=false`, and copies `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` from production's. `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
-| Stack | `compose.staging.yml`: its own Postgres (no host port), the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), no Caddy, the render worker on one CPU with one ffmpeg thread, `PUBLISHING_ENABLED=false` in every service |
+| Checkout | `~/clipper-dev`, tracking `origin/dev`; its `.env` sets `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=true`, and copies `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` and `ZERNIO_API_KEY` from production's (its own copy: it stays when production's `.env` drops the key after the multi-user release; to rebuild, take it from the password manager). Never `TELEGRAM_*` (`compose.staging.yml` blanks them for its migrate anyway): a bot token polled from two places breaks the real bot. `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
+| Stack | `compose.staging.yml`: its own Postgres (no host port), the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), no Caddy, the render worker on one CPU with one ffmpeg thread, `IDEMPOTENCY_SALT=staging:` on the api |
 | Deploys | `.github/workflows/deploy-dev.yml`, after CI passes on a push to `dev` (or **Actions** › **Deploy staging** › **Run workflow**). Its key's forced command: `command="cd /home/ubuntu/clipper-dev && git pull -q --ff-only && exec sh deploy.sh",restrict …` |
 | Data | `staging-refresh.sh`, by cron every 5 days at 05:00 UTC (after the 04:00 backup): `0 5 */5 * * cd /home/ubuntu/clipper-dev && sh staging-refresh.sh >> /home/ubuntu/staging-refresh.log 2>&1` |
 
 **The refresh** reads production only (`pg_dump`, and `rsync` from `~/clipper/data`). It replaces staging's database
-and files with the copy, runs staging's own `migrate` on it (so every refresh rehearses the next release's migrations
-on real data), then removes every session, every stored Zernio key and every Telegram bot from the copy: staging's
-`SECRETS_KEY` couldn't open them, and a bot polled from two places stops answering in the real one. Anything made
-on staging is gone at the next refresh. To refresh now: `ssh ubuntu@145.241.239.46 'cd ~/clipper-dev && sh
-staging-refresh.sh'`.
+and files with the copy and runs staging's own `migrate` on it, so every refresh rehearses the next release's
+migrations on real data. Straight after the restore, before anything else can fail (so a refresh that stops
+half-way leaves nothing a later deploy could publish), and in one transaction:
 
-**What works there**: everything but publishing. A Zernio key pasted on staging is verified and its accounts listed
-(read-only calls), and a test bot (its own @BotFather token, never one production uses) pairs and answers. Renders
-run, slower than production's.
+- every copied post that could still publish (DRAFT, SCHEDULED, PUBLISHING, FAILED, DEAD_LETTER) is CANCELLED:
+  production's schedule is production's to publish, never staging's too;
+- every id sequence restarts 10,000,000 above production's.
+
+After `migrate`, every session, stored Zernio key and Telegram bot is removed (staging's `SECRETS_KEY` couldn't open
+them, and a bot polled from two places stops answering in the real one); user 1 then takes the `.env`'s
+`ZERNIO_API_KEY` again (`cli bootstrap`), so the operator can publish from staging straight away.
+
+Staging's api salts every Idempotency-Key (`IDEMPOTENCY_SALT=staging:`; production's is empty, so its keys never
+change). Zernio replays a key per Zernio user whatever the body, and a staging post for a copied render, account and
+slot would otherwise get exactly the key production's post has. `deploy.sh` and the refresh share a lock
+(`.git/deploy.lock`), so a push to `dev` waits for a refresh to finish.
+
+Anything made on staging is gone at the next refresh. To refresh now: `ssh ubuntu@145.241.239.46 'cd ~/clipper-dev
+&& sh staging-refresh.sh'`.
+
+**Publishing on staging is real.** A post scheduled there goes out to Instagram at its time with the operator's
+Zernio key (other users paste their own on staging to publish from it), and cannot be deleted through Zernio: use a
+test account, or schedule only what should really go out. `PUBLISHING_ENABLED=false` in `~/clipper-dev/.env`, then
+`sh deploy.sh` there, turns it off. Bots work there too with their own @BotFather token (never one production
+uses). Renders run on one CPU, slower than production's.
 
 **Rebuilding it**: clone `dev` into `~/clipper-dev` (the VM's `github` key reads the repo), write its `.env` as
 above, add the deploy key's line to `~/.ssh/authorized_keys` and the private half to the `DEPLOY_DEV_SSH_KEY`

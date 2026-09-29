@@ -14,7 +14,9 @@ were imported once from `.env`, and only its link imports use the server's yt-dl
 **Production** is this compose stack on one Oracle Cloud Arm VM with `compose.prod.yml` on top, public at an
 sslip.io name behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`). **Staging** is the `dev` branch
 on the same VM (`~/clipper-dev`, project `clipper-dev`, `compose.staging.yml`) at `dev.<host>`, behind the shared
-password, on a copy of production refreshed every 5 days by cron (`staging-refresh.sh`); it never publishes. Branches: `dev` is the default
+password, on a copy of production refreshed every 5 days by cron (`staging-refresh.sh`). It publishes for real
+(the operator's Zernio key); the refresh cancels every copied unpublished post first thing, and staging's api
+salts every Idempotency-Key (`IDEMPOTENCY_SALT`), so production's schedule never goes out twice and no key is shared. Branches: `dev` is the default
 branch and takes every change through a pull request; a `dev` -> `prod` pull request is a release, and every push to
 `prod` deploys (`.github/workflows/deploy.yml` -> `deploy.sh`). CI (`.github/workflows/ci.yml`) runs the backend suite
 and the frontend checks on every pull request to `dev` or `prod` and every push to `dev`. Publishing goes through
