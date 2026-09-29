@@ -19,7 +19,7 @@ services:
     <<: *prod
     build: { context: ./backend, target: api-prod, additional_contexts: { frontend: ./frontend } }
     # the client's address from Caddy's X-Forwarded-For, trusted only from docker's default network pools (Caddy
-    # is on the compose network): the sign-in throttles key on it
+    # is on the edge network): the sign-in throttles key on it
     command: !override ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
                         "--proxy-headers", "--forwarded-allow-ips", "172.16.0.0/12,192.168.0.0/16"]
     environment:
@@ -28,6 +28,7 @@ services:
       # deploy.sh adds both to the VM's .env before it starts anything; checked here, so nothing starts without them
       SECRETS_KEY: ${SECRETS_KEY:?run deploy.sh, which adds SECRETS_KEY to .env}
       BOT_SERVICE_SECRET: ${BOT_SERVICE_SECRET:?run deploy.sh, which adds BOT_SERVICE_SECRET to .env}
+    networks: [default, edge] # Caddy reaches it on edge, as clipper-api-1 (Caddyfile)
   worker: *prod
   publisher: *prod
   bot: *prod
@@ -38,9 +39,16 @@ services:
     environment:  # from the VM's .env
       CLIPPER_HOST: ${CLIPPER_HOST:?set CLIPPER_HOST in .env}
       CLIPPER_ACME_EMAIL: ${CLIPPER_ACME_EMAIL:?set CLIPPER_ACME_EMAIL in .env}
+      # the operator's shared password, now only in front of staging (dev.<host>: a copy of production's data)
+      CLIPPER_USER: ${CLIPPER_USER:?set CLIPPER_USER in .env}
+      CLIPPER_PASSWORD_HASH: ${CLIPPER_PASSWORD_HASH:?set CLIPPER_PASSWORD_HASH in .env}
     volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data]  # caddy_data keeps the certificate
     depends_on: { api: { condition: service_started } }
+    networks: [edge] # the apis only: production's and staging's (compose.staging.yml on the dev branch)
     logging: *logs
+
+networks:
+  edge: { name: clipper-edge } # staging's project joins it as an external network
 
 volumes:
   caddy_data:

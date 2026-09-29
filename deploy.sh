@@ -1,6 +1,7 @@
 #!/bin/sh
-# Production deploy on the VM (docs/deploy.md section 4). GitHub Actions runs it on every push to prod (the VM's checkout tracks origin/prod): its SSH
-# key's forced command in ~/.ssh/authorized_keys is `cd ~/clipper && git pull --ff-only && exec sh deploy.sh`,
+# Deploy on the VM (docs/deploy.md sections 4 and 7). GitHub Actions runs it on every push to prod, in ~/clipper
+# (production, tracking origin/prod), and on every push to dev, in ~/clipper-dev (staging, tracking origin/dev): each
+# SSH key's forced command in ~/.ssh/authorized_keys is `cd <checkout> && git pull --ff-only && exec sh deploy.sh`,
 # so this file is always the version just pulled. Rebuilds what changed, restarts Caddy if its file changed
 # (the container holds the old one), then waits for the api to answer.
 set -eu
@@ -12,9 +13,13 @@ cd "$(dirname "$0")"
 grep -q '^SECRETS_KEY=.' .env || echo "SECRETS_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
 grep -q '^BOT_SERVICE_SECRET=.' .env || echo "BOT_SERVICE_SECRET=$(openssl rand -hex 32)" >> .env
 docker compose up -d --build --remove-orphans
-git diff --quiet 'HEAD@{1}' HEAD -- Caddyfile 2>/dev/null || docker compose restart caddy
+# staging (~/clipper-dev, compose.staging.yml) runs no Caddy of its own, and its api answers on another port
+if docker compose config --services | grep -qx caddy; then
+  git diff --quiet 'HEAD@{1}' HEAD -- Caddyfile 2>/dev/null || docker compose restart caddy
+fi
+api=$(docker compose port api 8000) # 127.0.0.1:8000 in production, 127.0.0.1:8001 on staging
 for _ in $(seq 60); do
-  if curl -fsS -o /dev/null http://127.0.0.1:8000/api/health; then
+  if curl -fsS -o /dev/null "http://$api/api/health"; then
     echo "deployed $(git log --oneline -1)"
     exit 0
   fi

@@ -12,7 +12,9 @@ were imported once from `.env`, and only its link imports use the server's yt-dl
 `docs/multi-user.md`.
 
 **Production** is this compose stack on one Oracle Cloud Arm VM with `compose.prod.yml` on top, public at an
-sslip.io name behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`). Branches: `dev` is the default
+sslip.io name behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`). **Staging** is the `dev` branch
+on the same VM (`~/clipper-dev`, project `clipper-dev`, `compose.staging.yml`) at `dev.<host>`, behind the shared
+password, on a copy of production refreshed every 5 days by cron (`staging-refresh.sh`); it never publishes. Branches: `dev` is the default
 branch and takes every change through a pull request; a `dev` -> `prod` pull request is a release, and every push to
 `prod` deploys (`.github/workflows/deploy.yml` -> `deploy.sh`). CI (`.github/workflows/ci.yml`) runs the backend suite
 and the frontend checks on every pull request to `dev` or `prod` and every push to `dev`. Publishing goes through
@@ -71,7 +73,7 @@ first: never with the Mac's `.env`)
     /lib          geometry.ts (+ test), utils.ts (+ test), schedule.ts (+ test), cover.ts
   /e2e            accept.mjs (Playwright acceptance, Google Chrome), docs-screenshots.mjs
 /docs             multi-user.md, deploy.md, telegram-bot.md, guide/, PLAN.md, spec.md, phase-N.md, design/
-compose.yml       compose.prod.yml, compose.review.yml, Caddyfile, deploy.sh, review.sh
+compose.yml       compose.prod.yml, compose.staging.yml, compose.review.yml, Caddyfile, deploy.sh, staging-refresh.sh, review.sh
 
 ## Commands
 

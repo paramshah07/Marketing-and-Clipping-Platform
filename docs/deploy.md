@@ -14,12 +14,13 @@ How production runs, how a change reaches it, and how to back it up and restore 
 | | |
 |---|---|
 | Live app | https://145-241-239-46.sslip.io. Sign up there (username and password) while spots are left; the operator signs in as `clipper` |
+| Staging | https://dev.145-241-239-46.sslip.io: the `dev` branch on a copy of production's data, refreshed every 5 days, never publishes; the operator's shared password, then the app's sign-in ([section 7](#7-staging-dev-on-the-vm)) |
 | Host | One Oracle Cloud Always Free Arm VM: `VM.Standard.A1.Flex`, 2 OCPU / 12 GB (11 GB visible), Ubuntu 24.04, 46.6 GB boot volume (not grown yet; capacity: [multi-user.md](multi-user.md#10-capacity)) |
 | Stack | `compose.yml` with `compose.prod.yml` on top (`COMPOSE_FILE` in the VM's `.env`) |
 | Open ports | Security list: 22 (SSH), 80, 443. Caddy's 80 and 443 are the only ports Docker publishes; everything else binds to 127.0.0.1 |
 | Branches | `dev` (the default) takes every change by pull request; `prod` is what runs ([section 4](#4-deploying-an-update)) |
 | CI | Every pull request to `dev` or `prod`, every push to `dev`: backend tests and frontend checks (`.github/workflows/ci.yml`) |
-| Deploys | Every push to `prod`: `.github/workflows/deploy.yml` → `deploy.sh` ([section 4](#4-deploying-an-update)) |
+| Deploys | Every push to `prod`: `.github/workflows/deploy.yml` → `deploy.sh` ([section 4](#4-deploying-an-update)). Every push to `dev` that passes CI: `deploy-dev.yml` → staging ([section 7](#7-staging-dev-on-the-vm)) |
 | Backups | Nightly database dump on the VM, last 7 days kept ([section 5](#5-backups-and-restore)) |
 | Trying a branch | `./review.sh` on the Mac, against a copy of production ([section 6](#6-trying-a-pr-before-merging-on-the-mac)) |
 
@@ -200,7 +201,7 @@ list, and cut over again from step 1 with a fresh dump. After the first post fro
 
 | Branch | What it is |
 |---|---|
-| `dev` | The default branch. Every change reaches it through a pull request; merging deploys nothing |
+| `dev` | The default branch. Every change reaches it through a pull request; once CI passes, the push deploys staging (dev.&lt;host&gt;, [section 7](#7-staging-dev-on-the-vm)), never production |
 | `prod` | What production runs. Every push to it deploys; the VM's checkout tracks `origin/prod` |
 | `master` | Legacy: a push there changes nothing on the VM |
 
@@ -242,6 +243,7 @@ publish cut off re-runs with the same Idempotency-Key, so a deploy never duplica
 | `DEPLOY_SSH_KEY` | The deploy key's private half |
 | `DEPLOY_KNOWN_HOSTS` | `ssh-keyscan -t ed25519 <vm>`, checked against a fingerprint you already trust |
 | `DEPLOY_HOST` | The VM's address |
+| `DEPLOY_DEV_SSH_KEY` | Staging's deploy key's private half ([section 7](#7-staging-dev-on-the-vm)) |
 
 ### Deploying by hand
 
@@ -402,5 +404,34 @@ database included).
 ```sh
 gh pr checkout <number> && ./review.sh && (cd frontend && npm run dev)
 ```
+
+## 7. Staging: `dev` on the VM
+
+https://dev.145-241-239-46.sslip.io runs the `dev` branch on the production VM, on a copy of production's data, so a
+change can be seen with real clips before it is released. Caddy asks for the operator's shared password first (the
+copy is production's), then the app asks for its own sign-in: the operator is `clipper` with the same password.
+
+| | |
+|---|---|
+| Checkout | `~/clipper-dev`, tracking `origin/dev`; its `.env` sets `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=false`, and copies `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` from production's. `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
+| Stack | `compose.staging.yml`: its own Postgres (no host port), the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), no Caddy, the render worker on one CPU with one ffmpeg thread, `PUBLISHING_ENABLED=false` in every service |
+| Deploys | `.github/workflows/deploy-dev.yml`, after CI passes on a push to `dev` (or **Actions** › **Deploy staging** › **Run workflow**). Its key's forced command: `command="cd /home/ubuntu/clipper-dev && git pull -q --ff-only && exec sh deploy.sh",restrict …` |
+| Data | `staging-refresh.sh`, by cron every 5 days at 05:00 UTC (after the 04:00 backup): `0 5 */5 * * cd /home/ubuntu/clipper-dev && sh staging-refresh.sh >> /home/ubuntu/staging-refresh.log 2>&1` |
+
+**The refresh** reads production only (`pg_dump`, and `rsync` from `~/clipper/data`). It replaces staging's database
+and files with the copy, runs staging's own `migrate` on it (so every refresh rehearses the next release's migrations
+on real data), then removes every session, every stored Zernio key and every Telegram bot from the copy: staging's
+`SECRETS_KEY` couldn't open them, and a bot polled from two places stops answering in the real one. Anything made
+on staging is gone at the next refresh. To refresh now: `ssh ubuntu@145.241.239.46 'cd ~/clipper-dev && sh
+staging-refresh.sh'`.
+
+**What works there**: everything but publishing. A Zernio key pasted on staging is verified and its accounts listed
+(read-only calls), and a test bot (its own @BotFather token, never one production uses) pairs and answers. Renders
+run, slower than production's.
+
+**Rebuilding it**: clone `dev` into `~/clipper-dev` (the VM's `github` key reads the repo), write its `.env` as
+above, add the deploy key's line to `~/.ssh/authorized_keys` and the private half to the `DEPLOY_DEV_SSH_KEY`
+secret, run `sh deploy.sh` then `sh staging-refresh.sh` in `~/clipper-dev`, and add the cron line. Production's
+Caddy must be from a release that has the `dev.{$CLIPPER_HOST}` site and the `clipper-edge` network.
 
 [Documentation index](README.md) · [Workflows](workflows.md) · [Guide](guide/README.md)
