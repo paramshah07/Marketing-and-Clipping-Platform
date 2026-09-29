@@ -39,9 +39,6 @@ services:
     environment:  # from the VM's .env
       CLIPPER_HOST: ${CLIPPER_HOST:?set CLIPPER_HOST in .env}
       CLIPPER_ACME_EMAIL: ${CLIPPER_ACME_EMAIL:?set CLIPPER_ACME_EMAIL in .env}
-      # the operator's shared password, now only in front of staging (dev.<host>: a copy of production's data)
-      CLIPPER_USER: ${CLIPPER_USER:?set CLIPPER_USER in .env}
-      CLIPPER_PASSWORD_HASH: ${CLIPPER_PASSWORD_HASH:?set CLIPPER_PASSWORD_HASH in .env}
     volumes: [./Caddyfile:/etc/caddy/Caddyfile:ro, caddy_data:/data]  # caddy_data keeps the certificate
     depends_on: { api: { condition: service_started } }
     networks: [edge] # the apis only: production's and staging's (compose.staging.yml on the dev branch)

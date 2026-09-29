@@ -14,7 +14,7 @@ How production runs, how a change reaches it, and how to back it up and restore 
 | | |
 |---|---|
 | Live app | https://145-241-239-46.sslip.io. Sign up there (username and password) while spots are left; the operator signs in as `clipper` |
-| Staging | https://dev.145-241-239-46.sslip.io: the `dev` branch on a copy of production's data, refreshed every 5 days, publishing on (posts scheduled there go out for real); the operator's shared password, then the app's sign-in ([section 7](#7-staging-dev-on-the-vm)) |
+| Staging | https://dev.145-241-239-46.sslip.io: the `dev` branch on a copy of production's data, refreshed every 5 days, publishing on (posts scheduled there go out for real); the app's own sign-in, no shared password ([section 7](#7-staging-dev-on-the-vm)) |
 | Host | One Oracle Cloud Always Free Arm VM: `VM.Standard.A1.Flex`, 2 OCPU / 12 GB (11 GB visible), Ubuntu 24.04, 46.6 GB boot volume (not grown yet; capacity: [multi-user.md](multi-user.md#10-capacity)) |
 | Stack | `compose.yml` with `compose.prod.yml` on top (`COMPOSE_FILE` in the VM's `.env`) |
 | Open ports | Security list: 22 (SSH), 80, 443. Caddy's 80 and 443 are the only ports Docker publishes; everything else binds to 127.0.0.1 |
@@ -408,8 +408,9 @@ gh pr checkout <number> && ./review.sh && (cd frontend && npm run dev)
 ## 7. Staging: `dev` on the VM
 
 https://dev.145-241-239-46.sslip.io runs the `dev` branch on the production VM, on a copy of production's data, so a
-change can be seen, and published, with real clips before it is released. Caddy asks for the operator's shared password first (the
-copy is production's), then the app asks for its own sign-in: the operator is `clipper` with the same password.
+change can be seen, and published, with real clips before it is released. There is no shared password: the app's
+own sign-in protects every account and shows each user only their own data, as in production. The operator signs in as
+`clipper` with production's password; anyone else signs up at `/signup` (up to `MAX_USERS`).
 
 | | |
 |---|---|
