@@ -16,7 +16,8 @@ sslip.io name behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.
 on the same VM (`~/clipper-dev`, project `clipper-dev`, `compose.staging.yml`) at `dev.<host>`, behind the shared
 password, on a copy of production refreshed every 5 days by cron (`staging-refresh.sh`). It publishes for real
 (the operator's Zernio key); the refresh cancels every copied unpublished post first thing, and staging's api
-salts every Idempotency-Key (`IDEMPOTENCY_SALT`), so production's schedule never goes out twice and no key is shared. Branches: `dev` is the default
+salts every Idempotency-Key (`IDEMPOTENCY_SALT`), so production's schedule never goes out twice and no key is shared. Accounts made on staging (ids above
+10,000,000) survive every refresh; production's arrive with the copy. Branches: `dev` is the default
 branch and takes every change through a pull request; a `dev` -> `prod` pull request is a release, and every push to
 `prod` deploys (`.github/workflows/deploy.yml` -> `deploy.sh`). CI (`.github/workflows/ci.yml`) runs the backend suite
 and the frontend checks on every pull request to `dev` or `prod` and every push to `dev`. Publishing goes through
