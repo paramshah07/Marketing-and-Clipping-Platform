@@ -533,7 +533,7 @@ def test_media_jobs_are_shared_fairly_between_users(client, db):
 
     mine = [url(1) for _ in range(3)]
     first = url(other)
-    urls = [f"https://vimeo.com/{time.time_ns() + i}" for i in range(2)]
+    urls = [f"https://www.youtube.com/watch?v=bulk{time.time_ns() + i}" for i in range(2)]  # another user: known sites only
     assert client.post("/api/clips/from-urls", json={"urls": urls}, headers=as_user(other)).json()["created"] == 2
     second = url(other)  # after the list, still ahead of it
     with db.begin() as c:

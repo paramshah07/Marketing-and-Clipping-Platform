@@ -76,6 +76,15 @@ async def _room(s: AsyncSession, adding: int = 0) -> None:
         raise HTTPException(507, {"code": full[0], "message": full[1]})
 
 
+def _importable(s: AsyncSession, urls: list[str]) -> None:
+    """422 unless every link is one video on a known site (links.SITES). yt-dlp runs on the server, inside its
+    network: a link anywhere else (the api, cloud metadata, a private address) would have it fetch that for the user.
+    The operator (user 1) keeps any link, as before."""
+    if s.info["uid"] != 1 and (bad := next((u for u in urls if links.video(u) is None), None)):
+        sites = ", ".join(platform for platform, _, _ in links.SITES)
+        raise HTTPException(422, f"{bad}: only a link to one video on {sites} can be imported")
+
+
 async def _get(s: AsyncSession, model, id: int):
     if (row := await s.get(model, id)) is None:
         raise HTTPException(404, f"{model.__tablename__} {id} not found")
@@ -231,6 +240,7 @@ async def upload_clip(request: Request, s: Db) -> ClipOut:
 
 @router.post("/clips/from-url", status_code=201)
 async def create_clip_from_url(body: ClipFromUrl, s: Db) -> ClipOut:
+    _importable(s, [str(body.url)])
     await _room(s)
     clip = SourceClip(
         origin="url",
@@ -270,9 +280,11 @@ async def find_links(file: UploadFile, s: Db) -> LinksOut:
 @router.post("/clips/from-urls", status_code=201)
 async def create_clips_from_urls(body: ClipsFromUrls, s: Db) -> ClipsFromUrlsOut:
     """One DOWNLOADING clip per video that isn't in the library yet."""
+    urls = list(dict.fromkeys(links.clean(str(u)) for u in body.urls))
+    _importable(s, urls)
     await _room(s)
     have, ids = await _library_keys(s), []
-    for url in dict.fromkeys(links.clean(str(u)) for u in body.urls):
+    for url in urls:
         if (k := links.key(url)) in have:
             continue
         have.add(k)

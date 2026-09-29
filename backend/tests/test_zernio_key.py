@@ -46,16 +46,18 @@ def verified(zernio_user_id: str) -> dict:
 
 class Zernio:
     """GET /v1/auth/verify -> verify (a fixture); GET /v1/accounts -> accounts.json's account once per (id, username)
-    in listed, plus over_limit with includeOverLimit=true. Records every request."""
+    in listed, plus over_limit with includeOverLimit=true, or the fixture refused. Records every request."""
 
-    def __init__(self, verify: dict, listed=(), over_limit=()):
-        self.verify, self.listed, self.over, self.calls = verify, listed, over_limit, []
+    def __init__(self, verify: dict, listed=(), over_limit=(), refused: dict | None = None):
+        self.verify, self.listed, self.over, self.refused, self.calls = verify, listed, over_limit, refused, []
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         self.calls.append(req)
         if req.url.path.endswith("/auth/verify"):
             return httpx.Response(self.verify["status"], json=self.verify["body"])
         assert req.url.path.endswith("/accounts"), req.url
+        if self.refused:
+            return httpx.Response(self.refused["status"], json=self.refused["body"])
         body = fx("accounts")["body"]
         pairs = [*self.listed, *(self.over if req.url.params.get("includeOverLimit") == "true" else ())]
         body["accounts"] = [body["accounts"][0] | {"_id": zid, "username": name} for zid, name in pairs]
@@ -166,11 +168,16 @@ def test_put_refusals_store_nothing(use, monkeypatch):
 
 def test_one_clipper_user_per_zernio_user_and_account(use):
     zuid = uuid.uuid4().hex
-    new_user(zernio_user_id=zuid)
+    holder = new_user(zernio_user_id=zuid)
     use(Zernio(verified(zuid)))
     with api(new_user()) as c:
         r = c.put(PATH, json={"key": KEY})
     assert code(r) == (409, "ZERNIO_USER_CLAIMED")
+    with api(holder) as c:  # none of its Instagram accounts here: removing the key lets that Zernio account go
+        assert c.delete(PATH).status_code == 204
+    assert user(holder).zernio_user_id is None
+    with api(new_user()) as c:
+        assert c.put(PATH, json={"key": KEY}).status_code == 200
     # Instagram accounts from one Zernio account: a key of another one would orphan them and their posts
     first, second = uuid.uuid4().hex, uuid.uuid4().hex
     uid = new_user(zernio_user_id=first)
@@ -270,3 +277,42 @@ def test_env_import_is_one_shot(db, monkeypatch, capsys):
     cli.bootstrap()  # a key the operator removed never comes back from .env
     assert (user(1).zernio_key_enc, user(1).zernio_key_status) == (None, "none")
     zernio_key(1, None)
+
+
+def test_the_env_keys_zernio_user_is_the_operators(use):
+    """User 1's .env key is stored without its Zernio user (no network call at the import). Another user's key of that
+    Zernio user is still refused: the check asks Zernio about the .env key first, and user 1 keeps what it learns."""
+    zuid = uuid.uuid4().hex
+    zernio_key(1, KEY, zernio_user_id=None, env_imported_at=datetime.now(UTC))
+    use(Zernio(verified(zuid)))  # KEY and OTHER_KEY: one Zernio user
+    with api(new_user()) as c:
+        assert code(c.put(PATH, json={"key": OTHER_KEY})) == (409, "ZERNIO_USER_CLAIMED")
+    assert user(1).zernio_user_id == zuid
+    zernio_key(1, None, zernio_user_id=None)
+
+
+def test_a_key_after_an_import_without_one_is_a_new_generation(use, monkeypatch):
+    """Migration 0007 gives user 1 generation 1, the .env key's (and its posts' key_gen, test_db). An import that finds
+    no ZERNIO_API_KEY leaves it there, so the first key pasted is generation 2: the .env key's maybe-live posts never
+    replay under it (KEY_CHANGED)."""
+    zernio_key(1, None, gen=1, env_imported_at=None, zernio_user_id=None)
+    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "")
+    cli.bootstrap()
+    assert (user(1).zernio_key_gen, user(1).zernio_key_enc, user(1).env_imported_at is not None) == (1, None, True)
+    uid = new_user(zernio_key_gen=1)  # the same arithmetic as user 1's first PUT, without re-syncing its accounts
+    use(Zernio(verified(uuid.uuid4().hex)))
+    with api(uid) as c:
+        assert c.put(PATH, json={"key": KEY}).status_code == 200
+    assert user(uid).zernio_key_gen == 2
+
+
+def test_a_key_that_cant_list_accounts_is_refused(use):
+    """A restricted (zrk_) key without Zernio's accounts group verifies, then GET /v1/accounts answers 403: stored but
+    invalid, with the reason, rather than a 502 under 'Connected'; a Re-check can't make it look fine."""
+    use(Zernio(verified(uuid.uuid4().hex), refused=fx("docs_403_insufficient_permissions")))
+    with api(new_user()) as c:
+        r = c.put(PATH, json={"key": OTHER_KEY})
+        assert r.status_code == 200, r.text
+        assert (r.json()["zernio"]["status"], r.json()["accounts"]) == ("invalid", [])
+        assert "full access" in r.json()["zernio"]["error"]
+        assert c.post(f"{PATH}/check").json()["zernio"]["status"] == "invalid"

@@ -382,6 +382,34 @@ def test_supervisor_runs_pairs_restarts_and_stops_bots(tg):
     supervise(scenario, tg)
 
 
+def test_a_bot_its_chat_refuses_still_polls_and_follows_the_list(tg):
+    """Kicked from its chat (Telegram refuses the menu and "Back online" there): it polls anyway, so a Re-pair can move
+    it. And the chat is the list's: one changed in the database (a pairing whose answer never reached the bot) is the
+    one it answers from the next tick, without a restart."""
+    t, code_ = token(), "k" * 22
+    tg.known.add(t)
+    a = add_row(1, t, CHAT, code=code_)  # paired, a Re-pair's code out
+    tg.say(t, "/help")  # queued while the service was down: "Back online" goes to the chat that refuses it
+    tg.refuse |= {"sendMessage": (403, "Forbidden: bot was kicked from the group chat"),
+                  "setMyCommands": (400, "Bad Request: chat not found")}  # fmt: skip
+
+    async def scenario(sup):
+        await sup.tick()
+        bot, task = sup.bots[a][2], sup.bots[a][1]
+        await until(lambda: any(tok == t and m == "getUpdates" and p.get("timeout") == 50 for tok, m, p in tg.calls))
+        assert not task.done()
+        tg.say(t, "/start " + code_, chat=35)  # the Re-pair, from a private chat
+        await until(lambda: bot.chat == "35")
+        assert row(a).chat_id == 35
+        with SyncSession() as s:
+            s.execute(update(TelegramBot).where(TelegramBot.id == a).values(chat_id=36))
+            s.commit()
+        await sup.tick()
+        assert (bot.chat, sup.bots[a][1]) == ("36", task)
+
+    supervise(scenario, tg)
+
+
 def test_supervisor_keeps_bots_while_the_api_is_down(tg):
     t = token()
     tg.known.add(t)

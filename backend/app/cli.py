@@ -57,18 +57,19 @@ def db_grants() -> None:
             sql.SQL(verb), sql.Literal(settings.APP_DB_PASSWORD)))  # fmt: skip
         c.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO clipper_app")
         c.execute("GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO clipper_app")
+        c.execute("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO clipper_app")  # the migrations' SECURITY DEFINER ones too
         c.execute("REVOKE ALL ON alembic_version FROM clipper_app")
     print("db-grants: clipper_app ok")
 
 
 def import_env(s, user: User) -> None:
     """The one-shot .env import into user 1, the operator (users.env_imported_at): ZERNIO_API_KEY becomes its sealed
-    Zernio key, generation 1 (migration 0007 gave the posts it may already have sent key_gen 1, so those still
-    replay), valid without a network call (a Re-check fills in the Zernio user). TELEGRAM_BOT_TOKEN / _CHAT_ID and
-    the _2 and _3 pairs become its bots, already paired with those chats (the first with alerts on, as before; the
-    bot service fills in their @names). The code never reads these .env values after this. It waits, unstamped,
-    until a SECRETS_KEY can seal (whatever .env holds). Every .env secret user 1 takes over is imported here, in
-    this one step."""
+    Zernio key, under the generation migration 0007 gave user 1 and the posts that key may already have sent (1), so
+    those still replay; valid without a network call (the first key check anyone makes fills in its Zernio user).
+    TELEGRAM_BOT_TOKEN / _CHAT_ID and the _2 and _3 pairs become its bots, already paired with those chats (the first
+    with alerts on, as before; the bot service fills in their @names). The code never reads these .env values after
+    this. It waits, unstamped, until a SECRETS_KEY can seal (whatever .env holds). Every .env secret user 1 takes
+    over is imported here, in this one step."""
     if user.env_imported_at is not None:
         return
     if not secrets.ready():
@@ -76,7 +77,7 @@ def import_env(s, user: User) -> None:
     key = settings.ZERNIO_API_KEY.strip()
     if key and user.zernio_key_enc is None:
         user.zernio_key_enc, user.zernio_key_last4 = secrets.seal(key), key[-4:]
-        user.zernio_key_status, user.zernio_key_gen = "valid", 1
+        user.zernio_key_status = "valid"
     bots = 0
     for n, alerts in (("", True), ("_2", False), ("_3", False)):
         token, chat = getattr(settings, f"TELEGRAM_BOT_TOKEN{n}").strip(), getattr(settings, f"TELEGRAM_CHAT_ID{n}").strip()

@@ -201,7 +201,7 @@
       },
       "delete": {
         "summary": "Delete Zernio Key",
-        "description": "Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later\nkey, so this can't make a second Reel. The Zernio account stays recorded, so a later key must be that account's\nwhile you have its Instagram accounts (ZERNIO_ACCOUNT_CHANGED).",
+        "description": "Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later\nkey, so this can't make a second Reel. The Zernio account stays recorded while you have its Instagram accounts, so\na later key must be that account's (ZERNIO_ACCOUNT_CHANGED); with none, another Clipper user may connect it.",
         "operationId": "delete_zernio_key",
         "responses": {
           "204": {
@@ -213,7 +213,7 @@
     "/api/me/zernio-key/check": {
       "post": {
         "summary": "Check Zernio Key",
-        "description": "The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked\ninvalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again.",
+        "description": "The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked\ninvalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again\n(unless Zernio won't list the accounts with it).",
         "operationId": "check_zernio_key",
         "responses": {
           "200": {
@@ -4455,6 +4455,10 @@
             ],
             "title": "Worker Last Heartbeat"
           },
+          "publisher_alive": {
+            "type": "boolean",
+            "title": "Publisher Alive"
+          },
           "failed_posts": {
             "type": "integer",
             "title": "Failed Posts",
@@ -4496,6 +4500,7 @@
           "db",
           "worker_alive",
           "worker_last_heartbeat",
+          "publisher_alive",
           "publishing_enabled"
         ],
         "title": "SystemStatus"

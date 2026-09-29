@@ -117,6 +117,21 @@ def test_every_user_id_table_has_row_level_security(db):
     assert tuple(role) == (False, False)
 
 
+def test_security_definer_functions_are_hardened(db):
+    """The functions that step outside row-level security (the upload sweep, the bot supervisor's list and report):
+    pg_temp last on their search_path, and no EXECUTE for PUBLIC, only for clipper_app (db-grants) and their owner."""
+    db_grants()  # test_db's downgrade/upgrade dropped them
+    with db.connect() as c:
+        rows = c.execute(text(
+            "SELECT proname, proconfig, proacl::text[] FROM pg_proc"
+            " WHERE prosecdef AND pronamespace = 'public'::regnamespace"
+        )).all()  # fmt: skip
+    assert {r[0] for r in rows} == {"abandon_orphan_uploads", "bots_for_supervisor", "report_bots"}
+    for name, config, acl in rows:
+        assert config == ["search_path=public, pg_temp"], name
+        assert not any(x.startswith("=") for x in acl) and any(x.startswith("clipper_app=X/") for x in acl), (name, acl)
+
+
 def test_no_uid_sees_nothing_and_writes_nothing(db, a):
     """The api's role with no app.uid (a forgotten session.info), or another user's: fail closed."""
     app_db = create_engine(APP_URL)
@@ -395,3 +410,15 @@ def test_bots_are_their_owners_only(db, client, a, monkeypatch):
     with Session(db) as s:
         s.execute(text("DELETE FROM telegram_bots WHERE id IN (:a, :b)"), {"a": mine, "b": theirs})
         s.commit()
+
+
+def test_link_imports_are_known_video_sites_only(client):
+    """yt-dlp runs inside the server's network: another user's link must be one video on a known site (the operator's
+    may still be anything), or the server would fetch internal addresses for them and report what it found."""
+    ok = "https://www.tiktok.com/@b/video/7000000000000000002"
+    for path, body in (("/api/clips/from-url", {"url": "http://169.254.169.254/latest/meta-data/"}),
+                       ("/api/clips/from-url", {"url": "https://x.com@169.254.169.254/status/1"}),
+                       ("/api/clips/from-urls", {"urls": [ok, "http://api:8000/api/health"]})):  # fmt: skip
+        r = client.post(path, json=body)
+        assert r.status_code == 422 and "only a link to one video on YouTube" in r.json()["detail"], r.text
+    assert client.post("/api/clips/from-url", json={"url": ok}).status_code == 201

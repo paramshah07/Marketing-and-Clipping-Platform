@@ -23,9 +23,10 @@ COMPOSITE = (('renders', 'source_clip_id', 'source_clips'), ('renders', 'brand_i
              ('posts', 'render_id', 'renders'), ('posts', 'account_id', 'accounts'))
 DEFAULTED = ('brands', 'saved_captions', 'saved_covers')
 UID = "coalesce(nullif(current_setting('app.uid', true), '')::int, 1)"  # models.UID
-# The api's startup sweep: under RLS it would see no one's uploads. Fixed body, no arguments.
+# The api's startup sweep: under RLS it would see no one's uploads. Fixed body, no arguments; pg_temp last (the
+# PostgreSQL docs' "Writing SECURITY DEFINER Functions Safely"), and no EXECUTE for PUBLIC (db-grants: clipper_app's).
 SWEEP = """CREATE FUNCTION abandon_orphan_uploads() RETURNS TABLE (clip_id int, owner int)
-LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
   UPDATE source_clips SET status = 'FAILED', error_code = 'UPLOAD_ABANDONED',
     error_detail = 'the api restarted during the upload'
   WHERE status = 'UPLOADING' RETURNING id, user_id
@@ -56,7 +57,9 @@ def upgrade() -> None:
     sa.UniqueConstraint('username', name=op.f('uq_users_username')),
     sa.UniqueConstraint('zernio_user_id', name=op.f('uq_users_zernio_user_id'))
     )
-    op.execute("INSERT INTO users (id, username) VALUES (1, 'clipper')")
+    # zernio_key_gen 1: the .env key's generation, whether or not the one-shot import finds it (key_gen below). Any key
+    # stored later is a new credential (2+), so the posts the .env key may have sent never replay under it.
+    op.execute("INSERT INTO users (id, username, zernio_key_gen) VALUES (1, 'clipper', 1)")
     op.execute("SELECT setval('users_id_seq', 1)")  # signups start at 2
     op.create_table('sessions',
     sa.Column('token_sha256', sa.LargeBinary(), nullable=False),
@@ -110,6 +113,7 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE {t} FORCE ROW LEVEL SECURITY")
         op.execute(f"CREATE POLICY tenant ON {t} USING (user_id = nullif(current_setting('app.uid', true), '')::int)")
     op.execute(SWEEP)
+    op.execute("REVOKE EXECUTE ON FUNCTION abandon_orphan_uploads() FROM PUBLIC")
 
 
 def downgrade() -> None:

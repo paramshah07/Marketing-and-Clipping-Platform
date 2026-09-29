@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import uuid
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -124,6 +125,10 @@ def test_notify_goes_to_each_alert_bot_of_that_user(bots, monkeypatch):
     assert send(other.id, "y") is True
     assert [(str(r.url).split("/bot")[1].split("/")[0], json.loads(r.content)["chat_id"]) for r in sent] == [(theirs, 99)]
     sent.clear()
+    with SyncSession() as s:  # disabled: their bots don't run, so nothing would answer the alert's buttons
+        s.get(User, other.id).disabled_at = datetime.now(UTC)
+        s.commit()
+    assert send(other.id, "z") is False and sent == []
     monkeypatch.setattr(settings, "SECRETS_KEY", "")  # tokens that can't be opened: no bot to send with
     assert send(1, "x") is False and sent == []
 

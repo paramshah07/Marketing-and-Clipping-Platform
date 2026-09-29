@@ -256,11 +256,17 @@ class Bot:
             # (Unpaired, keep it: the /start <code> may be waiting there.)
             stale = await self.tg("getUpdates", offset=-1, timeout=0)
             offset = stale[-1]["update_id"] + 1 if stale else None
-            await self.menu()
         log.info("bot %s @%s answering chat %s", self.id, self.username, self.chat or "none: waiting for /start <code>")
-        if pending and self.chat:
-            await self.send(f"Back online. {fmt.plural(pending, 'message')} sent while I was offline "
-                            f"{'was' if pending == 1 else 'were'} ignored: send {'it' if pending == 1 else 'them'} again.")  # fmt: skip
+        try:  # a chat Telegram refuses (the bot kicked or blocked there) must not keep it from polling: Re-pair moves it
+            if self.chat:
+                await self.menu()
+            if pending and self.chat:
+                await self.send(f"Back online. {fmt.plural(pending, 'message')} sent while I was offline "
+                                f"{'was' if pending == 1 else 'were'} ignored: send {'it' if pending == 1 else 'them'} again.")  # fmt: skip
+        except TelegramError as e:
+            if e.code in (401, 404):
+                raise
+            log.warning("bot %s: chat %s: %s", self.id, self.chat, e)
         self.spawn(self.watch_loop())
         backoff = 1
         while True:
@@ -327,6 +333,8 @@ class Supervisor:
                 del self.bots[id]
             else:
                 bot.ver = r["ver"]  # a re-sealed token (SECRETS_KEY rotation) is the same token
+                # the list's chat, also after a pairing whose answer never reached the bot (a stale list: next tick)
+                bot.chat = None if r["chat_id"] is None else str(r["chat_id"])
         for id, r in rows.items():
             if id not in self.bots:
                 bot = Bot(Telegram(r["token"], self.tg_transport), Clipper(self.url, self.transport, r["user_id"]),

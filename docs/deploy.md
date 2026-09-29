@@ -97,9 +97,11 @@ CLIPPER_HOST=<ip-with-dashes>.sslip.io           # e.g. 129-146-12-34.sslip.io
 CLIPPER_USER=<username>
 CLIPPER_PASSWORD_HASH=<the base64 line above>
 CLIPPER_ACME_EMAIL=<operator's email>            # certificate notices; enables the ZeroSSL fallback
-APP_BASE_URL=https://<ip-with-dashes>.sslip.io   # Telegram deep links
 PUBLISHING_ENABLED=false                         # true only at the cutover (section 3)
 ```
+
+`APP_BASE_URL` needs no line: `compose.prod.yml` sets it to `https://$CLIPPER_HOST`, which makes the sign-in cookie
+Secure (`__Host-clipper_session`) and is the one origin the api takes changes from.
 
 ### Firewall and backups
 
@@ -204,6 +206,24 @@ re-runs with the same Idempotency-Key, so a deploy never duplicates a Reel.
 **Actions** › **Deploy** › **Run workflow** on GitHub, or on the VM:
 `cd ~/clipper && git pull --ff-only && sh deploy.sh`
 
+### Rolling back the multi-user release
+
+Reverting the multi-user release (migrations 0007 to 0009) is not enough on its own: the old code's migrate
+doesn't know the database's newer revision and fails, so its api never starts. Plan to fix forward. To go back
+anyway, while the operator is still the only user (the downgrade drops `user_id`, so every other user's clips,
+accounts and posts would become the operator's), first on the VM, with the release still checked out:
+
+```sh
+sed -i 's/^PUBLISHING_ENABLED=.*/PUBLISHING_ENABLED=false/' .env &&
+docker compose stop api worker publisher bot &&
+docker compose run --rm migrate alembic downgrade 0006
+```
+
+Then merge the revert to `prod` (its deploy brings the old services back, `bot2` and `bot3` included), check the
+app, and turn publishing back on. The old code reads the operator's `ZERNIO_API_KEY`, `TELEGRAM_*`,
+`CLIPPER_USER` and `CLIPPER_PASSWORD_HASH` from `.env` again, so keep those in the VM's `.env` until the release
+is final, even after migrate's one-shot import has taken them over.
+
 ## 5. Backups and restore
 
 ### Nightly dump
@@ -218,6 +238,13 @@ Install the nightly dump (one per weekday name, so the last 7 days are kept):
 > The dumps live on the VM itself, which covers mistakes but not losing the VM. Copy them off-box (Oracle
 > Object Storage, 20 GB free) when that matters. Renders can be re-made; raw clips are the other thing
 > worth keeping.
+
+> [!IMPORTANT]
+> The dumps hold every user's Zernio key and bot tokens sealed with the VM's `SECRETS_KEY` (in its `.env`,
+> added by `deploy.sh`). Keep a copy of that line in a password manager: a dump restored under another key
+> opens none of them, and `deploy.sh` makes a new key when the line is missing. The operator's key and bots are
+> not re-imported either (the one-shot import is stamped in the dump), so every user would paste theirs again.
+> Put the line back in `.env` before the first `deploy.sh` on a rebuilt VM, and never into the Mac's `.env`.
 
 ### Restoring a dump
 
@@ -249,6 +276,9 @@ Mac (only reading from the VM, `ubuntu@145.241.239.46` unless `CLIPPER_VM` says 
 branch as project `clipper-review` with `compose.review.yml`:
 
 - Publishing is off, the Zernio key and bot tokens are blanked, and the bots never start.
+- Only the operator's rows and files reach the Mac: other users' are dropped from the copy, sessions are not
+  copied, and the dump file is deleted. Sign in as the operator; a copy from before users has no password yet
+  (`review.sh` prints the `set-password` command).
 - It refuses to run while any container of the Mac's own `clipper` stack exists (the test run's `postgres`
   and `migrate` aside).
 

@@ -6,6 +6,10 @@
 
 x-prod: &prod
   volumes: !override [./data:/data]
+  # the address Caddy serves: the sign-in cookie is Secure (and __Host-) and every change must come from this origin
+  # because it is https; alert and pairing links point here. From CLIPPER_HOST, so it can't be missing or http.
+  environment: &base-url
+    APP_BASE_URL: https://${CLIPPER_HOST:?set CLIPPER_HOST in .env}
   logging: &logs { driver: json-file, options: { max-size: 10m, max-file: "3" } }  # the disk never fills with logs
 
 services:
@@ -19,6 +23,7 @@ services:
     command: !override ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000",
                         "--proxy-headers", "--forwarded-allow-ips", "172.16.0.0/12,192.168.0.0/16"]
     environment:
+      <<: *base-url
       STATIC_DIR: /app/static
       # deploy.sh adds both to the VM's .env before it starts anything; checked here, so nothing starts without them
       SECRETS_KEY: ${SECRETS_KEY:?run deploy.sh, which adds SECRETS_KEY to .env}

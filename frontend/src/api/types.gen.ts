@@ -1228,6 +1228,10 @@ export type SystemStatus = {
      */
     worker_last_heartbeat: string | null;
     /**
+     * Publisher Alive
+     */
+    publisher_alive: boolean;
+    /**
      * Failed Posts
      */
     failed_posts?: number;

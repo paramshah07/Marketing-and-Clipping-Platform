@@ -115,6 +115,26 @@ def test_signup_login_logout(browser):
         assert (r.status_code, code(r)) == (401, "INVALID_LOGIN")
 
 
+def test_https_cookie_is_this_hosts_alone(browser, monkeypatch):
+    """Production is https: __Host-clipper_session (Secure, Path=/, no Domain), which no other *.sslip.io site can
+    set here. A cookie under the bare name (another site could plant that one) is not a session."""
+    site = "https://clipper.example"
+    monkeypatch.setattr(settings, "APP_BASE_URL", site)
+    browser.headers["Origin"] = site
+    r = browser.post(f"{site}/api/auth/signup", json={"username": "host.only", "password": PW})
+    cookie = r.headers["set-cookie"]
+    assert cookie.startswith("__Host-clipper_session=") and "Secure" in cookie and "Path=/" in cookie
+    assert "domain" not in cookie.lower()
+    assert browser.get(f"{site}/api/me").json()["username"] == "host.only"
+    token = browser.cookies["__Host-clipper_session"]
+    browser.cookies.clear()
+    r = browser.get(f"{site}/api/me", headers={"Cookie": f"clipper_session={token}"})
+    assert (r.status_code, code(r)) == (401, "NOT_SIGNED_IN")
+    browser.cookies.set("__Host-clipper_session", token, domain="clipper.example")
+    gone = browser.post(f"{site}/api/auth/logout").headers["set-cookie"]
+    assert gone.startswith("__Host-clipper_session=") and "Max-Age=0" in gone and "Secure" in gone
+
+
 def test_everything_but_health_and_auth_needs_a_user(client):
     client.cookies.clear()
     assert client.get("/api/health").status_code == 200

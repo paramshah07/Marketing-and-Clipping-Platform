@@ -61,8 +61,9 @@ function Shell() {
       qc.refetchQueries({ predicate: (q) => q.state.status === "error" })
     }
   }, [healthy, isError, st, qc])
-  // One status, the first thing in the way of a post going out: api, database, worker, then publishing (the
-  // server's switch, or your Zernio key: that one links to Settings). A 401 never gets here (main.tsx: to /login).
+  // One status, the first thing in the way of a post going out: api, database, the workers (the publisher sends
+  // posts and alerts, the worker renders), then publishing (the server's switch, or your Zernio key: that one links
+  // to Settings). A 401 never gets here (main.tsx: to /login).
   const bad = { dot: "bg-bad", text: "text-bad" }
   const off = st && (st.publishing_off ?? (st.publishing_enabled ? null : "switch"))
   const status: { dot: string; text: string; label: string; hint: string; to?: string } = isError
@@ -71,13 +72,18 @@ function Shell() {
       ? { dot: "bg-subtle", text: "", label: "Checking…", hint: "Checking…" }
       : !st.db
         ? { ...bad, label: "Database offline", hint: "Nothing renders or publishes until the database is back." }
-        : !st.worker_alive
-          ? { ...bad, label: "Worker offline", hint: "Nothing renders or publishes until the worker is back." }
-          : off
-            ? { ...(off === "key_invalid" ? bad : { dot: "bg-warn", text: "text-warn" }), label: PUBLISHING_OFF[off].label, hint: `Worker online, renders run. ${PUBLISHING_OFF[off].why}`, to: off === "switch" ? undefined : "/settings" }
-            : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Worker online. Scheduled posts go out to Instagram at their time." }
+        : !st.worker_alive && !st.publisher_alive
+          ? { ...bad, label: "Worker offline", hint: "Nothing renders or publishes until the workers are back." }
+          : !st.publisher_alive
+            ? { ...bad, label: "Publisher offline", hint: "Nothing publishes and no alerts go out until the publisher is back. Renders run." }
+            : !st.worker_alive
+              ? { ...bad, label: "Worker offline", hint: "Nothing renders or downloads until the worker is back. Ready posts still publish." }
+              : off
+                ? { ...(off === "key_invalid" ? bad : { dot: "bg-warn", text: "text-warn" }), label: PUBLISHING_OFF[off].label, hint: `Workers online, renders run. ${PUBLISHING_OFF[off].why}`, to: off === "switch" ? undefined : "/settings" }
+                : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Workers online. Scheduled posts go out to Instagram at their time." }
   const me = useQuery(meOptions())
   const steps = me.data ? Object.values(me.data.setup).filter(Boolean).length : 3
+  const setUp = !me.data || (me.data.setup.zernio && me.data.setup.instagram) // Telegram is optional (Setup's rule)
   const { pathname } = useLocation()
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
   const failed = useQuery({ ...listPostsOptions({ query: { status: ["FAILED", "DEAD_LETTER"] } }), enabled: !!st?.failed_posts })
@@ -149,7 +155,7 @@ function Shell() {
             className={({ isActive }) =>
               cn(
                 "flex h-8 items-center gap-2.5 rounded px-2.5",
-                steps < 3 && "pr-[76px]", // room for the Setup badge
+                !setUp && "pr-[76px]", // room for the Setup badge
                 rail && "max-[1400px]:justify-center max-[1400px]:px-0",
                 isActive ? "bg-raised text-fg" : "text-muted hover:bg-hover"
               )
@@ -158,7 +164,7 @@ function Shell() {
             <Gear className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
             <span className={cn("truncate", word)}>{me.data?.username ?? "Settings"}</span>
           </NavLink>
-          {steps < 3 && (
+          {!setUp && (
             <Link
               to="/setup"
               title="Finish setting up: Zernio key, Instagram, Telegram"

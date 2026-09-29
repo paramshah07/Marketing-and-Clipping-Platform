@@ -1,6 +1,6 @@
 """Telegram alerts (Bot API sendMessage), to the user the alert is about: every bot of theirs that is paired, has
-alerts on and a token Telegram takes (telegram_bots). A no-op for a user without one. Never raises, so an alert
-can't fail the job that sent it."""
+alerts on and a token Telegram takes (telegram_bots). A no-op for a user without one, or a disabled one (their bots
+don't run: nothing would answer the alert's buttons). Never raises, so an alert can't fail the job that sent it."""
 
 import asyncio
 import logging
@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.db import SessionLocal
 from app.core.secrets import unseal
-from app.models import TelegramBot
+from app.models import TelegramBot, User
 
 logger = logging.getLogger(__name__)
 # httpx logs every request URL at INFO and the worker's root logger is INFO; the URL holds the token
@@ -38,9 +38,9 @@ async def notify(
     Returns True if Telegram accepted it from at least one bot."""
     try:  # as user_id: in the api (row-level security) that is the only way to see their bots
         async with SessionLocal(info={"uid": user_id}) as s:
-            q = select(TelegramBot.token_enc, TelegramBot.chat_id).where(
+            q = select(TelegramBot.token_enc, TelegramBot.chat_id).join(User, User.id == TelegramBot.user_id).where(
                 TelegramBot.user_id == user_id, TelegramBot.alerts, TelegramBot.chat_id.is_not(None),
-                TelegramBot.error.is_(None),
+                TelegramBot.error.is_(None), User.disabled_at.is_(None),
             )  # fmt: skip
             found = (await s.execute(q.order_by(TelegramBot.id))).all()
     except SQLAlchemyError as exc:

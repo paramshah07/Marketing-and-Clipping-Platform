@@ -77,8 +77,8 @@ export const changePassword = <ThrowOnError extends boolean = false>(options: Op
  * Delete Zernio Key
  *
  * Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later
- * key, so this can't make a second Reel. The Zernio account stays recorded, so a later key must be that account's
- * while you have its Instagram accounts (ZERNIO_ACCOUNT_CHANGED).
+ * key, so this can't make a second Reel. The Zernio account stays recorded while you have its Instagram accounts, so
+ * a later key must be that account's (ZERNIO_ACCOUNT_CHANGED); with none, another Clipper user may connect it.
  */
 export const deleteZernioKey = <ThrowOnError extends boolean = false>(options?: Options<DeleteZernioKeyData, ThrowOnError>): RequestResult<DeleteZernioKeyResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DeleteZernioKeyResponses, unknown, ThrowOnError>({ url: '/api/me/zernio-key', ...options });
 
@@ -102,7 +102,8 @@ export const putZernioKey = <ThrowOnError extends boolean = false>(options: Opti
  * Check Zernio Key
  *
  * The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked
- * invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again.
+ * invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again
+ * (unless Zernio won't list the accounts with it).
  */
 export const checkZernioKey = <ThrowOnError extends boolean = false>(options?: Options<CheckZernioKeyData, ThrowOnError>): RequestResult<CheckZernioKeyResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CheckZernioKeyResponses, unknown, ThrowOnError>({ url: '/api/me/zernio-key/check', ...options });
 

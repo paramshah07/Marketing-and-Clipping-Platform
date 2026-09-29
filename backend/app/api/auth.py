@@ -49,7 +49,6 @@ from app.tasks import accounts as account_sync
 
 router = APIRouter(prefix="/api")
 
-COOKIE = "clipper_session"
 SESSION_LIFE, EXTEND_BELOW = timedelta(days=30), timedelta(days=15)
 USERNAME = re.compile(r"[a-z0-9][a-z0-9_.-]{2,31}")  # users.username's CHECK
 MIN_PASSWORD, MAX_PASSWORD = 8, 128
@@ -67,6 +66,17 @@ def _now() -> datetime:
 
 def _sha(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
+
+
+def _https() -> bool:
+    return settings.APP_BASE_URL.startswith("https://")
+
+
+def cookie() -> str:
+    """The session cookie's name. Over https it has the __Host- prefix: a browser takes that one only from this host
+    itself (Secure, Path=/, no Domain), so no other *.sslip.io site can plant a session of its choosing here (sslip.io
+    is not on the Public Suffix List). Plain http (dev) can't carry the prefix."""
+    return "__Host-clipper_session" if _https() else "clipper_session"
 
 
 # ---------------------------------------------------------------- passwords and throttles
@@ -145,7 +155,7 @@ async def signed_in(request: Request, response: Response | None = None) -> User:
         if is_bot(request.headers):
             uid = request.headers.get("x-clipper-user", "")
             user = await s.get(User, int(uid)) if re.fullmatch(r"\d{1,9}", uid) else None
-        elif token := request.cookies.get(COOKIE):
+        elif token := request.cookies.get(cookie()):
             q = select(User, AuthSession.expires_at).join(AuthSession, AuthSession.user_id == User.id)
             row = (await s.execute(q.where(AuthSession.token_sha256 == _sha(token), AuthSession.expires_at > func.now()))).first()
             if row:
@@ -197,8 +207,8 @@ class CSRF:
 
 
 def _set_cookie(response: Response, token: str) -> None:
-    response.set_cookie(COOKIE, token, max_age=int(SESSION_LIFE.total_seconds()), path="/", httponly=True,
-                        samesite="lax", secure=settings.APP_BASE_URL.startswith("https://"))  # fmt: skip
+    response.set_cookie(cookie(), token, max_age=int(SESSION_LIFE.total_seconds()), path="/", httponly=True,
+                        samesite="lax", secure=_https())  # fmt: skip
 
 
 async def _sign_in(s: AsyncSession, user_id: int, response: Response) -> None:
@@ -269,11 +279,11 @@ async def login(body: Credentials, request: Request, response: Response) -> User
 
 @router.post("/auth/logout", status_code=204)
 async def logout(request: Request, response: Response) -> None:
-    if token := request.cookies.get(COOKIE):
+    if token := request.cookies.get(cookie()):
         async with SessionLocal() as s:
             await s.execute(delete(AuthSession).where(AuthSession.token_sha256 == _sha(token)))
             await s.commit()
-    response.delete_cookie(COOKIE, path="/", httponly=True, samesite="lax", secure=settings.APP_BASE_URL.startswith("https://"))
+    response.delete_cookie(cookie(), path="/", httponly=True, samesite="lax", secure=_https())
 
 
 # ---------------------------------------------------------------- the signed-in user
@@ -298,7 +308,7 @@ def _zernio_out(u: User) -> ZernioKeyOut:
 async def me(user: CurrentUser, s: Db) -> Me:
     now = _now()
     bots = (await s.scalars(select(TelegramBot).where(TelegramBot.user_id == user.id).order_by(TelegramBot.id))).all()
-    usable = exists().where(Account.connection_status == "connected", Account.disabled_at.is_(None))
+    usable = exists().where(Account.user_id == user.id, Account.connection_status == "connected", Account.disabled_at.is_(None))
     quota, used = (await s.execute(storage.USAGE, {"u": user.id})).one()
     return Me(
         id=user.id, username=user.username,
@@ -320,7 +330,7 @@ async def change_password(body: PasswordChange, user: CurrentUser, request: Requ
         raise _err(403, "WRONG_PASSWORD", "the current password is wrong")  # not 401: that means signed out
     check_password(body.new)
     hashed = await run_in_threadpool(hash_password, body.new)
-    keep = _sha(request.cookies.get(COOKIE, ""))
+    keep = _sha(request.cookies.get(cookie(), ""))
     async with SessionLocal() as s:
         await s.execute(update(User).where(User.id == user.id).values(password_hash=hashed))
         await s.execute(delete(AuthSession).where(AuthSession.user_id == user.id, AuthSession.token_sha256 != keep))
@@ -335,6 +345,7 @@ async def change_password(body: PasswordChange, user: CurrentUser, request: Requ
 
 KEY_SHAPE = re.compile(r"(sk|zrk)_[A-Za-z0-9_-]{8,196}")  # a full-access or restricted Zernio key, up to 200 chars
 REFUSED = "Zernio refused the key"
+NO_ACCOUNTS = "Zernio won't list your accounts with this key: create one with full access (Full, Read-write)"
 CLAIMED = "this Zernio account is already connected to another Clipper user"
 
 
@@ -362,7 +373,19 @@ def _verified(who: dict) -> dict:
 
 async def _not_elsewhere(s: AsyncSession, uid: int, who: dict) -> None:
     """One Clipper user per Zernio user: Zernio scopes idempotency keys per user, and it keeps two users off one
-    Instagram account."""
+    Instagram account. User 1's .env key was stored without its Zernio user (the import makes no network call): asked
+    here first, so nobody takes the operator's Zernio account, and the operator's own ZERNIO_ACCOUNT_CHANGED check
+    has an account to compare with. May commit: call it before locking the user row."""
+    unknown = select(User.id, User.zernio_key_enc).where(
+        User.env_imported_at.is_not(None), User.zernio_user_id.is_(None), User.zernio_key_enc.is_not(None))  # fmt: skip
+    for other, sealed in (await s.execute(unknown)).all():
+        if (key := unseal(sealed)) and (them := await _verify(key)):
+            q = update(User).where(User.id == other, User.zernio_key_enc == sealed, User.zernio_user_id.is_(None))
+            await s.execute(q.values(zernio_user_id=them["userId"]))
+            try:
+                await s.commit()
+            except IntegrityError:  # another user holds it already
+                await s.rollback()
     if await s.scalar(select(User.id).where(User.zernio_user_id == who["userId"], User.id != uid)):
         raise _err(409, "ZERNIO_USER_CLAIMED", CLAIMED)
 
@@ -381,7 +404,14 @@ async def _sync(s: AsyncSession, u: User, key: str) -> KeyCheck:
         skipped = await account_sync.upsert(s, u.id, parsed)
         every = zernio.parse_accounts(await zernio.list_accounts(key, over_limit=True))
     except zernio.ZernioError as e:
-        raise _err(502, "ZERNIO_ERROR", f"the key is saved, but listing its accounts failed ({e}): Re-check") from None
+        if e.status not in (401, 403):
+            raise _err(502, "ZERNIO_ERROR", f"the key is saved, but listing its accounts failed ({e}): Re-check") from None
+        # the key itself (the call names no account): 403 is a restricted zrk_ key without Zernio's accounts group
+        values = {"zernio_key_status": "invalid", "zernio_error": REFUSED if e.status == 401 else NO_ACCOUNTS}
+        await s.execute(update(User).where(User.id == u.id, User.zernio_key_enc == u.zernio_key_enc).values(**values))
+        await s.commit()
+        u = await s.get(User, u.id, populate_existing=True)
+        return KeyCheck(zernio=_zernio_out(u), accounts=[], skipped=[], over_limit=[])
     listed = {p["zernio_account_id"] for p in parsed}
     over_limit = [p["username"] for p in every if p["zernio_account_id"] not in listed]
     found = [p["username"] for p in parsed if p["username"] not in skipped]
@@ -402,8 +432,8 @@ async def put_zernio_key(body: ZernioKeyIn, user: CurrentUser, s: Db) -> KeyChec
         raise _err(503, "SECRETS_KEY_MISSING", "this server can't store keys yet (SECRETS_KEY is not set)") from None
     if (who := await _verify(key)) is None:
         raise _err(422, "ZERNIO_KEY_INVALID", f"{REFUSED}: copy it again from Zernio's API keys page")
+    await _not_elsewhere(s, user.id, who)
     u = await s.get(User, user.id, with_for_update=True)  # until the commit
-    await _not_elsewhere(s, u.id, who)
     has_accounts = select(exists().where(Account.user_id == u.id))
     if u.zernio_user_id not in (None, who["userId"]) and await s.scalar(has_accounts):
         raise _err(409, "ZERNIO_ACCOUNT_CHANGED", "this key is another Zernio account's; your Instagram accounts and "
@@ -424,7 +454,8 @@ async def put_zernio_key(body: ZernioKeyIn, user: CurrentUser, s: Db) -> KeyChec
 @router.post("/me/zernio-key/check")
 async def check_zernio_key(user: CurrentUser, s: Db) -> KeyCheck:
     """The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked
-    invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again."""
+    invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again
+    (unless Zernio won't list the accounts with it)."""
     u = await s.get(User, user.id)
     if (key := unseal(u.zernio_key_enc)) is None:
         raise _err(409, "ZERNIO_KEY_MISSING", "there is no Zernio key to check: paste yours first")
@@ -448,11 +479,13 @@ async def check_zernio_key(user: CurrentUser, s: Db) -> KeyCheck:
 @router.delete("/me/zernio-key", status_code=204)
 async def delete_zernio_key(user: CurrentUser, s: Db) -> None:
     """Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later
-    key, so this can't make a second Reel. The Zernio account stays recorded, so a later key must be that account's
-    while you have its Instagram accounts (ZERNIO_ACCOUNT_CHANGED)."""
+    key, so this can't make a second Reel. The Zernio account stays recorded while you have its Instagram accounts, so
+    a later key must be that account's (ZERNIO_ACCOUNT_CHANGED); with none, another Clipper user may connect it."""
     await s.get(User, user.id, with_for_update=True)
     await _not_publishing(s, user.id)
     none = {"zernio_key_enc": None, "zernio_key_last4": None, "zernio_key_status": "none", "zernio_checked_at": None,
             "zernio_error": None}  # fmt: skip
+    if not await s.scalar(select(exists().where(Account.user_id == user.id))):
+        none |= {"zernio_user_id": None, "zernio_email": None, "zernio_name": None}
     await s.execute(update(User).where(User.id == user.id).values(**none))
     await s.commit()

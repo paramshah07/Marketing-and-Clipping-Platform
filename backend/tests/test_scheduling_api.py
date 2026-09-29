@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import text, update
 
 from app.api import scheduling
 from app.core.config import settings
@@ -447,6 +447,36 @@ def test_status_counts(client):
     assert after["rendering_renders"] - before["rendering_renders"] == 1
     assert after["scheduled_posts"] - before["scheduled_posts"] == 1
     assert after["publishing_enabled"] is False  # user 1 has no Zernio key here
+
+
+def test_status_tells_the_publisher_and_the_media_worker_apart(client, db):
+    """procrastinate_workers has no queue: a live worker that has run a default-queue job is the publisher, any other
+    live one the media worker. Either down is its own sidebar line (App.tsx, the bot's /status)."""
+
+    def alive():
+        s = client.get("/api/status").json()
+        return s["worker_alive"], s["publisher_alive"]
+
+    add = text("INSERT INTO procrastinate_workers DEFAULT VALUES RETURNING id")
+    stale = text("UPDATE procrastinate_workers SET last_heartbeat = now() - interval '1 minute' WHERE id = :w")
+    with db.begin() as c:
+        c.execute(text("DELETE FROM procrastinate_workers"))  # none left over from other tests
+        media, pub = c.execute(add).scalar(), c.execute(add).scalar()
+        c.execute(text("INSERT INTO procrastinate_jobs (queue_name, task_name, status, worker_id)"
+                       " VALUES ('default', 'dispatch', 'succeeded', :w)"), {"w": pub})  # fmt: skip
+    try:
+        assert alive() == (True, True)
+        with db.begin() as c:
+            c.execute(stale, {"w": pub})
+        assert alive() == (True, False)  # dispatch, publishing and alerts stopped: the sidebar must not say live
+        with db.begin() as c:
+            c.execute(text("UPDATE procrastinate_workers SET last_heartbeat = now() WHERE id = :w"), {"w": pub})
+            c.execute(stale, {"w": media})
+        assert alive() == (False, True)
+    finally:
+        with db.begin() as c:
+            c.execute(text("DELETE FROM procrastinate_jobs WHERE worker_id = :w"), {"w": pub})
+            c.execute(text("DELETE FROM procrastinate_workers"))
 
 
 def test_status_publishing_enabled(client, monkeypatch):

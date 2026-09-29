@@ -628,7 +628,12 @@ async def status_cmd(bot, arg):
     why = OFF_WHY.get(st.get("publishing_off"), "see Settings")
     label, hint = (
         ("Database offline", "Nothing renders or publishes until the database is back.") if not st["db"] else
-        ("Worker offline", "Nothing renders or publishes until the worker is back.") if not st["worker_alive"] else
+        ("Worker offline", "Nothing renders or publishes until the workers are back.")
+        if not (st["worker_alive"] or st["publisher_alive"]) else
+        ("Publisher offline", "Nothing publishes and no alerts go out until the publisher is back. Renders run.")
+        if not st["publisher_alive"] else
+        ("Worker offline", "Nothing renders or downloads until the worker is back. Ready posts still publish.")
+        if not st["worker_alive"] else
         ("Publishing off", f"Renders run, but {why}: scheduled posts stay scheduled and nothing reaches Instagram.")
         if not st["publishing_enabled"] else
         ("Publishing live", "Worker online. Scheduled posts go out at their time.")

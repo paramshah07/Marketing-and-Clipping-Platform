@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowUpRight, Check, CircleAlert, Copy, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "react-router"
 
 import type { BotOut, BotPairing, KeyCheck, Me } from "@/api"
@@ -84,22 +84,25 @@ function Page({ children }: { children: ReactNode }) {
   )
 }
 
-/** The three cards, sharing the last key check: what Verify / Re-check found, skipped and held back. */
-function Cards({ steps }: { steps?: boolean }) {
+/** After any key call, failed ones too (a PUT stores the key, then can fail listing its accounts): what it changed. */
+function useKeyRefetch() {
   const qc = useQueryClient()
-  const me = useQuery(meOptions())
-  const [check, setCheck] = useState<KeyCheck | null>(null)
-  const checked = (kc: KeyCheck | null) => {
-    setCheck(kc)
+  return () => {
     for (const queryKey of [meQueryKey(), listAccountsQueryKey(), statusQueryKey()]) qc.invalidateQueries({ queryKey })
   }
+}
+
+/** The three cards, sharing the last key check: what Verify / Re-check found, skipped and held back. */
+function Cards({ steps }: { steps?: boolean }) {
+  const me = useQuery(meOptions())
+  const [check, setCheck] = useState<KeyCheck | null>(null)
   if (me.isError) return <p className="text-bad">Couldn't load your settings: {say(me.error)}</p>
   if (!me.data) return <p className="text-muted">Loading…</p>
   return (
     <>
-      <ZernioCard n={steps ? 1 : undefined} me={me.data} onChecked={checked} />
-      <InstagramCard n={steps ? 2 : undefined} me={me.data} check={check} onChecked={checked} />
-      <TelegramCard n={steps ? 3 : undefined} done={me.data.setup.telegram} />
+      <ZernioCard n={steps ? 1 : undefined} me={me.data} onChecked={setCheck} />
+      <InstagramCard n={steps ? 2 : undefined} me={me.data} check={check} onChecked={setCheck} />
+      <TelegramCard n={steps ? 3 : undefined} paired={me.data.setup.telegram} />
     </>
   )
 }
@@ -111,7 +114,8 @@ function ZernioCard({ n, me, onChecked }: { n?: number; me: Me; onChecked: (kc: 
   const [key, setKey] = useState("")
   const [replacing, setReplacing] = useState(false)
   const [problem, setProblem] = useState<unknown>(null)
-  const guard = { onMutate: () => setProblem(null), onError: setProblem }
+  const refetch = useKeyRefetch()
+  const guard = { onMutate: () => setProblem(null), onError: setProblem, onSettled: refetch }
   const put = useMutation({ ...putZernioKeyMutation(), ...guard, onSuccess: (kc) => (setKey(""), setReplacing(false), onChecked(kc)) })
   const recheck = useMutation({ ...checkZernioKeyMutation(), ...guard, onSuccess: onChecked })
   const remove = useMutation({ ...deleteZernioKeyMutation(), ...guard, onSuccess: () => onChecked(null) })
@@ -214,7 +218,8 @@ const handles = (xs: string[]) => xs.map((x) => `@${x}`).join(", ")
 
 function InstagramCard({ n, me, check, onChecked }: { n?: number; me: Me; check: KeyCheck | null; onChecked: (kc: KeyCheck) => void }) {
   const accounts = useQuery(listAccountsOptions())
-  const recheck = useMutation({ ...checkZernioKeyMutation(), onSuccess: onChecked })
+  const refetch = useKeyRefetch()
+  const recheck = useMutation({ ...checkZernioKeyMutation(), onSuccess: onChecked, onSettled: refetch })
   const keyed = me.zernio.status === "valid"
   const list = accounts.data ?? []
   const usable = list.filter((a) => a.connection_status === "connected" && !a.disabled_at).length
@@ -253,7 +258,7 @@ function InstagramCard({ n, me, check, onChecked }: { n?: number; me: Me; check:
         </ul>
       )}
       {!keyed && me.zernio.status === "none" && <p className="text-subtle">Add your Zernio key first: Clipper finds your Instagram accounts through it.</p>}
-      {keyed && accounts.data?.length === 0 && <Line tone="warn">No Instagram accounts in your Zernio account yet. Connect one in Zernio, then Re-check.</Line>}
+      {keyed && accounts.data?.length === 0 && !check?.skipped.length && !check?.over_limit.length && <Line tone="warn">No Instagram accounts in your Zernio account yet. Connect one in Zernio, then Re-check.</Line>}
       {!!check?.skipped.length && (
         <Line tone="warn">
           {handles(check.skipped)} {check.skipped.length === 1 ? "is" : "are"} connected to another Clipper user, so Clipper didn't add {check.skipped.length === 1 ? "it" : "them"} for you.
@@ -292,7 +297,7 @@ const HEALTH: Record<BotOut["health"], { tone: "ok" | "accent" | "bad" | "warn";
 const DOT = { ok: "bg-ok", accent: "bg-accent", bad: "bg-bad", warn: "bg-warn" }
 const TEXT = { ok: "text-ok", accent: "text-accent", bad: "text-bad", warn: "text-warn" }
 
-function TelegramCard({ n, done }: { n?: number; done: boolean }) {
+function TelegramCard({ n, paired }: { n?: number; paired: boolean }) {
   const qc = useQueryClient()
   const [pairs, setPairs] = useState<Record<number, BotPairing>>({}) // guides open here: the codes this page handed out
   // quick while a code is out (the pairing shows up within seconds), else the health every 10 s
@@ -301,7 +306,11 @@ function TelegramCard({ n, done }: { n?: number; done: boolean }) {
     qc.invalidateQueries({ queryKey: listBotsQueryKey() })
     qc.invalidateQueries({ queryKey: meQueryKey() })
   }
-  const guide = (p: BotPairing) => setPairs((x) => ({ ...x, [p.bot.id]: p }))
+  // the row as the code went out (pairing: true), before the next poll: else the guide reads the old row as done
+  const guide = (p: BotPairing) => {
+    qc.setQueryData<BotOut[]>(listBotsQueryKey(), (xs) => (xs?.some((y) => y.id === p.bot.id) ? xs.map((y) => (y.id === p.bot.id ? p.bot : y)) : [...(xs ?? []), p.bot]))
+    setPairs((x) => ({ ...x, [p.bot.id]: p }))
+  }
   const close = (id: number) => setPairs((x) => Object.fromEntries(Object.entries(x).filter(([k]) => Number(k) !== id)))
   const [token, setToken] = useState("")
   const add = useMutation({
@@ -313,6 +322,11 @@ function TelegramCard({ n, done }: { n?: number; done: boolean }) {
     },
   })
   const list = bots.data ?? []
+  // a pairing happens in Telegram: the polled list sees it first, and /api/me (the checklist, the badge) follows
+  const done = bots.data ? list.some((b) => b.health === "running" || b.health === "not_responding") : paired
+  useEffect(() => {
+    if (done !== paired) qc.invalidateQueries({ queryKey: meQueryKey() })
+  }, [done, paired, qc])
   const worst = (["rejected", "not_responding", "waiting"] as const).find((h) => list.some((b) => b.health === h))
   const state = !list.length ? (
     <Chip tone="neutral">Optional</Chip>

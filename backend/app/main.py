@@ -89,8 +89,9 @@ class Health(BaseModel):
 
 class SystemStatus(BaseModel):
     db: bool
-    worker_alive: bool  # a worker heartbeat within the last 30 s
+    worker_alive: bool  # the media worker (renders, downloads): a heartbeat within 30 s from a worker not the publisher
     worker_last_heartbeat: datetime | None
+    publisher_alive: bool  # the publisher (dispatch, publishing, alerts): the same, from one that runs its jobs
     failed_posts: int = 0  # FAILED + DEAD_LETTER posts (sidebar badge)
     rendering_renders: int = 0  # PENDING + RENDERING renders (sidebar footer)
     scheduled_posts: int = 0  # SCHEDULED posts (sidebar footer)
@@ -100,6 +101,14 @@ class SystemStatus(BaseModel):
 
 
 KEY_OFF = {"none": "no_key", "invalid": "key_invalid"}  # users.zernio_key_status -> SystemStatus.publishing_off
+# procrastinate_workers has no queue column: a live worker is the publisher once it has run a default-queue job (its
+# dispatch every minute), else the media worker. ponytail: a publisher younger than a minute counts as the media worker.
+WORKERS = text(
+    "SELECT (SELECT max(last_heartbeat) FROM procrastinate_workers),"
+    " count(*) FILTER (WHERE NOT publisher) > 0, count(*) FILTER (WHERE publisher) > 0"
+    " FROM (SELECT EXISTS (SELECT 1 FROM procrastinate_jobs j WHERE j.worker_id = w.id AND j.queue_name = 'default')"
+    "  AS publisher FROM procrastinate_workers w WHERE w.last_heartbeat > now() - interval '30 seconds') alive"
+)
 
 
 @app.get("/api/health")
@@ -114,14 +123,7 @@ async def status(request: Request, response: Response) -> SystemStatus:
         user = await auth.current_user(request, response)
         off = "switch" if not settings.PUBLISHING_ENABLED else KEY_OFF.get(user.zernio_key_status)
         async with SessionLocal(info={"uid": user.id}) as s:
-            last, alive = (
-                await s.execute(
-                    text(
-                        "SELECT max(last_heartbeat), coalesce(max(last_heartbeat) > now() - interval '30 seconds', false)"
-                        " FROM procrastinate_workers"
-                    )
-                )
-            ).one()
+            last, alive, publisher = (await s.execute(WORKERS)).one()
             failed, scheduled = (
                 await s.execute(
                     text(
@@ -132,13 +134,14 @@ async def status(request: Request, response: Response) -> SystemStatus:
             ).one()
             rendering = await s.scalar(text("SELECT count(*) FROM renders WHERE status IN ('PENDING', 'RENDERING')"))
             return SystemStatus(
-                db=True, worker_alive=alive, worker_last_heartbeat=last, failed_posts=failed,
+                db=True, worker_alive=alive, worker_last_heartbeat=last, publisher_alive=publisher, failed_posts=failed,
                 rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=off is None,
                 publishing_off=off,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")
-        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publishing_enabled=False)
+        return SystemStatus(db=False, worker_alive=False, worker_last_heartbeat=None, publisher_alive=False,
+                            publishing_enabled=False)  # fmt: skip
 
 
 class SPA(StaticFiles):
