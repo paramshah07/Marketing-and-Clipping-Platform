@@ -9,10 +9,14 @@
 # - After migrate: nobody's session, stored Zernio key or Telegram bot survives (staging's SECRETS_KEY couldn't open
 #   them, and a bot token polled from two places breaks the real bot); user 1 takes this checkout's .env
 #   ZERNIO_API_KEY again, if any (compose.staging.yml blanks every TELEGRAM_* for migrate).
-# - Accounts made on staging itself (ids from 10,000,001 up: production's stay below) survive every refresh, with
-#   their password, Zernio key, quota and bots; their clips, posts and files don't (staging's data is production's).
-#   Production's accounts arrive with the copy; a staging account whose username production took since is renamed
-#   <name>.dev.
+# - Accounts made on staging itself (ids above 10,000,000: production's stay below) survive every refresh, with their
+#   password, Zernio key, quota and bots; their clips, posts and files don't (staging's data is production's).
+#   Production's accounts arrive with the copy. A staging username production has taken since becomes <name>.dev
+#   (<name>.dev<n> if that is taken too); a bot production also runs, or a Zernio user production's copy holds, is
+#   dropped from the staging account.
+# The accounts are saved to ~/staging-accounts/pending-*.copy before the drop, and that pair is only retired (renamed
+# to the run's date; the last 10 kept) once they are back in: a refresh that fails half-way loses none, and the next
+# run puts back the pending ones plus any made since.
 # deploy.sh takes the same lock, so a push to dev waits for a refresh (and the other way round).
 set -eu
 cd "$(dirname "$0")"
@@ -20,30 +24,32 @@ exec 9>.git/deploy.lock
 flock 9
 PROD=${CLIPPER_PROD_DIR:-$HOME/clipper}
 echo "staging refresh $(date -u +%FT%TZ) from $PROD"
-dump=$(mktemp)
-trap 'rm -f "$dump"' EXIT
+USERS=id,username,password_hash,created_at,disabled_at,zernio_key_enc,zernio_key_last4,zernio_user_id,zernio_email,zernio_name,zernio_key_status,zernio_checked_at,zernio_error,zernio_key_gen,quota_bytes
+BOTS=id,user_id,bot_id,username,token_enc,chat_id,chat_title,pair_sha256,pair_expires_at,alerts,error,last_seen_at,created_at
+KEPT=$HOME/staging-accounts
+umask 077
+mkdir -p "$KEPT"
+dump=$(mktemp) now_users=$(mktemp) now_bots=$(mktemp)
+trap 'rm -f "$dump" "$now_users" "$now_bots"' EXIT
+sql() { docker compose exec -T postgres psql -q -U clipper -d clipper -v ON_ERROR_STOP=1 "$@"; }
+
 (cd "$PROD" && docker compose exec -T postgres pg_dump -U clipper -Fc clipper) > "$dump"
 docker compose stop api worker publisher bot
 docker compose up -d --wait postgres
-USERS=id,username,password_hash,created_at,disabled_at,zernio_key_enc,zernio_key_last4,zernio_user_id,zernio_email,zernio_name,zernio_key_status,zernio_checked_at,zernio_error,zernio_key_gen,quota_bytes
-BOTS=id,user_id,bot_id,username,token_enc,chat_id,chat_title,pair_sha256,pair_expires_at,alerts,error,last_seen_at,created_at
-# kept on disk, not in a temp file: a refresh that fails between the drop and the restore loses nothing (the last 10
-# stay in ~/staging-accounts; to restore by hand, load one pair the way the end of this script does)
-umask 077
-mkdir -p "$HOME/staging-accounts"
-kept_users="$HOME/staging-accounts/$(date -u +%Y%m%dT%H%M%SZ)-users.copy" kept_bots="${kept_users%-users.copy}-bots.copy"
-: > "$kept_users"
-: > "$kept_bots"
-ls -1t "$HOME"/staging-accounts/*-users.copy | tail -n +11 | while read -r f; do rm -f "$f" "${f%-users.copy}-bots.copy"; done
-sql() { docker compose exec -T postgres psql -q -U clipper -d clipper -v ON_ERROR_STOP=1 "$@"; }
-if [ "$(sql -Atc "SELECT to_regclass('public.users') IS NOT NULL")" = t ]; then
-  sql -c "COPY (SELECT $USERS FROM users WHERE id > 10000000) TO STDOUT" > "$kept_users"
-  sql -c "COPY (SELECT $BOTS FROM telegram_bots WHERE user_id > 10000000) TO STDOUT" > "$kept_bots"
-fi
-echo "keeping $(wc -l < "$kept_users") staging account(s), $(wc -l < "$kept_bots") bot(s)"
+# the staging accounts in the database now (a failing COPY stops the refresh here, before anything is dropped), after
+# any still pending from a refresh that failed (the first copy of an id wins: COPY's text format starts with the id)
+sql -c "COPY (SELECT $USERS FROM users WHERE id > 10000000) TO STDOUT" > "$now_users"
+sql -c "COPY (SELECT $BOTS FROM telegram_bots WHERE user_id > 10000000) TO STDOUT" > "$now_bots"
+touch "$KEPT/pending-users.copy" "$KEPT/pending-bots.copy"
+cat "$KEPT/pending-users.copy" "$now_users" | awk -F '\t' '!seen[$1]++' > "$KEPT/pending-users.next"
+cat "$KEPT/pending-bots.copy" "$now_bots" | awk -F '\t' '!seen[$1]++' > "$KEPT/pending-bots.next"
+mv "$KEPT/pending-users.next" "$KEPT/pending-users.copy"
+mv "$KEPT/pending-bots.next" "$KEPT/pending-bots.copy"
+echo "keeping $(wc -l < "$KEPT/pending-users.copy") staging account(s), $(wc -l < "$KEPT/pending-bots.copy") bot(s)"
+
 docker compose exec -T postgres psql -q -U clipper -d postgres -c 'DROP DATABASE IF EXISTS clipper WITH (FORCE)' -c 'CREATE DATABASE clipper'
 docker compose exec -T postgres pg_restore -U clipper -d clipper --no-owner -x --exit-on-error --single-transaction < "$dump"
-docker compose exec -T postgres psql -q -U clipper -d clipper -v ON_ERROR_STOP=1 <<'SQL'
+sql <<'SQL'
 BEGIN;
 UPDATE posts SET status = 'CANCELLED' WHERE status NOT IN ('PUBLISHED', 'CANCELLED');
 SELECT setval(c.oid::regclass, coalesce(pg_sequence_last_value(c.oid::regclass), 0) + 10000000)
@@ -53,39 +59,53 @@ COMMIT;
 SQL
 sudo -n rsync -a --delete "$PROD/data/" data/ # the containers write as root
 docker compose run --rm migrate
-docker compose exec -T postgres psql -q -U clipper -d clipper -v ON_ERROR_STOP=1 <<'SQL'
+
+# the kept accounts load into their own schema (the api's role gets no rights there, even if this run stops half-way)
+sql -c "DROP SCHEMA IF EXISTS kept CASCADE" -c "CREATE SCHEMA kept" \
+    -c "CREATE TABLE kept.users AS SELECT $USERS FROM users WITH NO DATA" \
+    -c "CREATE TABLE kept.bots AS SELECT $BOTS FROM telegram_bots WITH NO DATA"
+sql -c "COPY kept.users FROM STDIN" < "$KEPT/pending-users.copy"
+sql -c "COPY kept.bots FROM STDIN" < "$KEPT/pending-bots.copy"
+sql <<SQL
 BEGIN;
+-- a bot production runs too would be polled from two places: the staging account loses it
+SELECT 'dropping ' || count(*) || ' staging bot(s) production also runs'
+  FROM kept.bots WHERE bot_id IN (SELECT bot_id FROM telegram_bots);
+DELETE FROM kept.bots WHERE bot_id IN (SELECT bot_id FROM telegram_bots);
 DELETE FROM sessions;
 DELETE FROM telegram_bots;
 UPDATE users SET zernio_key_enc = NULL, zernio_key_last4 = NULL, zernio_key_status = 'none', zernio_checked_at = NULL,
                  zernio_error = NULL, env_imported_at = NULL;
 COMMIT;
 SQL
-sql -c "CREATE TABLE kept_users AS SELECT $USERS FROM users WITH NO DATA" -c "CREATE TABLE kept_bots AS SELECT $BOTS FROM telegram_bots WITH NO DATA"
-sql -c "COPY kept_users FROM STDIN" < "$kept_users"
-sql -c "COPY kept_bots FROM STDIN" < "$kept_bots"
+# committed on its own: if putting the accounts back fails, the copy is still scrubbed (and they stay pending)
 sql <<SQL
 BEGIN;
-INSERT INTO users ($USERS)
-SELECT k.id,
-       CASE WHEN EXISTS (SELECT 1 FROM users u WHERE u.username = k.username) THEN left(k.username, 28) || '.dev'
-            ELSE k.username END,
-       k.password_hash, k.created_at, k.disabled_at, k.zernio_key_enc, k.zernio_key_last4,
-       CASE WHEN EXISTS (SELECT 1 FROM users u WHERE u.zernio_user_id = k.zernio_user_id) THEN NULL
-            ELSE k.zernio_user_id END,
-       k.zernio_email, k.zernio_name, k.zernio_key_status, k.zernio_checked_at, k.zernio_error, k.zernio_key_gen,
-       k.quota_bytes
-  FROM kept_users k
-    ON CONFLICT DO NOTHING;
-INSERT INTO telegram_bots ($BOTS) SELECT $BOTS FROM kept_bots WHERE user_id IN (SELECT id FROM users) ON CONFLICT DO NOTHING;
+-- a username production has taken since: <name>.dev, or <name>.dev<n> if that is taken too
+UPDATE kept.users k SET username = CASE
+         WHEN NOT EXISTS (SELECT 1 FROM users u WHERE u.username = left(k.username, 28) || '.dev')
+          AND NOT EXISTS (SELECT 1 FROM kept.users o WHERE o.username = left(k.username, 28) || '.dev')
+         THEN left(k.username, 28) || '.dev'
+         ELSE left(k.username, 20) || '.dev' || (k.id - 10000000) END
+ WHERE EXISTS (SELECT 1 FROM users u WHERE u.username = k.username);
+-- a Zernio user production's copy holds: the staging account pastes a key again
+UPDATE kept.users k SET zernio_key_enc = NULL, zernio_key_last4 = NULL, zernio_user_id = NULL, zernio_email = NULL,
+                        zernio_name = NULL, zernio_key_status = 'none', zernio_checked_at = NULL, zernio_error = NULL
+ WHERE EXISTS (SELECT 1 FROM users u WHERE u.zernio_user_id = k.zernio_user_id);
+INSERT INTO users ($USERS) SELECT $USERS FROM kept.users;
+INSERT INTO telegram_bots ($BOTS) SELECT $BOTS FROM kept.bots;
 SELECT setval('users_id_seq', greatest((SELECT max(id) FROM users), 10000000));
 SELECT setval('telegram_bots_id_seq', greatest((SELECT max(id) FROM telegram_bots), 10000000));
-SELECT 'kept ' || (SELECT count(*) FROM users WHERE id > 10000000) || ' of ' || (SELECT count(*) FROM kept_users)
-       || ' staging account(s) (' || coalesce((SELECT string_agg(username, ', ' ORDER BY id) FROM users WHERE id > 10000000), '')
-       || '), ' || (SELECT count(*) FROM telegram_bots WHERE user_id > 10000000) || ' bot(s)';
-DROP TABLE kept_users, kept_bots;
+SELECT 'kept ' || count(*) || ' staging account(s): ' || coalesce(string_agg(username, ', ' ORDER BY id), '-')
+  FROM users WHERE id > 10000000;
+DROP SCHEMA kept CASCADE;
 COMMIT;
 SQL
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+mv "$KEPT/pending-users.copy" "$KEPT/$stamp-users.copy"
+mv "$KEPT/pending-bots.copy" "$KEPT/$stamp-bots.copy"
+ls -1t "$KEPT"/*-users.copy | tail -n +11 | while read -r f; do rm -f "$f" "${f%-users.copy}-bots.copy"; done
+
 docker compose run --rm migrate python -m app.cli bootstrap
 docker compose up -d --remove-orphans
-echo "staging refresh done: $(docker compose exec -T postgres psql -U clipper -d clipper -Atc 'SELECT count(*) FROM source_clips') clips"
+echo "staging refresh done: $(sql -Atc 'SELECT count(*) FROM source_clips') clips"

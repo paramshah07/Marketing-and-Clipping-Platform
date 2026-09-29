@@ -437,11 +437,14 @@ slot would otherwise get exactly the key production's post has. `deploy.sh` and 
 (`.git/deploy.lock`), so a push to `dev` waits for a refresh to finish.
 
 **Accounts made on staging survive every refresh.** Staging's user ids start above 10,000,000 (production's stay
-below), and the refresh saves those accounts before it drops the database (to `~/staging-accounts/`, the last 10
-refreshes kept) and puts them back after the copy, with their password, Zernio key, quota and bots. Production's
-accounts arrive with the copy; if production has since taken a staging account's username, the staging one becomes
-`<name>.dev`. What a staging account made (clips, renders, posts, files) is gone at the next refresh, like everything
-else made on staging. To refresh now: `ssh ubuntu@145.241.239.46 'cd ~/clipper-dev
+below). Before it drops the database, the refresh saves those accounts to `~/staging-accounts/pending-*.copy`, and
+puts them back after the copy with their password, Zernio key, quota and bots. Only once they are back does it rename
+the pair to the run's date (the last 10 kept), so a refresh that fails half-way loses none: the next run puts back the
+pending ones plus any made since. Production's accounts arrive with the copy. If production has since taken a staging
+account's username, the staging one becomes `<name>.dev` (`<name>.dev<n>` if that is taken too); a bot production
+also runs, or a Zernio user production's copy holds, is dropped from the staging account (a bot polled from two
+places breaks; one Clipper user per Zernio user). What a staging account made (clips, renders, posts, files) is gone
+at the next refresh, like everything else made on staging. To refresh now: `ssh ubuntu@145.241.239.46 'cd ~/clipper-dev
 && sh staging-refresh.sh'`.
 
 **Publishing on staging is real.** A post scheduled there goes out to Instagram at its time with the operator's
