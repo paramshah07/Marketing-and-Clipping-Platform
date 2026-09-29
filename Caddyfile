@@ -1,7 +1,6 @@
 # The VM's only public entry point (compose.prod.yml, docs/deploy.md), for production and staging: HTTPS with an
-# automatic Let's Encrypt certificate. Production's api signs users in itself; staging, a copy of production's data,
-# also sits behind the operator's shared password. The values come from the VM's .env; the password is only there as
-# a bcrypt hash (base64: no `$` for compose to interpolate).
+# automatic Let's Encrypt certificate. Both apps sign users in themselves and show each only their own data, so there
+# is no shared password. The values come from the VM's .env.
 {
 	# With an email Caddy falls back to ZeroSSL: sslip.io is not on the Public Suffix List, so every *.sslip.io
 	# site shares one Let's Encrypt quota (50 certificates a week), which runs out.
@@ -24,11 +23,8 @@
 }
 
 # Staging (docs/deploy.md section 7): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's
-# data. The operator's shared password first (basic_auth runs before the header strip), then the app's own sign-in.
+# data.
 dev.{$CLIPPER_HOST} {
-	basic_auth {
-		{$CLIPPER_USER} {$CLIPPER_PASSWORD_HASH}
-	}
 	import api
 	reverse_proxy clipper-dev-api-1:8000
 }
