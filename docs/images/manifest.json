@@ -678,5 +678,163 @@
     "title": "Clipper",
     "alt": "Clipper's calendar: a week of Instagram Reels scheduled across three daily slots, with finished renders waiting in the Ready to schedule tray",
     "callouts": []
+  },
+  {
+    "file": "sign-up.png",
+    "page": "docs/guide/01-getting-started.md",
+    "title": "Create your account",
+    "alt": "The Create your account page: a username field with its rules, a password field, 13 of 15 spots left, and a Create account button",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "form label:has(input[autocomplete=username])",
+        "label": "Username: 3 to 32 characters"
+      },
+      {
+        "n": 2,
+        "selector": "form label:has(input[type=password])",
+        "label": "Password: at least 8 characters"
+      },
+      {
+        "n": 3,
+        "selector": "form p:has-text('left')",
+        "label": "Spots left, or Signups are full."
+      },
+      {
+        "n": 4,
+        "selector": "form button:has-text('Create account')",
+        "label": "Create account: creates it and signs you in"
+      },
+      {
+        "n": 5,
+        "selector": "form p a:has-text('Sign in')",
+        "label": "Sign in, for an existing account"
+      }
+    ]
+  },
+  {
+    "file": "sign-in.png",
+    "page": "docs/guide/01-getting-started.md",
+    "title": "Sign in",
+    "alt": "The Sign in page: a username field, a password field, a Sign in button and a Sign up link",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "form label:has(input[autocomplete=username])",
+        "label": "Username (capitals don't matter)"
+      },
+      {
+        "n": 2,
+        "selector": "form label:has(input[type=password])",
+        "label": "Password"
+      },
+      {
+        "n": 3,
+        "selector": "form button:has-text('Sign in')",
+        "label": "Sign in"
+      },
+      {
+        "n": 4,
+        "selector": "form p a:has-text('Sign up')",
+        "label": "Sign up, for a new account"
+      }
+    ]
+  },
+  {
+    "file": "setup.png",
+    "page": "docs/guide/01-getting-started.md",
+    "title": "Set up Clipper",
+    "alt": "Set up Clipper for a new user: 0/3 done, the Zernio API key card with its three steps and a Verify button, the Instagram accounts card waiting for the key, the optional Telegram bots card, and No Zernio key and Setup 0/3 in the sidebar",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "main header div:has(> h1)",
+        "label": "How many of the three steps are done"
+      },
+      {
+        "n": 2,
+        "selector": "main header a:has-text('Do this later')",
+        "label": "Do this later (Go to Library once the key and an Instagram account are in)"
+      },
+      {
+        "n": 3,
+        "selector": "section.rounded-md:has(> header h2:text-is('Zernio API key'))",
+        "label": "Step 1: Zernio API key"
+      },
+      {
+        "n": 4,
+        "selector": "section.rounded-md:has(> header h2:text-is('Instagram accounts'))",
+        "label": "Step 2: Instagram accounts"
+      },
+      {
+        "n": 5,
+        "selector": "section.rounded-md:has(> header h2:text-is('Telegram bots'))",
+        "label": "Step 3: Telegram bots (optional)"
+      },
+      {
+        "n": 6,
+        "selector": "aside a:has-text('No Zernio key')",
+        "label": "Status footer: No Zernio key"
+      },
+      {
+        "n": 7,
+        "selector": "aside a[href='/setup']",
+        "label": "Setup 0/3: back to this page"
+      }
+    ]
+  },
+  {
+    "file": "footer-no-key.png",
+    "page": "docs/guide/01-getting-started.md",
+    "title": "The sidebar footer of a new user",
+    "alt": "The sidebar footer of a new user: No Zernio key in amber, 0 rendering and 0 scheduled, and the username docs-shots with a Setup 0/3 badge",
+    "callouts": []
+  },
+  {
+    "file": "zernio-key-error.png",
+    "page": "docs/guide/09-settings.md",
+    "title": "A refused Zernio key",
+    "alt": "The Zernio API key card with a made-up key refused: Zernio refused the key: copy it again from Zernio's API keys page, ZERNIO_KEY_INVALID",
+    "callouts": []
+  },
+  {
+    "file": "telegram-token-error.png",
+    "page": "docs/guide/09-settings.md",
+    "title": "A refused bot token",
+    "alt": "The Telegram bots card with a made-up token refused: Telegram refused the token: copy it again from @BotFather, TOKEN_REJECTED",
+    "callouts": []
+  },
+  {
+    "file": "settings.png",
+    "page": "docs/guide/09-settings.md",
+    "title": "Settings: Account",
+    "alt": "The Settings page scrolled to the Account card: Signed in as docs-shots, storage 0 MB of 5.0 GB, the Change password fields, and Log out",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "section.rounded-md:has(> header h2:text-is('Account')) p:has-text('Signed in as')",
+        "label": "Who you are signed in as"
+      },
+      {
+        "n": 2,
+        "selector": "section.rounded-md:has(> header h2:text-is('Account')) div:has(> p:has-text('Your clips and renders'))",
+        "label": "Storage: clips and renders against your limit"
+      },
+      {
+        "n": 3,
+        "selector": "section.rounded-md:has(> header h2:text-is('Account')) form",
+        "label": "Change password"
+      },
+      {
+        "n": 4,
+        "selector": "section.rounded-md:has(> header h2:text-is('Account')) header button:has-text('Log out')",
+        "label": "Log out of this browser"
+      },
+      {
+        "n": 5,
+        "selector": "aside a[title='Settings']",
+        "label": "Your username: opens Settings"
+      }
+    ]
   }
 ]

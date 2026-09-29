@@ -2,24 +2,40 @@
 
 Supersedes revision 1 (archived as `PLAN-v1-meta-direct.md`, keep for a future direct-Meta / production
 path). Spec: `docs/spec.md`. Research: `.context/research/*.md`
-(Zernio facts in `nometa-vendors.md`). Mockups: `docs/design/`.
+(Zernio facts in `nometa-vendors.md`). Mockups: `docs/design/`. (The archive and the research are the operator's
+local files, not in the repo.) Sections 2 and 6 describe rev 2's localhost setup: section 9, `docs/multi-user.md` and
+`docs/deploy.md` supersede them where they differ.
 
 ## Operator decisions
 - Rev 1 (all defaults approved): React 19 · every-minute dispatcher · httpx-transport fakes allowed ONLY
   for publish state-machine tests, ONLY with responses recorded in Phase 0, never as proof of integration ·
   crop locked to 9:16 · DRAFT + brands.auto_approve as approval gate ·
   from-url best effort TikTok / Instagram / X · table thumbs 28x50 + hover preview, cards 36x64 ·
-  share_to_feed=true · one branch + PR per phase into master.
+  share_to_feed=true · one branch + PR per phase into master (`master` is legacy since rev 6).
 - Rev 3 (2026-09-28): **production = one Oracle Cloud Always Free Arm VM** (2 OCPU / 12 GB, Pay As You Go
   account so it is never reclaimed as idle), same compose + `compose.prod.yml` (images carry the code and the
   built frontend, the api serves it at `/`), public at `<ip>.sslip.io` behind Caddy: HTTPS plus one shared
-  password (basic auth), since there is no login. Runbook: `docs/deploy.md`. (The shared password went in rev 5.)
+  password (basic auth), since there is no login. Runbook: `docs/deploy.md`. (The shared password goes with rev 5's
+  release; production keeps it until then.)
 - Rev 4 (2026-09-28): no content-ownership tag anywhere; a **Customizations** tab holds brands, saved captions
   and saved covers, one of each marked default (what the Editor preselects).
 - Rev 5 (2026-09-28): **multi-user** (section 9). Open signup (username + password) up to `MAX_USERS` = 15;
   each user brings their own Zernio key and any number of Telegram bots; Postgres row-level security keeps each
-  user to their own rows; the operator is user 1. Caddy's basic auth is gone (the app signs users in). Design,
-  threat model, capacity and runbook: `docs/multi-user.md`.
+  user to their own rows; the operator is user 1. Caddy's basic auth goes (the app signs users in). Design,
+  threat model, capacity and runbook: `docs/multi-user.md`. On `dev` and the dev site now; production gets it when
+  the release pull request #20 (`dev` -> `prod`) is merged (checklist: `docs/deploy.md` section 4).
+- Rev 6 (2026-09-29): **branches and a dev site**. `dev` is the default branch and takes every change by pull
+  request; `prod` is production (a `dev` -> `prod` pull request is a release, every push to `prod` deploys);
+  `master` is legacy. CI (`.github/workflows/ci.yml`) on every pull request to `dev` or `prod` and every push to
+  `dev`. The dev site: `dev` on the same VM at `dev.<host>` (`~/clipper-dev`, project `clipper-dev`,
+  `compose.staging.yml`, served by production's Caddy over the `clipper-edge` network, no shared password), deployed
+  after CI passes on each push to `dev` (`deploy-dev.yml`), on a copy of production every 5 days
+  (`staging-refresh.sh`). It publishes for real with the operator's re-imported key: the refresh cancels every copied
+  post that could still publish, ids restart 10,000,000 above production's, and its api prefixes every
+  Idempotency-Key's input with `IDEMPOTENCY_SALT=staging:` (§3's formula; production's salt is empty). Sessions,
+  keys and bots are never copied; accounts made there survive refreshes. Renders there run one at a time at a
+  quarter of production's CPU weight. Runbook: `docs/deploy.md` section 7; users and keys: `docs/multi-user.md`
+  section 12.
 - Rev 2: **publish via Zernio** (operator can't create a Meta developer account) · **localhost-first,
   not production-grade**: no Cloudflare Access/Tunnel, no VPS, no R2 for now.
 

@@ -8,20 +8,29 @@ operator included. Each user brings their own Zernio API key (their own Zernio a
 Instagram accounts) and as many of their own Telegram bots as they like. A user sees only their own clips, brands,
 captions, covers, renders, accounts, posts, bots and files. There are no roles, orgs, sharing or billing. The
 operator is user 1 (`clipper`): everything from before users belongs to it, its three Telegram bots and Zernio key
-were imported once from `.env`, and only its link imports use the server's yt-dlp cookies. How it all works:
-`docs/multi-user.md`.
+are imported once from `.env` (in production at the release below), and only its link imports use the server's yt-dlp
+cookies. How it all works: `docs/multi-user.md`.
 
-**Production** is this compose stack on one Oracle Cloud Arm VM with `compose.prod.yml` on top, public at an
-sslip.io name behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`). **Staging** is the `dev` branch
-on the same VM (`~/clipper-dev`, project `clipper-dev`, `compose.staging.yml`) at `dev.<host>` (its own sign-in, no shared
-password), on a copy of production refreshed every 5 days by cron (`staging-refresh.sh`). It publishes for real
-(the operator's Zernio key); the refresh cancels every copied unpublished post first thing, and staging's api
-salts every Idempotency-Key (`IDEMPOTENCY_SALT`), so production's schedule never goes out twice and no key is shared. Accounts made on staging (ids above
-10,000,000) survive every refresh; production's arrive with the copy. Branches: `dev` is the default
-branch and takes every change through a pull request; a `dev` -> `prod` pull request is a release, and every push to
-`prod` deploys (`.github/workflows/deploy.yml` -> `deploy.sh`). CI (`.github/workflows/ci.yml`) runs the backend suite
-and the frontend checks on every pull request to `dev` or `prod` and every push to `dev`. Publishing goes through
-**Zernio** (a third-party publishing API with its own approved Meta app), not the Meta API directly.
+**Production** (https://145-241-239-46.sslip.io, the `prod` branch, `~/clipper`) is this compose stack on one Oracle
+Cloud Arm VM with `compose.prod.yml` on top, behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`).
+Until the release pull request #20 (`dev` -> `prod`) is merged, production still runs the single-operator version: a
+shared browser password in Caddy, no users, one `worker` for every queue, and services `bot`, `bot2`, `bot3` reading
+the operator's key and tokens from `.env`. Everything in this file describes `dev`. **Staging**, the dev site
+(https://dev.145-241-239-46.sslip.io), is the `dev` branch on the same VM (`~/clipper-dev`, project `clipper-dev`,
+`compose.staging.yml`, no Caddy of its own: production's serves it), with its own sign-in and no shared password, on
+a copy of production refreshed every 5 days by cron (`staging-refresh.sh`). It publishes for real (the operator's
+Zernio key, re-imported at every refresh; other users paste theirs there), to the same Instagram accounts; the
+refresh cancels every copied unpublished post first thing, and staging's api salts every Idempotency-Key
+(`IDEMPOTENCY_SALT`), so production's schedule never goes out twice and no key is shared. The refresh also wipes every
+session, stored key and bot (staging has its own `SECRETS_KEY`; never a production bot token there). Accounts made on
+staging (ids above 10,000,000) survive every refresh with their password, key and bots, and nothing else (no clips,
+posts, files, brands or accounts); production's arrive with the copy. Its renders run one at a time at a low CPU weight (`cpu_shares: 256`).
+Branches: `dev` is the default branch and takes every change through a pull request; every push to `dev` that passes
+CI deploys staging (`.github/workflows/deploy-dev.yml` -> `deploy.sh`); a `dev` -> `prod` pull request is a release,
+and every push to `prod` deploys production (`.github/workflows/deploy.yml` -> `deploy.sh`); `master` is legacy. CI
+(`.github/workflows/ci.yml`) runs the backend suite and the frontend checks on every pull request to `dev` or `prod`
+and every push to `dev`. Publishing goes through **Zernio** (a third-party publishing API with its own approved Meta
+app), not the Meta API directly.
 
 Source of truth: `docs/PLAN.md` (implementation plan, rev 2, later revisions listed at its top) and
 `docs/multi-user.md` (users, tenancy, secrets, per-user Zernio and Telegram, threat model, operator runbook).
@@ -77,6 +86,7 @@ first: never with the Mac's `.env`)
   /e2e            accept.mjs (Playwright acceptance, Google Chrome), docs-screenshots.mjs
 /docs             multi-user.md, deploy.md, telegram-bot.md, guide/, PLAN.md, spec.md, phase-N.md, design/
 compose.yml       compose.prod.yml, compose.staging.yml, compose.review.yml, Caddyfile, deploy.sh, staging-refresh.sh, review.sh
+/.github/workflows  ci.yml (CI), deploy.yml (push to prod -> production), deploy-dev.yml (CI passed on dev -> staging)
 
 ## Commands
 
@@ -92,7 +102,7 @@ docker compose -p <name> run --rm worker pytest                       # full tes
 docker compose -p <name> up -d --build                                # whole stack; api on 127.0.0.1:8000 (never the Mac's default project: see "Do not")
 docker compose exec worker python -m app.cli render <clip_id> <brand_id>  # probe if needed + render, no queue, as the clip's owner; prints the path
 docker compose run --rm migrate                                       # alembic upgrade + guarded procrastinate schema + db-grants + bootstrap
-docker compose run --rm --no-deps api alembic revision --autogenerate -m "..."
+docker compose run --rm --no-deps migrate alembic revision --autogenerate --rev-id <NNNN> -m "..."  # stack up; the superuser: the api's role can't read alembic_version
 docker compose run --rm --no-deps api python scripts/dump_openapi.py  # refresh backend/openapi.json
 docker compose exec api procrastinate defer ping                      # prove the publisher consumes jobs (default queue)
 docker compose exec postgres psql -U clipper                          # SQL shell (the superuser: row-level security doesn't apply)
@@ -210,8 +220,9 @@ look offline for up to the render's length before Docker restarts it.
   beyond 127.0.0.1 or bypass Caddy.
 - Do not put `SECRETS_KEY` in the Mac's `.env`, or in any `.env` that still holds the operator's `ZERNIO_API_KEY` or
   `TELEGRAM_*`: the next migrate (a test run's too) imports them into that database for good, and its publisher and
-  bot then act on production's accounts. Never copy the VM's `SECRETS_KEY` off the VM, except into the operator's
-  password manager.
+  bot then act on production's accounts. (The VM's two are the deliberate exceptions: production's holds them for the
+  release's one-shot import, staging's holds the key, which every refresh re-imports, and never `TELEGRAM_*`.) Never
+  copy the VM's `SECRETS_KEY` off the VM, except into the operator's password manager.
 - Do not start the Mac's own stack (`docker compose up` in the operator's checkout, Conductor's Run) while the VM runs
   production: its `.env` still holds the production Zernio key and bot tokens (the operator's choice), and any branch
   from before users reads them directly, so it would publish the same schedule and fight the VM's bots. Develop with
