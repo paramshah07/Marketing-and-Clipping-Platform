@@ -268,8 +268,8 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
    `.env` line). So the operator signs in with the same username and password as Caddy's old basic auth.
 3. **Once** (`users.env_imported_at`), and only when `SECRETS_KEY` can seal:
    - `ZERNIO_API_KEY` becomes user 1's sealed key, status `valid`, generation 1 (the generation migration 0007 gave
-     the posts that key may already have sent, so they still replay). No network call: the first key check anyone
-     makes fills in its Zernio user, name and email.
+     the posts that key may already have sent, so they still replay). No network call: the first key check fills
+     in its Zernio user, name and email (Settings and Setup run one when they open on a key never checked).
    - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` becomes a bot with alerts on; `_2` and `_3` bots with alerts off. They
      are paired with those chats already; the supervisor fills in their @names.
    - Bad values are skipped with a message. After this the code never reads these `.env` values again.

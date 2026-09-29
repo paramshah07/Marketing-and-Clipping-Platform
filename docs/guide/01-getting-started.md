@@ -8,7 +8,7 @@ and see how a normal day goes.
 Clipper has room for a limited number of users (15, the operator included). Each user has their own library,
 brands, accounts, posts and bots, and nobody else sees them.
 
-![The Create your account page: a username field, a password field, 2 spots left, and a Create account button](../images/sign-up.png)
+![The Create your account page: a username field, a password field, 2 of 3 spots left, and a Create account button](../images/sign-up.png)
 
 1. Open [https://145-241-239-46.sslip.io/signup](https://145-241-239-46.sslip.io/signup), or **Sign up** under the
    sign-in form.

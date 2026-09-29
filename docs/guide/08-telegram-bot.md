@@ -23,11 +23,11 @@ Each bot has a status, an **Alerts** switch, **Test**, **Pair** or **Re-pair**, 
 |---|---|---|
 | **Running** | The bot is polling Telegram (checked every 10 seconds) | Nothing |
 | **Waiting for Start** | Not paired with a chat yet | **Pair**, then open the bot and tap **Start** |
-| **Token rejected** | Telegram refused the token (revoked or regenerated in @BotFather) | In @BotFather, `/token` for that bot, and paste the new token under **Add another bot**: it keeps its chat |
+| **Token rejected** | Telegram refused the token (revoked or regenerated in @BotFather) | In @BotFather, `/token` for that bot, and paste the new token under **Add another bot**: it keeps its chat. Or **Remove** it. **Test** and **Re-pair** are off until then |
 | **Not responding** | Paired, but not heard from in 90 seconds: Clipper's bot service is down, or another program uses the same token | If it lasts, make sure nothing else runs this bot, or tell the operator |
 
 - **Alerts** on: this bot's chat gets your failure alerts. Turn it off for bots you only use to run Clipper.
-- **Test** sends a message straight from Clipper, and shows Telegram's reason if it fails.
+- **Test** sends a message straight from Clipper, and shows Telegram's reason if it fails. It is off for a bot waiting for **Start** or with a rejected token.
 - **Re-pair** moves the bot to another chat: open it from the new chat and tap **Start**. The old chat keeps working until then.
 - **Remove** stops the bot within about 10 seconds. The bot itself stays in Telegram; delete it in @BotFather if you like.
 

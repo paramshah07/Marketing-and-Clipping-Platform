@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArrowUpRight, Check, CircleAlert, Copy, LoaderCircle, RefreshCw, TriangleAlert } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { Link } from "react-router"
 
 import type { BotOut, BotPairing, KeyCheck, Me } from "@/api"
@@ -119,6 +119,13 @@ function ZernioCard({ n, me, onChecked }: { n?: number; me: Me; onChecked: (kc: 
   const put = useMutation({ ...putZernioKeyMutation(), ...guard, onSuccess: (kc) => (setKey(""), setReplacing(false), onChecked(kc)) })
   const recheck = useMutation({ ...checkZernioKeyMutation(), ...guard, onSuccess: onChecked })
   const remove = useMutation({ ...deleteZernioKeyMutation(), ...guard, onSuccess: () => onChecked(null) })
+  // a key imported from the server's env was never checked: Re-check it once, so the card names its Zernio account
+  const asked = useRef(false)
+  useEffect(() => {
+    if (z.status === "valid" && !z.checked_at && !asked.current) recheck.mutate({})
+    asked.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
   const busy = put.isPending || recheck.isPending || remove.isPending
   const who = z.name && z.email ? `${z.name} (${z.email})` : (z.name ?? z.email ?? "your Zernio account")
   const state =
@@ -221,6 +228,7 @@ function InstagramCard({ n, me, check, onChecked }: { n?: number; me: Me; check:
   const refetch = useKeyRefetch()
   const recheck = useMutation({ ...checkZernioKeyMutation(), onSuccess: onChecked, onSettled: refetch })
   const keyed = me.zernio.status === "valid"
+  const fix = me.zernio.status === "none" ? "Add" : "Fix"
   const list = accounts.data ?? []
   const usable = list.filter((a) => a.connection_status === "connected" && !a.disabled_at).length
   // the list waits on Zernio (each account's publishing limit): until it answers, "None found" would be a guess
@@ -258,7 +266,13 @@ function InstagramCard({ n, me, check, onChecked }: { n?: number; me: Me; check:
           ))}
         </ul>
       )}
-      {!keyed && me.zernio.status === "none" && <p className="text-subtle">Add your Zernio key first: Clipper finds your Instagram accounts through it.</p>}
+      {!keyed && (
+        <p className="text-subtle">
+          {list.length
+            ? `Listed from the last sync. ${fix} your Zernio key to re-check them.`
+            : `${fix} your Zernio key first: Clipper finds your Instagram accounts through it.`}
+        </p>
+      )}
       {keyed && accounts.data?.length === 0 && !check?.skipped.length && !check?.over_limit.length && <Line tone="warn">No Instagram accounts in your Zernio account yet. Connect one in Zernio, then Re-check.</Line>}
       {!!check?.skipped.length && (
         <Line tone="warn">
@@ -420,7 +434,7 @@ function BotRow({ b, pair, onPair, onClose, onChange }: { b: BotOut; pair?: BotP
             <Switch checked={b.alerts} disabled={patch.isPending} onCheckedChange={(alerts) => patch.mutate({ ...path, body: { alerts } })} />
             Alerts
           </label>
-          <button className={btn.ghost} disabled={b.health === "waiting" || test.isPending} onClick={sendTest}>
+          <button className={btn.ghost} disabled={b.health === "waiting" || b.health === "rejected" || test.isPending} onClick={sendTest}>
             Test
           </button>
           <button className={btn.ghost} disabled={b.health === "rejected" || repair.isPending} onClick={() => repair.mutate(path)}>
@@ -434,7 +448,13 @@ function BotRow({ b, pair, onPair, onClose, onChange }: { b: BotOut; pair?: BotP
       {(pair || b.health === "rejected" || test.data || problem != null) && (
         <div className="space-y-2 border-t border-line px-2.5 py-2.5">
           {b.health === "rejected" ? (
-            <Line tone="bad">Telegram refused this bot's token (revoked in @BotFather?). Paste its new token below (BotFather: /token): it keeps its chat.</Line>
+            <Line tone="bad">
+              Telegram refused this bot's token (revoked in @BotFather?), so it is stopped. Send{" "}
+              <a className={cn(link, "text-fg")} href={BOTFATHER_URL} target="_blank" rel="noreferrer">
+                @BotFather
+              </a>{" "}
+              <span className="text-fg">/token</span>, pick this bot and paste the fresh token below: it keeps its chat. Or Remove it.
+            </Line>
           ) : (
             pair && <PairGuide b={b} pair={pair} name={name} testing={test.isPending} onTest={sendTest} onRepair={() => repair.mutate(path)} onClose={onClose} />
           )}

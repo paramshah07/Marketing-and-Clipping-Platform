@@ -33,11 +33,14 @@ export function Accounts() {
         <div className="flex items-center gap-2">
           {sync.isError && (
             <span className="text-sm text-bad">
-              Sync failed: {apiError(sync.error).message}
-              {apiError(sync.error).code?.startsWith("ZERNIO_KEY") && (
-                <Link to="/settings" className="ml-1.5 text-fg underline decoration-line-strong underline-offset-2 hover:decoration-fg">
-                  Settings
+              {/* the key's messages end "… in Settings": the sentence is the link */}
+              Sync failed:{" "}
+              {apiError(sync.error).code?.startsWith("ZERNIO_KEY") ? (
+                <Link to="/settings" className="underline decoration-line-strong underline-offset-2 hover:decoration-fg">
+                  {apiError(sync.error).message}
                 </Link>
+              ) : (
+                apiError(sync.error).message
               )}
             </span>
           )}

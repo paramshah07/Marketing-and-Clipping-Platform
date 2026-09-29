@@ -35,6 +35,8 @@ export const CAUSES: Record<string, string> = {
   UPLOAD_ABANDONED: "Upload abandoned",
   FFMPEG_FAILED: "ffmpeg exited with an error",
   OUTPUT_TOO_LARGE: "Output file too large",
+  QUOTA_EXCEEDED: "Your storage is full", // 507, storage.room(): delete clips or renders, then Retry
+  DISK_FULL: "Server disk almost full", // 507, for everyone until the operator frees space
 }
 
 export const CAPTION_MAX = 2200

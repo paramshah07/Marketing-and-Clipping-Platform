@@ -75,8 +75,8 @@ When a clip fails, the cause tells you whether a retry can help:
 | Not a readable video | `PROBE_FAILED` | **Remove**. The file isn't a video ffmpeg can read. |
 | Upload abandoned | `UPLOAD_ABANDONED` | **Remove** and upload again. The upload never finished: the server restarted mid-upload, or 24 hours passed. |
 | Needs login cookies | `LOGIN_REQUIRED` | The site wants a logged-in visitor (Instagram also says this when it rate-limits). **Retry** later; if it keeps failing, upload the file instead. (Only the operator's imports use the server's yt-dlp cookies file.) |
-| Failed (hover: your storage is full) | `QUOTA_EXCEEDED` | Your storage filled up while the import waited. Delete clips or renders, then **Retry**. |
-| Failed (hover: the server is almost out of disk space) | `DISK_FULL` | **Retry** later, and tell the operator. |
+| Your storage is full | `QUOTA_EXCEEDED` | Your storage filled up while the import waited. Delete clips or renders, then **Retry**. |
+| Server disk almost full | `DISK_FULL` | **Retry** later, and tell the operator. |
 | Import failed | `EXTRACTOR_FAILED` | **Retry** later. Sites change often; a failure can be temporary. |
 | Worker crashed, Interrupted, Internal error, Thumbnail failed | `WORKER_CRASHED`, `INTERRUPTED`, `INTERNAL_ERROR`, `THUMBNAIL_FAILED` | **Retry**. |
 
