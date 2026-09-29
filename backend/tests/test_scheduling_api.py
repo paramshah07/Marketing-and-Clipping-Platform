@@ -2,13 +2,14 @@
 (monkeypatched), Zernio is never called (no API key), Telegram is a recorder."""
 
 import asyncio
+import hashlib
 import uuid
 from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import text, update
 
 from app.api import scheduling
 from app.core.config import settings
@@ -17,6 +18,7 @@ from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.services import zernio
 from app.tasks import accounts as account_sync
+from conftest import as_user, zernio_key
 
 NOW = datetime(2030, 1, 7, 8, 0, tzinfo=UTC)  # a Monday, winter: London = UTC
 M, H, D = timedelta(minutes=1), timedelta(hours=1), timedelta(days=1)
@@ -24,15 +26,14 @@ M, H, D = timedelta(minutes=1), timedelta(hours=1), timedelta(days=1)
 
 @pytest.fixture(scope="module")
 def client(db):
-    with TestClient(app) as c:
+    with TestClient(app, headers=as_user()) as c:
         yield c
         c.portal.call(engine.dispose)  # its connections belong to this client's event loop
 
 
 @pytest.fixture(autouse=True)
 def env(monkeypatch):
-    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "")  # quota -> None, never a real call
-    zernio._quota_cache.clear()
+    zernio._quota_cache.clear()  # user 1 has no Zernio key here: quota None, never a real call
     clock = {"now": NOW}
     monkeypatch.setattr(scheduling, "_now", lambda: clock["now"])
     return clock
@@ -292,7 +293,7 @@ def test_auto_schedule_race_does_not_double_book(client):
 
     async def race():
         transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        async with httpx.AsyncClient(transport=transport, base_url="http://t", headers=as_user()) as c:
             return await asyncio.gather(*(c.post("/api/posts/auto-schedule", json={"account_id": aid, "render_ids": b})
                                           for b in batches))  # fmt: skip
 
@@ -311,7 +312,7 @@ def test_auto_schedule_race_does_not_double_book(client):
 def test_sync_upsert(client, monkeypatch):
     sent = []
 
-    async def fake_notify(text, link=None, buttons=None):
+    async def fake_notify(uid, text, link=None, buttons=None):
         sent.append(text)
         return True
 
@@ -322,7 +323,7 @@ def test_sync_upsert(client, monkeypatch):
 
     async def upsert(*rows):
         async with SessionLocal() as s:
-            await account_sync.upsert(s, list(rows))
+            await account_sync.upsert(s, 1, list(rows))
 
     client.portal.call(upsert, row)
     a = next(x for x in client.get("/api/accounts").json() if x["zernio_account_id"] == zid)
@@ -371,7 +372,7 @@ def test_parallel_creates_at_one_instant(client):
     aid, rids = account(), [render(), render()]
 
     async def race():
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t", headers=as_user()) as c:
             return await asyncio.gather(*(c.post("/api/posts", json={
                 "render_id": rid, "account_id": aid, "scheduled_for": iso(NOW + D)}) for rid in rids))  # fmt: skip
 
@@ -446,12 +447,60 @@ def test_status_counts(client):
     after = client.get("/api/status").json()
     assert after["rendering_renders"] - before["rendering_renders"] == 1
     assert after["scheduled_posts"] - before["scheduled_posts"] == 1
-    assert after["publishing_enabled"] is False  # no ZERNIO_API_KEY (env fixture)
+    assert after["publishing_enabled"] is False  # user 1 has no Zernio key here
+
+
+def test_status_tells_the_publisher_and_the_media_worker_apart(client, db):
+    """procrastinate_workers has no queue: a live worker that has run a default-queue job is the publisher, any other
+    live one the media worker. Either down is its own sidebar line (App.tsx, the bot's /status)."""
+
+    def alive():
+        s = client.get("/api/status").json()
+        return s["worker_alive"], s["publisher_alive"]
+
+    add = text("INSERT INTO procrastinate_workers DEFAULT VALUES RETURNING id")
+    stale = text("UPDATE procrastinate_workers SET last_heartbeat = now() - interval '1 minute' WHERE id = :w")
+    with db.begin() as c:
+        c.execute(text("DELETE FROM procrastinate_workers"))  # none left over from other tests
+        media, pub = c.execute(add).scalar(), c.execute(add).scalar()
+        c.execute(text("INSERT INTO procrastinate_jobs (queue_name, task_name, status, worker_id)"
+                       " VALUES ('default', 'dispatch', 'succeeded', :w)"), {"w": pub})  # fmt: skip
+    try:
+        assert alive() == (True, True)
+        with db.begin() as c:
+            c.execute(stale, {"w": pub})
+        assert alive() == (True, False)  # dispatch, publishing and alerts stopped: the sidebar must not say live
+        with db.begin() as c:
+            c.execute(text("UPDATE procrastinate_workers SET last_heartbeat = now() WHERE id = :w"), {"w": pub})
+            c.execute(stale, {"w": media})
+        assert alive() == (False, True)
+    finally:
+        with db.begin() as c:
+            c.execute(text("DELETE FROM procrastinate_jobs WHERE worker_id = :w"), {"w": pub})
+            c.execute(text("DELETE FROM procrastinate_workers"))
 
 
 def test_status_publishing_enabled(client, monkeypatch):
-    monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test")
-    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
-    assert client.get("/api/status").json()["publishing_enabled"] is False
+    """On only with the server's switch and the user's own valid key; publishing_off says which one it is."""
+
+    def status():
+        s = client.get("/api/status").json()
+        return s["publishing_enabled"], s["publishing_off"]
+
     monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
-    assert client.get("/api/status").json()["publishing_enabled"] is True
+    assert status() == (False, "no_key")
+    zernio_key(1, "sk_test", status="invalid")
+    assert status() == (False, "key_invalid")
+    zernio_key(1, "sk_test")
+    assert status() == (True, None)
+    monkeypatch.setattr(settings, "PUBLISHING_ENABLED", False)
+    assert status() == (False, "switch")
+    zernio_key(1, None)
+
+
+def test_idempotency_salt_keeps_productions_keys_and_separates_stagings(monkeypatch):
+    at = datetime(2026, 10, 1, 17, tzinfo=UTC)
+    plain = hashlib.sha256(b"640:3:2026-10-01T17:00:00+00:00").hexdigest()
+    assert scheduling.idempotency_key(640, 3, at) == plain  # no salt: every key production already holds stays valid
+    monkeypatch.setattr(scheduling.settings, "IDEMPOTENCY_SALT", "staging:")
+    assert scheduling.idempotency_key(640, 3, at) not in (plain, scheduling.idempotency_key(640, 3, at, 1))

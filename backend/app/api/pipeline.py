@@ -10,13 +10,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, UploadFile
 from python_multipart.multipart import MultipartParser, parse_options_header
-from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy import delete, exists, func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.concurrency import run_in_threadpool
 
+from app.api.auth import Db, current_user
 from app.core.config import settings
-from app.core.db import SessionLocal
 from app.models import Brand, Post, Render, SavedCaption, SavedCover, SourceClip, cas
 from app.schemas import (
     BrandCreate,
@@ -41,29 +41,48 @@ from app.schemas import (
 from app.services import links, storage
 from app.tasks.media import download_clip, probe_clip, render
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
 MAX_LOGO_BYTES = 10 * 1024**2
 MAX_DOCUMENT_BYTES = 20 * 1024**2
 MAX_COVER_BYTES = 8 * 1024**2  # Instagram's image limit (Zernio: Instagram media requirements)
-# A list import must not starve the rest: its downloads queue behind renders and single imports (priority)
-# and run two at a time (lanes), which also keeps the sites' rate limits further away.
-BULK_PRIORITY, BULK_LANES = -10, 2
-
-
-async def _db():
-    async with SessionLocal() as s:
-        yield s
-
-
-Db = Annotated[AsyncSession, Depends(_db)]
+# A list import must not starve the rest: its downloads queue behind every render and single import (priority)
+BULK_PRIORITY = -100_000
+_WAITING = text(
+    "SELECT count(*) FROM procrastinate_jobs WHERE lock = :lock AND status = 'todo' AND (priority > :bulk) = :single"
+)
 
 
 async def _defer(s: AsyncSession, task, options: dict | None = None, **kwargs) -> None:
-    """Queue a job inside the session's transaction: it exists iff the row change commits."""
+    """Queue a job inside the session's transaction: it exists iff the row change commits. Media jobs (probe,
+    download, render) are shared fairly between users: one at a time per user (the lock), and behind other users'
+    jobs of the same kind (single or bulk) by as many as this user already has waiting (the priority), so a big
+    batch never holds up someone else's one render. Procrastinate runs a lock's jobs by priority, so a user's own
+    jobs keep their order. ponytail: one media job per user; lanes (media:u{uid}:{n}) to let one user use both."""
+    options = dict(options or {})
+    if task.queue == "media":
+        lock, base = f"media:u{s.info['uid']}", options.get("priority", 0)
+        n = await s.scalar(_WAITING, {"lock": lock, "bulk": BULK_PRIORITY, "single": base > BULK_PRIORITY})
+        options |= {"lock": lock, "priority": base - n}
     raw = await (await s.connection()).get_raw_connection()
-    await task.configure(connection=raw.driver_connection, **(options or {})).defer_async(**kwargs)
+    await task.configure(connection=raw.driver_connection, **options).defer_async(**kwargs)
+
+
+async def _room(s: AsyncSession, adding: int = 0) -> None:
+    """507 when adding bytes would leave the disk nearly full, or the user past their storage quota."""
+    quota, used = (await s.execute(storage.USAGE, {"u": s.info["uid"]})).one()
+    if full := storage.room(used, quota, adding):
+        raise HTTPException(507, {"code": full[0], "message": full[1]})
+
+
+def _importable(s: AsyncSession, urls: list[str]) -> None:
+    """422 unless every link is one video on a known site (links.SITES). yt-dlp runs on the server, inside its
+    network: a link anywhere else (the api, cloud metadata, a private address) would have it fetch that for the user.
+    The operator (user 1) keeps any link, as before."""
+    if s.info["uid"] != 1 and (bad := next((u for u in urls if links.video(u) is None), None)):
+        sites = ", ".join(platform for platform, _, _ in links.SITES)
+        raise HTTPException(422, f"{bad}: only a link to one video on {sites} can be imported")
 
 
 async def _get(s: AsyncSession, model, id: int):
@@ -188,17 +207,19 @@ UPLOAD_BODY = {  # the handler parses the body itself (to stream it), so describ
 @router.post("/clips", status_code=201, openapi_extra=UPLOAD_BODY)
 async def upload_clip(request: Request, s: Db) -> ClipOut:
     """Multipart upload, streamed to raw/. The clip is UPLOADING while the bytes arrive, then PROBING."""
-    if int(request.headers.get("content-length") or 0) > settings.MAX_UPLOAD_BYTES + 1024**2:
+    size, uid = int(request.headers.get("content-length") or 0), s.info["uid"]
+    if size > settings.MAX_UPLOAD_BYTES + 1024**2:
         raise HTTPException(413, f"file is larger than {settings.MAX_UPLOAD_BYTES} bytes")
+    await _room(s, size)
     clip = SourceClip(origin="upload", status="UPLOADING")
     s.add(clip)
     await s.commit()
-    part = storage.path_for(f"raw/{clip.id}.part")
+    part = storage.path_for(storage.key(uid, f"raw/{clip.id}.part"))
     try:
         fields, filename = await _stream_multipart(request, part)
         if not filename:
             raise HTTPException(422, "file is required")
-        key = f"raw/{clip.id}{PurePath(filename).suffix.lower()}"
+        key = storage.key(uid, f"raw/{clip.id}{PurePath(filename).suffix.lower()}")
         part.replace(storage.path_for(key))
     except Exception:  # bad request or client gone: leave no trace
         await run_in_threadpool(part.unlink, missing_ok=True)
@@ -219,6 +240,8 @@ async def upload_clip(request: Request, s: Db) -> ClipOut:
 
 @router.post("/clips/from-url", status_code=201)
 async def create_clip_from_url(body: ClipFromUrl, s: Db) -> ClipOut:
+    _importable(s, [str(body.url)])
+    await _room(s)
     clip = SourceClip(
         origin="url",
         status="DOWNLOADING",
@@ -257,16 +280,18 @@ async def find_links(file: UploadFile, s: Db) -> LinksOut:
 @router.post("/clips/from-urls", status_code=201)
 async def create_clips_from_urls(body: ClipsFromUrls, s: Db) -> ClipsFromUrlsOut:
     """One DOWNLOADING clip per video that isn't in the library yet."""
+    urls = list(dict.fromkeys(links.clean(str(u)) for u in body.urls))
+    _importable(s, urls)
+    await _room(s)
     have, ids = await _library_keys(s), []
-    for url in dict.fromkeys(links.clean(str(u)) for u in body.urls):
+    for url in urls:
         if (k := links.key(url)) in have:
             continue
         have.add(k)
         clip = SourceClip(origin="url", status="DOWNLOADING", source_url=url)
         s.add(clip)
         await s.flush()
-        options = {"priority": BULK_PRIORITY, "lock": f"import-{clip.id % BULK_LANES}"}
-        await _defer(s, download_clip, options, clip_id=clip.id)
+        await _defer(s, download_clip, {"priority": BULK_PRIORITY}, clip_id=clip.id)
         ids.append(clip.id)
     await s.commit()
     return ClipsFromUrlsOut(created=len(ids), skipped=len(body.urls) - len(ids), ids=ids)
@@ -322,7 +347,8 @@ async def delete_clip(clip_id: int, s: Db) -> Response:
     if deleted.rowcount != 1:
         raise HTTPException(409, "clip is still processing or has renders")
     await s.commit()
-    for key in (clip.raw_key, clip.thumbnail_key, f"raw/{clip_id}.part"):  # .part: an upload that never finished
+    part = storage.key(s.info["uid"], f"raw/{clip_id}.part")  # an upload that never finished
+    for key in (clip.raw_key, clip.thumbnail_key, part):
         if key:
             await run_in_threadpool(storage.delete, key)
     return Response(status_code=204)
@@ -403,7 +429,7 @@ async def upload_brand_logo(brand_id: int, file: UploadFile, s: Db) -> BrandOut:
         raise HTTPException(415, "logo must be a PNG")
     if not alpha:
         raise HTTPException(422, "logo PNG has no transparency (alpha channel)")
-    old, brand.logo_key = brand.logo_key, f"logos/{brand.id}-{secrets.token_hex(4)}.png"
+    old, brand.logo_key = brand.logo_key, storage.key(s.info["uid"], f"logos/{brand.id}-{secrets.token_hex(4)}.png")
     await run_in_threadpool(storage.save, brand.logo_key, io.BytesIO(data))
     await s.commit()
     if old:
@@ -415,6 +441,7 @@ async def upload_brand_logo(brand_id: int, file: UploadFile, s: Db) -> BrandOut:
 
 @router.post("/renders", status_code=201)
 async def create_render(body: RenderCreate, s: Db) -> RenderOut:
+    await _room(s)
     clip = await s.get(SourceClip, body.clip_id)
     if clip is None or clip.status != "READY":
         raise HTTPException(409, f"clip {body.clip_id} is not READY")
@@ -527,7 +554,7 @@ async def set_render_cover(render_id: int, file: UploadFile, s: Db) -> RenderOut
     """The Reel cover (Zernio instagramThumbnail): a JPEG, ideally 1080x1920 (the Editor sends exactly that).
     Stored under a new name each time, so browsers never show a stale cover. 409 once the render has posts."""
     data = await _cover_jpeg(file)
-    key = f"covers/{render_id}-{secrets.token_hex(4)}.jpg"
+    key = storage.key(s.info["uid"], f"covers/{render_id}-{secrets.token_hex(4)}.jpg")
     await run_in_threadpool(storage.save, key, io.BytesIO(data))
     return await _set_cover(s, render_id, key)
 
@@ -597,7 +624,7 @@ async def upload_cover(
     cover = SavedCover(name=name, image_key="")
     s.add(cover)
     await s.flush()  # the key carries the id
-    key = cover.image_key = f"cover-library/{cover.id}-{secrets.token_hex(4)}.jpg"
+    key = cover.image_key = storage.key(s.info["uid"], f"cover-library/{cover.id}-{secrets.token_hex(4)}.jpg")
     if is_default:
         await _clear_default(s, SavedCover, cover.id)
         cover.is_default = True

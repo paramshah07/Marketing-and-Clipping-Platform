@@ -21,7 +21,7 @@ import {
 import { Chip, Header } from "@/components/bits"
 import { ImportLinks } from "@/components/ImportLinks"
 import { BROWSER_TZ as TZ, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
-import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, btn } from "@/lib/utils"
+import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, btn, signedOut } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -75,6 +75,7 @@ function upload(file: File, handle: string, refresh: () => Promise<unknown>, key
         /* not JSON */
       }
       set(key, { error: `${errorText(body)} (HTTP ${xhr.status})`, fatal: xhr.status === 413 || xhr.status === 415 })
+      if (xhr.status === 401) signedOut() // the generated client's 401 hook doesn't see an XHR
     }
   }
   xhr.onerror = () => set(key, { error: "Upload interrupted — network" })

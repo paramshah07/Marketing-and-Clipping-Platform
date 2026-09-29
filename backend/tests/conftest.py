@@ -11,6 +11,29 @@ ADMIN_URL = os.environ["DATABASE_URL"]
 TEST_DB = os.environ.get("CLIPPER_TEST_DB", "clipper_test")  # parallel runs: give each its own db
 TEST_URL = ADMIN_URL.rsplit("/", 1)[0] + "/" + TEST_DB
 os.environ["DATABASE_URL"] = TEST_URL  # before any app import: settings, engine and queue all use the test db
+os.environ["BOT_SERVICE_SECRET"] = "test-bot-secret"  # the api clients below act as users through the bot's path
+os.environ["SECRETS_KEY"] = "ZkIdZfXyRgdaioeK-4CXGr8utID9hrG03Z4dd2FpMHc="  # a Fernet key for tests only
+
+
+def as_user(uid: int = 1) -> dict[str, str]:
+    """Headers that make an api request user uid's: the bot service's bearer (no cookie, no Origin needed).
+    tests/test_auth.py covers the browser's cookie path."""
+    return {"Authorization": "Bearer test-bot-secret", "X-Clipper-User": str(uid)}
+
+
+def zernio_key(uid: int = 1, key: str | None = "sk_test", status: str = "valid", gen: int = 1, **values) -> None:
+    """Store user uid's Zernio key the way PUT /api/me/zernio-key does (key None: no key, status 'none')."""
+    from sqlalchemy import update
+
+    from app.core.db import SyncSession
+    from app.core.secrets import seal
+    from app.models import User
+
+    values |= {"zernio_key_enc": key and seal(key), "zernio_key_last4": key and key[-4:], "zernio_key_gen": gen,
+               "zernio_key_status": status if key else "none"}  # fmt: skip
+    with SyncSession() as s, s.begin():
+        s.execute(update(User).where(User.id == uid).values(**values))
+
 
 import shutil  # noqa: E402
 import subprocess  # noqa: E402
@@ -32,13 +55,17 @@ def libpq(url: str) -> str:
 
 @pytest.fixture(scope="session")
 def db():
-    """Fresh clipper_test with the Alembic migration and Procrastinate's schema; yields a sync engine."""
+    """Fresh clipper_test with the Alembic migration, Procrastinate's schema and the api role's grants (what
+    migrate does); yields a sync engine (the superuser: row-level security doesn't apply, see test_tenancy)."""
+    from app.cli import db_grants
+
     with psycopg.connect(libpq(ADMIN_URL), autocommit=True) as conn:
         conn.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
         conn.execute(f"CREATE DATABASE {TEST_DB}")
     command.upgrade(ALEMBIC, "head")
     with psycopg.connect(libpq(TEST_URL), autocommit=True) as conn:
         conn.execute(SchemaManager.get_schema())
+    db_grants()
     engine = create_engine(TEST_URL)
     yield engine
     engine.dispose()

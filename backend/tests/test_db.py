@@ -7,10 +7,11 @@ from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Account, Brand, Post, Render, SourceClip
+from app.models import Account, Brand, Post, Render, SourceClip, User
 from conftest import ALEMBIC
 
-TABLES = {"source_clips", "brands", "renders", "accounts", "posts", "saved_captions", "saved_covers"}
+TABLES = {"source_clips", "brands", "renders", "accounts", "posts", "saved_captions", "saved_covers", "users", "sessions",
+          "telegram_bots"}
 
 
 def make_post(s: Session, idempotency_key: str) -> Post:
@@ -45,6 +46,8 @@ def test_migration_downgrade_and_upgrade(db):
     command.upgrade(ALEMBIC, "head")
     assert TABLES <= set(inspect(db).get_table_names())
     command.check(ALEMBIC)  # raises if the models and the migration disagree
+    with Session(db) as s:  # the .env key's generation, whatever the one-shot import finds: a key pasted later is 2+
+        assert s.get(User, 1).zernio_key_gen == 1
 
 
 def test_insert_every_table(db):

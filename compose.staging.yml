@@ -1,0 +1,30 @@
+# Staging on the production VM (docs/deploy.md section 7): the dev branch checked out as ~/clipper-dev, project
+# clipper-dev, on top of compose.yml and compose.prod.yml (its .env sets COMPOSE_PROJECT_NAME and COMPOSE_FILE). A copy
+# of production's data (staging-refresh.sh, every 5 days) with its own database, files and secrets. Publishing follows
+# its .env's PUBLISHING_ENABLED (on: posts scheduled on staging go out for real, with the operator's Zernio key; the
+# refresh cancels every copied post that could still publish, so production's schedule never goes out twice). No
+# Caddy of its own (production's serves it at dev.<host>), and a low CPU weight for renders, so production's come first.
+services:
+  postgres: { ports: !reset [] } # production's owns 127.0.0.1:5432
+  migrate:
+    environment: # never production's bots, whatever .env holds: a token polled from two places breaks the real bot
+      TELEGRAM_BOT_TOKEN: ""
+      TELEGRAM_CHAT_ID: ""
+      TELEGRAM_BOT_TOKEN_2: ""
+      TELEGRAM_CHAT_ID_2: ""
+      TELEGRAM_BOT_TOKEN_3: ""
+      TELEGRAM_CHAT_ID_3: ""
+  api:
+    ports: !override ["127.0.0.1:8001:8000"] # production's owns 8000; deploy.sh finds the port itself
+    # every staging post's Idempotency-Key differs from any production one (same Zernio user, so Zernio would replay
+    # one for the other): copied renders, accounts and slots are production's
+    environment: { IDEMPOTENCY_SALT: "staging:" }
+  worker:
+    command: !override ["python", "-m", "app.worker", "--queues=media", "--concurrency=1", "--shutdown-graceful-timeout=60"]
+    # one render at a time, with both cores while production's worker is idle; when both render, production's gets
+    # four times the CPU (a weight, not a cap: a hard cap of one core made a 5-minute clip take half an hour)
+    cpu_shares: 256
+  caddy: { profiles: [never] }
+
+networks:
+  edge: { name: clipper-edge, external: true } # production's project owns it

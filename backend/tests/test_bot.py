@@ -29,7 +29,8 @@ from app.core.db import SyncSession, engine
 from app.main import app
 from app.models import Account, Brand, Post, Render, SourceClip
 from app.schemas import CropConfig, OverlayConfig
-from app.services import zernio
+from app.services import errors, zernio
+from conftest import zernio_key
 
 CHAT = 4242
 
@@ -87,6 +88,7 @@ def test_captions_and_names_match_the_web_app():
     assert fmt.placement({"brand_id": None, "overlay_config": None, "crop_config": {"x": 0, "y": 0, "w": 0.3, "h": 1}}) == "9:16 crop"
     card = "<b>x</b>\n<blockquote>" + "y" * 2000 + "</blockquote>"
     assert fmt.shorten(card, 1024) == "<b>x</b>" and fmt.visible("a &amp; <b>b</b>") == 5
+    assert set(errors.CAUSES) <= set(screens.TITLES)  # a failed post's card has a title, never the raw code
 
 
 def test_parse_when():
@@ -237,7 +239,7 @@ class Phone:
 
     async def say(self, text: str | None = None, chat: int = CHAT, **message) -> None:
         self.n += 1
-        msg = {"message_id": 500000 + self.n, "chat": {"id": chat}} | ({"text": text} if text is not None else {}) | message
+        msg = {"message_id": 500000 + self.n, "chat": {"id": chat, "type": "private"}} | ({"text": text} if text is not None else {}) | message
         await self.bot.handle({"update_id": self.n, "message": msg})
 
     async def tap(self, label: str, mid: int | None = None) -> str | None:
@@ -275,7 +277,8 @@ def env(db, tmp_path, monkeypatch):
     media = next(r for r in app.routes if getattr(r, "name", None) == "media").app
     monkeypatch.setattr(media, "all_directories", [tmp_path])  # /media serves this test's files, not ./data
     zernio._quota_cache.clear()
-    return tmp_path
+    yield tmp_path
+    zernio_key(1, None)
 
 
 def run(scenario):
@@ -337,8 +340,11 @@ def seed(tmp_path, auto_approve=False, width=1920, height=1080) -> dict:
 def test_gate_help_status(env):
     async def scenario(phone, tg, bot):
         await phone.say("/start", chat=999)  # anyone else: nothing, not even a reply
+        await phone.say("/start " + "c" * 22, chat=999)  # nor a pairing code that isn't this bot's
         assert tg.calls == []
         await phone.say("/start")
+        assert "everything the web app does" in phone.text()
+        await phone.say("/start " + "c" * 22)  # its own chat with a stale code: help, as ever
         assert "everything the web app does" in phone.text()
         await phone.say("/nonsense")
         assert "don't know that command" in phone.text()
@@ -500,7 +506,7 @@ def test_schedule_and_posts(env, monkeypatch):
         with SyncSession() as s:
             assert s.get(Post, p.id).caption == "new words"
         assert await phone.tap("Post now", form) is not None and tg.toasts[-1] == (
-            "Publishing is off (PUBLISHING_ENABLED or ZERNIO_API_KEY in .env): nothing can post now.", True)
+            "Publishing is off (PUBLISHING_ENABLED is off on the server): nothing can post now.", True)
         # a typed time, then no confirm step: Schedule saves it
         await phone.say(f"/r{other['render']}")
         await phone.tap("Schedule…")
@@ -521,13 +527,13 @@ def test_schedule_and_posts(env, monkeypatch):
             assert s.get(Post, p2.id).status == "CANCELLED"
         # Post now with publishing on (a key that can't reach Zernio: nothing here may call it)
         monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
-        monkeypatch.setattr(settings, "ZERNIO_API_KEY", "sk_test_never_sent")
+        zernio_key(1, "sk_test_never_sent")
 
-        async def no_quota(zernio_account_id):
+        async def no_quota(key, zernio_account_id):
             return None
 
         monkeypatch.setattr(zernio, "publishing_limit", no_quota)
-        monkeypatch.setattr(zernio, "client", lambda **kw: pytest.fail("Zernio called"))
+        monkeypatch.setattr(zernio, "client", lambda key, **kw: pytest.fail("Zernio called"))
         await phone.say(f"/p{p.id}")
         card = max(tg.messages)
         await phone.tap("Post now", card)
@@ -562,6 +568,7 @@ def test_schedule_and_posts(env, monkeypatch):
 def test_recover_ready_drafts(env):
     ids = seed(env)
     more = seed(env, auto_approve=False)
+    third = seed(env)
 
     async def scenario(phone, tg, bot):
         with SyncSession() as s:  # a failure nothing was ever POSTed for: Retry now reschedules it at once
@@ -579,6 +586,23 @@ def test_recover_ready_drafts(env):
         await phone.tap("Retry now")
         with SyncSession() as s:
             assert s.get(Post, p.id).status == "SCHEDULED"
+        # KEY_CHANGED: the first POST went out under the previous key, so the Reel may be live. Fix asks first
+        with SyncSession() as s:
+            k = Post(render_id=third["render"], account_id=third["account"], caption="c", status="DEAD_LETTER", error_code="KEY_CHANGED",
+                     scheduled_for=datetime.now(UTC) - timedelta(hours=1), idempotency_key=f"k{third['render']}",
+                     first_post_at=datetime.now(UTC) - timedelta(hours=1), key_gen=1)  # fmt: skip
+            s.add(k)
+            s.commit()
+        await phone.say(f"/p{k.id}")
+        assert "Sent with your previous Zernio key" in phone.text()
+        card = max(tg.messages)
+        assert "Instagram first" in await phone.tap("Re-render and retry", card)
+        with SyncSession() as s:
+            assert s.get(Post, k.id).status == "DEAD_LETTER"
+        await phone.tap("I checked: re-render", card)
+        with SyncSession() as s:
+            k = s.get(Post, k.id)
+            assert k.status == "SCHEDULED" and k.render_id != third["render"] and job("render", render_id=k.render_id)
         # the ready tray: select one render, auto-schedule it
         bot.last_account = more["account"]
         await phone.say("/ready")

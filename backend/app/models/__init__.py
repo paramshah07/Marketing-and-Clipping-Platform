@@ -1,11 +1,30 @@
 """All tables (docs/PLAN.md section 3). Statuses are text + CHECK, FKs ON DELETE RESTRICT,
-timestamps are timestamptz, *_key columns are paths under DATA_DIR."""
+timestamps are timestamptz, *_key columns are paths under DATA_DIR.
+
+Tenancy (migration 0007): every Owned table has user_id and the Postgres row-level security policy `tenant`
+(user_id = app.uid). The api connects as clipper_app, so it sees and writes only the signed-in user's rows
+(app.core.db sets app.uid per transaction); worker, publisher and CLI are the superuser and bypass it."""
 
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, MetaData, Text, Update, func, text, update
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    LargeBinary,
+    MetaData,
+    Text,
+    UniqueConstraint,
+    Update,
+    func,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -20,7 +39,7 @@ class Base(DeclarativeBase):
             "pk": "pk_%(table_name)s",
         }
     )
-    type_annotation_map = {datetime: DateTime(timezone=True), dict[str, Any]: JSONB, str: Text}
+    type_annotation_map = {datetime: DateTime(timezone=True), dict[str, Any]: JSONB, str: Text, bytes: LargeBinary}
 
 
 def one_of(column: str, *values: str) -> CheckConstraint:
@@ -28,8 +47,24 @@ def one_of(column: str, *values: str) -> CheckConstraint:
 
 
 def default_index(table: str) -> Index:
-    """At most one row of the table is its default (what the Editor preselects)."""
-    return Index(f"uq_{table}_default", "is_default", unique=True, postgresql_where=text("is_default"))
+    """At most one row of the table per user is its default (what the Editor preselects)."""
+    return Index(f"uq_{table}_default", "user_id", unique=True, postgresql_where=text("is_default"))
+
+
+# The api's inserts name no user: the column takes the transaction's app.uid. Missing (a superuser: worker,
+# CLI, an api from before 0007) it is 1, the operator; under RLS the policy then refuses the row (fail closed).
+UID = text("coalesce(nullif(current_setting('app.uid', true), '')::int, 1)")
+
+
+class Owned:
+    """A tenant table: its rows belong to one user (RLS policy `tenant`, migration 0007)."""
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), server_default=UID, index=True)
+
+
+def owned_by(column: str, table: str) -> ForeignKeyConstraint:
+    """(column, user_id) -> table (id, user_id): a row can only point at a row of its own user."""
+    return ForeignKeyConstraint([column, "user_id"], [f"{table}.id", f"{table}.user_id"], ondelete="RESTRICT")
 
 
 def cas(model, id: int, from_statuses: Iterable[str], **values) -> Update:
@@ -38,9 +73,62 @@ def cas(model, id: int, from_statuses: Iterable[str], **values) -> Update:
     return update(model).where(model.id == id, model.status.in_(list(from_statuses))).values(**values)
 
 
-class SourceClip(Base):
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("username ~ '^[a-z0-9][a-z0-9_.-]{2,31}$'", name="username"),
+        one_of("zernio_key_status", "none", "valid", "invalid"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(unique=True)  # lower-case; login is case-insensitive
+    password_hash: Mapped[str | None]  # bcrypt; null: can't log in (user 1 until bootstrap sets it)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    disabled_at: Mapped[datetime | None]
+    # the user's own Zernio API key, sealed (app.core.secrets); zernio_* come from GET /v1/auth/verify
+    zernio_key_enc: Mapped[bytes | None]
+    zernio_key_last4: Mapped[str | None]
+    zernio_user_id: Mapped[str | None] = mapped_column(unique=True)
+    zernio_email: Mapped[str | None]
+    zernio_name: Mapped[str | None]
+    zernio_key_status: Mapped[str] = mapped_column(server_default="none")
+    zernio_checked_at: Mapped[datetime | None]
+    zernio_error: Mapped[str | None]
+    zernio_key_gen: Mapped[int] = mapped_column(server_default="0")  # +1 on every key change (posts.key_gen)
+    quota_bytes: Mapped[int | None] = mapped_column(BigInteger)  # storage cap; null = unlimited
+    env_imported_at: Mapped[datetime | None]  # the one-shot .env import into user 1 ran
+
+
+class AuthSession(Base):  # a signed-in browser: the clipper_session cookie's sha256
+    __tablename__ = "sessions"
+
+    token_sha256: Mapped[bytes] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    expires_at: Mapped[datetime]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class TelegramBot(Owned, Base):  # a user's @BotFather bot, run by the bot service's supervisor
+    __tablename__ = "telegram_bots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    bot_id: Mapped[int] = mapped_column(BigInteger, unique=True)  # the token's numeric prefix: one poller per bot
+    username: Mapped[str | None]
+    token_enc: Mapped[bytes]  # sealed
+    chat_id: Mapped[int | None] = mapped_column(BigInteger)  # null: waiting for /start <code>
+    chat_title: Mapped[str | None]
+    pair_sha256: Mapped[bytes | None]
+    pair_expires_at: Mapped[datetime | None]
+    alerts: Mapped[bool] = mapped_column(server_default=text("true"))
+    error: Mapped[str | None]  # TOKEN_REJECTED: the supervisor stops running it
+    last_seen_at: Mapped[datetime | None]
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class SourceClip(Owned, Base):
     __tablename__ = "source_clips"
     __table_args__ = (
+        UniqueConstraint("id", "user_id"),  # target of owned_by
         one_of("origin", "upload", "url"),
         one_of("status", "UPLOADING", "DOWNLOADING", "PROBING", "READY", "FAILED"),
     )
@@ -71,9 +159,9 @@ class SourceClip(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
-class Brand(Base):
+class Brand(Owned, Base):
     __tablename__ = "brands"
-    __table_args__ = (default_index("brands"),)
+    __table_args__ = (UniqueConstraint("id", "user_id"), default_index("brands"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str]
@@ -89,7 +177,7 @@ class Brand(Base):
     archived_at: Mapped[datetime | None]
 
 
-class SavedCaption(Base):  # Customizations: a caption the Editor can fill in
+class SavedCaption(Owned, Base):  # Customizations: a caption the Editor can fill in
     __tablename__ = "saved_captions"
     __table_args__ = (default_index("saved_captions"),)
 
@@ -100,7 +188,7 @@ class SavedCaption(Base):  # Customizations: a caption the Editor can fill in
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
-class SavedCover(Base):  # Customizations: a Reel cover the Editor copies onto a render (renders.cover_key)
+class SavedCover(Owned, Base):  # Customizations: a Reel cover the Editor copies onto a render (renders.cover_key)
     __tablename__ = "saved_covers"
     __table_args__ = (default_index("saved_covers"),)
 
@@ -111,13 +199,18 @@ class SavedCover(Base):  # Customizations: a Reel cover the Editor copies onto a
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
-class Render(Base):
+class Render(Owned, Base):
     __tablename__ = "renders"
-    __table_args__ = (one_of("status", "PENDING", "RENDERING", "READY", "FAILED"),)
+    __table_args__ = (
+        UniqueConstraint("id", "user_id"),
+        owned_by("source_clip_id", "source_clips"),
+        owned_by("brand_id", "brands"),  # MATCH SIMPLE: a null brand skips the check
+        one_of("status", "PENDING", "RENDERING", "READY", "FAILED"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    source_clip_id: Mapped[int] = mapped_column(ForeignKey("source_clips.id", ondelete="RESTRICT"))
-    brand_id: Mapped[int | None] = mapped_column(ForeignKey("brands.id", ondelete="RESTRICT"))  # null = no logo
+    source_clip_id: Mapped[int]
+    brand_id: Mapped[int | None]  # null = no logo
     overlay_config: Mapped[dict[str, Any] | None]  # fractions of the 1080x1920 output
     crop_config: Mapped[dict[str, Any] | None]  # fractions of the source frame
     caption: Mapped[str | None]
@@ -135,9 +228,9 @@ class Render(Base):
     cover_key: Mapped[str | None]  # 1080x1920 JPEG Reel cover (Zernio instagramThumbnail); null = Instagram's pick
 
 
-class Account(Base):
+class Account(Owned, Base):
     __tablename__ = "accounts"
-    __table_args__ = (one_of("connection_status", "connected", "disconnected"),)
+    __table_args__ = (UniqueConstraint("id", "user_id"), one_of("connection_status", "connected", "disconnected"))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     zernio_account_id: Mapped[str] = mapped_column(unique=True)
@@ -155,9 +248,11 @@ class Account(Base):
     disabled_at: Mapped[datetime | None]
 
 
-class Post(Base):
+class Post(Owned, Base):
     __tablename__ = "posts"
     __table_args__ = (
+        owned_by("render_id", "renders"),
+        owned_by("account_id", "accounts"),
         one_of("status", "DRAFT", "SCHEDULED", "PUBLISHING", "PUBLISHED", "FAILED", "DEAD_LETTER", "CANCELLED"),
         Index("ix_posts_status_scheduled_for", "status", "scheduled_for"),
         Index("ix_posts_account_id_scheduled_for", "account_id", "scheduled_for"),
@@ -170,8 +265,8 @@ class Post(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    render_id: Mapped[int] = mapped_column(ForeignKey("renders.id", ondelete="RESTRICT"))
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    render_id: Mapped[int]
+    account_id: Mapped[int]
     caption: Mapped[str]
     scheduled_for: Mapped[datetime]
     status: Mapped[str] = mapped_column(server_default="DRAFT")
@@ -183,6 +278,7 @@ class Post(Base):
     # committed just before the first POST /v1/posts with this key: set means a post may be live. The 20 h
     # no-re-POST guard counts from it (never from scheduled_for, which reslots move). Cleared only with a new key.
     first_post_at: Mapped[datetime | None]
+    key_gen: Mapped[int | None]  # users.zernio_key_gen when first_post_at was set: a replay needs the same key
     ig_media_id: Mapped[str | None]
     permalink: Mapped[str | None]
     attempt_count: Mapped[int] = mapped_column(server_default="0")

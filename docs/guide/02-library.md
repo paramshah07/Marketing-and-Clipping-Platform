@@ -27,7 +27,7 @@ You can switch pages while files upload; they keep going. Reloading or closing t
 
 ## Import a clip from a link
 
-1. Paste the video's URL into the field in the drop zone (TikTok, Instagram, YouTube, X and many other sites work).
+1. Paste the video's URL into the field in the drop zone: a single video on TikTok, Instagram, YouTube, X or Facebook. Any other link (a profile, a playlist, another site) is refused with "…: only a link to one video on YouTube, Instagram, TikTok, X, Facebook can be imported". (The operator's account can import from many other sites too.)
 2. Optional: add the creator's `@handle`. Leave it empty and Clipper takes the handle from the site where it can (TikTok, Instagram, YouTube, X). A handle you type always wins.
 3. Click **Import**. The row shows **Downloading**, then **Probing**, then **Ready**.
 
@@ -59,7 +59,7 @@ Only links to a single video on YouTube, Instagram, TikTok, X or Facebook count.
 | Status | What it means |
 |---|---|
 | **Uploading** | The file is on its way up. The row shows the percentage and speed. |
-| **Downloading** | Clipper is fetching the video from its link. Bulk imports download two at a time, after renders and publishing. |
+| **Downloading** | Clipper is fetching the video from its link. Your downloads and renders run one at a time, taking turns with other users'; bulk imports wait until your single imports and renders are done. |
 | **Probing** | Clipper reads the length, size, frame rate and audio, and makes the thumbnail. |
 | **Ready** | Open it in the [Editor](03-editor.md). |
 | **Failed** | The row shows the error code and the cause, with **Retry** or **Remove**. |
@@ -74,7 +74,9 @@ When a clip fails, the cause tells you whether a retry can help:
 | Must be 3 s to 15 min | `DURATION_OUT_OF_RANGE` | **Remove**. Reels are 3 seconds to 15 minutes; trim it elsewhere first. |
 | Not a readable video | `PROBE_FAILED` | **Remove**. The file isn't a video ffmpeg can read. |
 | Upload abandoned | `UPLOAD_ABANDONED` | **Remove** and upload again. The upload never finished: the server restarted mid-upload, or 24 hours passed. |
-| Needs login cookies | `LOGIN_REQUIRED` | The site wants a logged-in visitor (Instagram also says this when it rate-limits). **Retry** later; if it keeps failing, the server needs a yt-dlp cookies file (`YTDLP_COOKIES_FILE`). |
+| Needs login cookies | `LOGIN_REQUIRED` | The site wants a logged-in visitor (Instagram also says this when it rate-limits). **Retry** later; if it keeps failing, upload the file instead. (Only the operator's imports use the server's yt-dlp cookies file.) |
+| Your storage is full | `QUOTA_EXCEEDED` | Your storage filled up while the import waited. Delete clips or renders, then **Retry**. |
+| Server disk almost full | `DISK_FULL` | **Retry** later, and tell the operator. |
 | Import failed | `EXTRACTOR_FAILED` | **Retry** later. Sites change often; a failure can be temporary. |
 | Worker crashed, Interrupted, Internal error, Thumbnail failed | `WORKER_CRASHED`, `INTERRUPTED`, `INTERNAL_ERROR`, `THUMBNAIL_FAILED` | **Retry**. |
 
@@ -116,6 +118,7 @@ On this tab the search box looks through captions and clip names.
 > [!NOTE]
 > A re-render has no cover, so Instagram picks a frame. If the brand has no caption template, the caption is empty: write one in the **Schedule…** popover, or render from the Editor, where you can set a cover too.
 
+- Uploads, imports and renders count against your storage (5 GB unless the operator changed it; **Settings** › **Account** shows it, see [Storage](09-settings.md#storage)). When it is full, each is refused with **your storage is full**: delete clips or renders to make room.
 - The **Renders** column counts every render made from the clip, including failed ones.
 - Hover the **Added** time to see the exact date and time.
 - A new clip fades in once when it turns **Ready** while the page is open.

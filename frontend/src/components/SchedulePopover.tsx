@@ -16,7 +16,7 @@ import {
   statusOptions,
 } from "@/api/@tanstack/react-query.gen"
 import { apiError, localParts, nowIso, postNowConfirm, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
-import { CAPTION_MAX, MAX_REEL_SECONDS, btn, cn, field, label } from "@/lib/utils"
+import { CAPTION_MAX, MAX_REEL_SECONDS, PUBLISHING_OFF, btn, cn, field, label } from "@/lib/utils"
 
 /** Render queue "Schedule…": pick an account, take the suggested slot (or edit it), POST /api/posts. */
 export function SchedulePopover({ r, children }: { r: RenderOut; children: ReactNode }) {
@@ -83,7 +83,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           </p>
         )}
         {done.status === "DRAFT" && <p className="text-sm text-muted">{r.brand_id ? "This brand needs approval before it publishes." : "Posts without a brand start as drafts."} Approve it on the calendar.</p>}
-        {st.data?.publishing_enabled === false && <p className="text-sm text-warn">Publishing is off: nothing reaches Instagram until it is turned on.</p>}
+        {st.data?.publishing_off && <p className="text-sm text-warn">{PUBLISHING_OFF[st.data.publishing_off].why}</p>}
         <Link to={`/calendar?week=${localParts(done.scheduled_for, a.timezone).date}&account=${a.id}`} className="text-sm underline decoration-line-strong underline-offset-2 hover:decoration-fg">
           Open calendar
         </Link>

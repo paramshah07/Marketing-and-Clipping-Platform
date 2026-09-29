@@ -14,10 +14,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.auth import current_user, zernio_key
 from app.api.pipeline import Db
 from app.core.config import settings
 from app.models import Account, Brand, Post, Render, SourceClip, cas
@@ -39,8 +40,9 @@ from app.services import slots, zernio
 from app.services.errors import describe
 from app.services.storage import url_for
 from app.tasks import accounts as account_sync
+from app.tasks import publish
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
 
 MIN_LEAD = timedelta(minutes=-1)  # "now" is fine (the dispatcher takes it within a minute); a minute-precise picker puts it up to 60 s back
 AUTO_LEAD = slots.AUTO_LEAD  # automatic placement (auto-schedule, next-slot, late approve) skips nearer slots
@@ -57,7 +59,7 @@ def _now() -> datetime:
 
 
 def idempotency_key(render_id: int, account_id: int, scheduled_for: datetime, n: int = 0) -> str:
-    base = f"{render_id}:{account_id}:{scheduled_for.astimezone(UTC).isoformat()}"
+    base = f"{settings.IDEMPOTENCY_SALT}{render_id}:{account_id}:{scheduled_for.astimezone(UTC).isoformat()}"
     return hashlib.sha256((f"{base}:{n}" if n else base).encode()).hexdigest()
 
 
@@ -141,7 +143,8 @@ async def load_post_out(s, post_id: int) -> PostOut:
 # ---------------------------------------------------------------- accounts
 
 
-async def _account_out(s: AsyncSession, acc: Account, quota: bool = True) -> AccountOut:
+async def _account_out(s: AsyncSession, acc: Account, key: str | None) -> AccountOut:
+    """key: the user's Zernio key, for the account's publishing quota (None: no quota)."""
     tz = ZoneInfo(acc.timezone)
     start, end = slots.day_bounds(slots.local_day(_now(), tz), tz)
     live = (Post.account_id == acc.id, Post.status != "CANCELLED")
@@ -153,15 +156,15 @@ async def _account_out(s: AsyncSession, acc: Account, quota: bool = True) -> Acc
     )
     out = AccountOut.model_validate(acc)
     out.today_count, out.next_post_at = today, next_at
-    if quota:
-        out.quota = await zernio.publishing_limit(acc.zernio_account_id)
+    out.quota = await zernio.publishing_limit(key, acc.zernio_account_id)
     return out
 
 
 async def _accounts_out(s: AsyncSession) -> list[AccountOut]:
     accs = (await s.scalars(select(Account).order_by(Account.username))).all()
-    outs = [await _account_out(s, a, quota=False) for a in accs]
-    quotas = await asyncio.gather(*(zernio.publishing_limit(a.zernio_account_id) for a in accs))
+    outs = [await _account_out(s, a, None) for a in accs]
+    key = await zernio_key(s)
+    quotas = await asyncio.gather(*(zernio.publishing_limit(key, a.zernio_account_id) for a in accs))
     for out, q in zip(outs, quotas, strict=True):
         out.quota = q
     return outs
@@ -172,13 +175,26 @@ async def list_accounts(s: Db) -> list[AccountOut]:
     return await _accounts_out(s)
 
 
+async def sync(s: AsyncSession) -> None:
+    """The user's accounts from Zernio (account_sync.sync, with their key). 409 ZERNIO_KEY_MISSING without a key,
+    409 ZERNIO_KEY_INVALID when Zernio refuses it (it goes invalid: publish.key_refused), 502 when Zernio fails."""
+    uid = s.info["uid"]
+    if (key := await zernio_key(s)) is None:
+        raise _err(409, "ZERNIO_KEY_MISSING", "add your Zernio API key in Settings first")
+    try:
+        await account_sync.sync(s, uid, key)
+    except zernio.ZernioError as e:
+        await s.rollback()
+        if e.status == 401:
+            await publish.key_refused(s, uid, publish.refusal("ZERNIO_KEY_INVALID"))
+            raise _err(409, "ZERNIO_KEY_INVALID", "Zernio refused your key: update it in Settings") from e
+        raise _err(502, "ZERNIO_ERROR", str(e)) from e
+
+
 @router.post("/accounts/sync")
 async def sync_accounts(s: Db) -> list[AccountOut]:
     """Pull GET /v1/accounts from Zernio (read-only) and upsert Instagram accounts by zernio_account_id."""
-    try:
-        await account_sync.sync(s)
-    except zernio.ZernioError as e:
-        raise _err(502, "ZERNIO_ERROR", str(e)) from e
+    await sync(s)
     return await _accounts_out(s)
 
 
@@ -216,7 +232,7 @@ async def update_account(account_id: int, body: AccountPatch, s: Db) -> AccountO
         else:
             acc.disabled_at = None
     await s.commit()
-    return await _account_out(s, acc)
+    return await _account_out(s, acc, await zernio_key(s))
 
 
 @router.get("/accounts/{account_id}/next-slot")

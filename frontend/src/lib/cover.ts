@@ -1,5 +1,6 @@
 import type { CoverOut } from "@/api"
 import { OUT_H, OUT_W, coverFit } from "@/lib/geometry"
+import { signedOut } from "@/lib/utils"
 
 /** Any image the browser can decode -> the 1080x1920 JPEG that gets published: cover-fit, centre-cropped, black
  * under transparency. createImageBitmap applies the EXIF orientation. */
@@ -20,6 +21,7 @@ export async function coverJpeg(file: File): Promise<Blob> {
 /** A saved cover's JPEG (Customizations), attached to a render like a chosen file: the render gets its own copy. */
 export async function savedCover(c: CoverOut): Promise<Blob> {
   const r = await fetch(c.image_url)
+  if (r.status === 401) signedOut()
   if (!r.ok) throw new Error(`Couldn't load the saved cover ${c.name} (HTTP ${r.status})`)
   return r.blob()
 }

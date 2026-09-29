@@ -3,12 +3,28 @@ name: clipper
 x-backend: &backend
   build: { context: ./backend, target: api }
   env_file: [{ path: .env, required: false }]
-  environment:
+  environment: &env
     DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
     DATA_DIR: /data
   volumes:
     - ./backend:/app
     - ./data:/data
+
+# env_file hands every .env secret to every container, and a service's `environment` wins over it: each service
+# blanks what it must not hold. (A service's own environment replaces the anchor's: *env brings the rest back.)
+x-no-sealed: &no-sealed # SECRETS_KEY opens every user's stored Zernio key: api, publisher and migrate only
+  SECRETS_KEY: ""
+x-no-bot-secret: &no-bot-secret # the bot service's credential acts as any user: api and bot only
+  BOT_SERVICE_SECRET: ""
+x-no-import: &no-import # read by migrate only (cli bootstrap: user 1 and its one-shot .env import)
+  ZERNIO_API_KEY: ""
+  CLIPPER_PASSWORD_HASH: ""
+  TELEGRAM_BOT_TOKEN: ""
+  TELEGRAM_CHAT_ID: ""
+  TELEGRAM_BOT_TOKEN_2: ""
+  TELEGRAM_CHAT_ID_2: ""
+  TELEGRAM_BOT_TOKEN_3: ""
+  TELEGRAM_CHAT_ID_3: ""
 
 services:
   postgres:
@@ -17,73 +33,78 @@ services:
     environment: { POSTGRES_USER: clipper, POSTGRES_PASSWORD: clipper, POSTGRES_DB: clipper }
     ports: ["127.0.0.1:5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clipper -d clipper"]
+    healthcheck:  # over TCP: on a fresh volume (CI, review.sh) the entrypoint's init server is socket-only
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U clipper -d clipper"]
       interval: 2s
       timeout: 5s
       retries: 30
 
-  # one-shot: app tables via Alembic, then Procrastinate's schema (its --apply is not idempotent, so guard it)
+  # one-shot: app tables via Alembic, then Procrastinate's schema (its --apply is not idempotent, so guard it),
+  # then the api's database role and its rights, then user 1 from CLIPPER_USER / CLIPPER_PASSWORD_HASH (and, once,
+  # its ZERNIO_API_KEY and TELEGRAM_* bots)
   migrate:
     <<: *backend
+    environment: { <<: [*env, *no-bot-secret] }
     command:
       - sh
       - -c
       - >-
         alembic upgrade head &&
         if procrastinate healthchecks >/dev/null 2>&1; then echo "procrastinate schema: already applied";
-        else procrastinate schema --apply; fi
+        else procrastinate schema --apply; fi &&
+        python -m app.cli db-grants && python -m app.cli bootstrap
     depends_on: { postgres: { condition: service_healthy } }
 
+  # connects as clipper_app, not the superuser: Postgres row-level security keeps each user to their own rows.
+  # (A service's environment replaces the anchor's, so DATA_DIR is repeated.)
   api:
     <<: *backend
+    environment:
+      <<: [*env, *no-import]
+      DATABASE_URL: postgresql+psycopg://clipper_app:${APP_DB_PASSWORD:-clipper_app}@postgres:5432/clipper
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     restart: unless-stopped
     ports: ["127.0.0.1:8000:8000"]
     depends_on: { migrate: { condition: service_completed_successfully } }
 
+  # the media queue: probe, download (yt-dlp), render (ffmpeg), one job per user at a time. Two at once on the
+  # VM's 2 OCPU, FFMPEG_THREADS (2) each: a lone user's render gets both cores, two users' share them. Holds no
+  # secret: a hostile video or site that takes over ffmpeg or yt-dlp finds no key to read.
   worker:
     <<: *backend
     build: { context: ./backend, target: worker }
-    command: ["python", "-m", "app.worker", "--concurrency=4", "--shutdown-graceful-timeout=60"]
+    environment:
+      <<: [*env, *no-sealed, *no-bot-secret, *no-import]
+    command: ["python", "-m", "app.worker", "--queues=media", "--concurrency=2", "--shutdown-graceful-timeout=60"]
     init: true  # PID 1 forwards signals and reaps ffmpeg children
     stop_grace_period: 90s  # longer than --shutdown-graceful-timeout
-    restart: unless-stopped  # a crashed/OOM-killed worker comes back; the sweeper runs inside it
+    restart: unless-stopped  # a crashed/OOM-killed worker comes back
     depends_on: { migrate: { condition: service_completed_successfully } }
 
-  # Telegram bot (docs/telegram-bot.md): a client of the api, like the browser. Without TELEGRAM_BOT_TOKEN
-  # and TELEGRAM_CHAT_ID it logs why and exits 0, and on-failure leaves it stopped.
+  # the default queue: dispatch, publish_post (each user's own Zernio key), the account sync, the stalled-job
+  # sweeper, and their alerts (through each user's own bots). Never ffmpeg or yt-dlp, so a slow render queue can't
+  # hold a post back.
+  publisher:
+    <<: *backend
+    build: { context: ./backend, target: worker }
+    environment: { <<: [*env, *no-bot-secret, *no-import] }
+    command: ["procrastinate", "worker", "--queues=default", "--concurrency=8", "--shutdown-graceful-timeout=60"]
+    init: true
+    stop_grace_period: 90s
+    restart: unless-stopped
+    depends_on: { migrate: { condition: service_completed_successfully } }
+
+  # Telegram (docs/telegram-bot.md): one process runs every user's bots (the api's list, every 10 s), each a client
+  # of the api acting as its owner, like their browser. It holds the service's bearer only: no database (a dummy
+  # URL), no SECRETS_KEY (the api hands it the tokens). Without BOT_SERVICE_SECRET it logs why and exits 0, and
+  # on-failure leaves it stopped.
   bot:
     <<: *backend
+    environment:
+      <<: [*env, *no-sealed, *no-import]
+      DATABASE_URL: postgresql+psycopg://none@nowhere/none
     command: ["python", "-m", "app.bot"]
     init: true  # PID 1 forwards SIGTERM: a restart takes a moment, not the 10 s stop timeout
-    restart: on-failure
-    depends_on: { api: { condition: service_started } }
-
-  # A second Telegram bot (own @BotFather token + chat), same api/account. Copy this block again for a
-  # third, each with its own TELEGRAM_BOT_TOKEN_N / TELEGRAM_CHAT_ID_N in .env.
-  bot2:
-    <<: *backend
-    command: ["python", "-m", "app.bot"]
-    environment:
-      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
-      DATA_DIR: /data
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_2}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_2}
-    init: true
-    restart: on-failure
-    depends_on: { api: { condition: service_started } }
-
-  # A third Telegram bot, same pattern as bot2.
-  bot3:
-    <<: *backend
-    command: ["python", "-m", "app.bot"]
-    environment:
-      DATABASE_URL: postgresql+psycopg://clipper:clipper@postgres:5432/clipper
-      DATA_DIR: /data
-      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN_3}
-      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID_3}
-    init: true
     restart: on-failure
     depends_on: { api: { condition: service_started } }
 
