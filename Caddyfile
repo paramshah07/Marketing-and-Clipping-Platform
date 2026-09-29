@@ -1,4 +1,4 @@
-# Production's only public entry point (compose.prod.yml, docs/deploy.md): HTTPS with an automatic Let's
+# The VM's only public entry point (compose.prod.yml, docs/deploy.md), for production and staging: HTTPS with an automatic Let's
 # Encrypt certificate, and one shared password in front of everything, because Clipper has no login.
 # All three values come from the VM's .env; the password is only there as a bcrypt hash (base64: no `$`
 # for compose to interpolate).
@@ -8,9 +8,22 @@
 	email {$CLIPPER_ACME_EMAIL}
 }
 
-{$CLIPPER_HOST} {
+(password) {
 	basic_auth {
 		{$CLIPPER_USER} {$CLIPPER_PASSWORD_HASH}
 	}
-	reverse_proxy api:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
+}
+
+# Caddy sits on the edge network only (compose.prod.yml), with every api on this VM, so it names each by its
+# container: an api's service name, `api`, is the same in both projects.
+{$CLIPPER_HOST} {
+	import password
+	reverse_proxy clipper-api-1:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
+}
+
+# Staging (docs/deploy.md): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's data.
+# The same password: that copy is production's.
+dev.{$CLIPPER_HOST} {
+	import password
+	reverse_proxy clipper-dev-api-1:8000
 }
