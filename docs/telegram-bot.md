@@ -1,8 +1,9 @@
-# Telegram bot: spec (2026-09-27)
+# Telegram bot: spec (2026-09-27; many bots per user since 2026-09-29)
 
-The operator's Telegram bot (@Postyclipper_bot, the same `TELEGRAM_BOT_TOKEN` that sends failure
-alerts) becomes a second front end for Clipper. Everything the web app does can be done from the chat,
-and the bot runs as part of the stack, attached to the api.
+Each user's own Telegram bots (made with @BotFather, added in Settings) are a second front end for Clipper.
+Everything the web app does can be done from the chat, and the bots run as part of the stack, attached to the
+api. The operator's three bots (@Postyclipper_bot, which sends failure alerts, and the two interactive ones) were
+imported once from `.env` into user 1 (`cli bootstrap`) and work as before.
 
 ## 1. Shape
 
@@ -12,31 +13,40 @@ Telegram ⇄ bot (compose service, long polling) ──HTTP──> api (:8000, s
 worker ──sendMessage──> Telegram (alerts, now with buttons the bot answers)
 ```
 
-- **New compose service `bot`**, the api's image, `python -m app.bot`. No auto-reload: after a code
-  change, `docker compose restart bot` (a second; a crash restarts it by itself, `restart: on-failure`).
-- **A client of the HTTP API**, as the browser is. It has no database access and no business logic, so
-  every guard (compare-and-set, slot lock, the 20 h rule) applies unchanged. It reads
-  files through `/media/*`. Setting: `CLIPPER_API_URL`, default `http://api:8000`.
+- **One compose service `bot`**, the api's image, `python -m app.bot`: a supervisor that runs every user's
+  bots as asyncio tasks in one process. Every 10 s it reports each bot's health and reads the list of bots to
+  run (`/api/internal/bots`), starting new ones, stopping removed ones and restarting one whose token changed.
+  No auto-reload: after a code change, `docker compose restart bot` (a crash restarts it, `restart: on-failure`).
+  At most 3 files (videos, documents) are held in its memory at once, across all bots.
+- **A client of the HTTP API**, as the browser is. It has no database access (a dummy `DATABASE_URL`, no
+  `SECRETS_KEY`) and no business logic, so every guard (compare-and-set, slot lock, the 20 h rule, row-level
+  security) applies unchanged. Each bot acts as its owner: `Authorization: Bearer $BOT_SERVICE_SECRET` plus
+  `X-Clipper-User`. It reads files through `/media/*`. Setting: `CLIPPER_API_URL`, default `http://api:8000`.
 - **Long polling** (`getUpdates`, 50 s timeout, `message` + `callback_query` only). There is no webhook
-  (localhost has no public URL). Updates are handled one at a time, in order. Slow sends (videos) and
-  imports run as background tasks.
-- **Off unless configured.** Without `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` the service logs why and
-  exits 0 (`restart: on-failure`, so it stays down). A rejected token also exits 0 with a log line.
-- **One bot per token.** Telegram serves updates to one poller. A second stack with the same `.env` (another
-  checkout) gets 409 Conflict, waits 30 s and tries again, so the two would take turns: run the bot in one
-  stack only. A *different* token doesn't conflict: compose's `bot2` service runs a second bot (its own
-  `TELEGRAM_BOT_TOKEN_2` / `TELEGRAM_CHAT_ID_2`) against the same api and account — still one chat per bot.
+  (a token whose webhook is set is refused when added: `BOT_IN_USE`). Updates are handled one at a time, in
+  order. Slow sends (videos) and imports run as background tasks.
+- **Off unless configured.** Without `BOT_SERVICE_SECRET` the service logs why and exits 0 (`restart:
+  on-failure`, so it stays down). A token Telegram refuses stops that bot only; Settings shows it as "Token
+  rejected" until its owner pastes a new one.
+- **One poller per token.** Telegram serves updates to one poller. A second stack polling the same token
+  gets 409 Conflict, waits 30 s and tries again, so the two would take turns (the bot shows "Not responding").
+  A bot belongs to one user (`telegram_bots.bot_id` is unique: `BOT_TAKEN`).
+- **Health** (Settings): *Running* (polled Telegram within 90 s), *Waiting for Start* (not paired), *Token
+  rejected*, *Not responding*. "Send test message" is sent by the api itself.
 - **In-memory UI state only**: open editors, forms, list filters, pending prompts, watched jobs. A bot
   restart loses them (like closing a browser tab), and their buttons answer "This expired". Buttons on
   cards carry their ids in `callback_data`, so they keep working across restarts.
 
 ## 2. Security
 
-- **One chat.** Only updates whose chat id equals `TELEGRAM_CHAT_ID` are handled. Everything else is
-  ignored without a reply and logged with its chat id (which is how the operator finds theirs). A group
-  chat id would give every member full control. Use the private chat with the bot.
-- **Nothing stale runs.** At startup the bot drops updates that queued while it was down (a "Post now"
-  tapped hours ago must not publish now). If any were dropped, it says so once.
+- **One chat per bot, by pairing.** Adding a bot hands out a code (15 min, stored as its sha256) and the link
+  `https://t.me/<bot>?start=<code>`. `/start <code>` from a *private* chat with the right, unexpired code makes
+  that chat the bot's (`/api/internal/bots/{id}/pair`, as the owner). Re-pair issues a new code; the current
+  chat keeps working until another chat uses it. Only updates from the paired chat are handled; everything
+  else (group chats, wrong codes) is ignored without a reply and logged with its chat id.
+- **Nothing stale runs.** At startup a paired bot drops updates that queued while it was down (a "Post now"
+  tapped hours ago must not publish now). If any were dropped, it says so once. An unpaired bot keeps them:
+  the `/start <code>` may be waiting there. Pairing doesn't restart the bot.
 - **At most once.** Each batch is confirmed to Telegram before it is handled, so a crash can't replay a
   tap. A confirm button acts once: a double tap or an old message's button does nothing.
 - **Same confirmations as the web app**: delete clip, delete render, cancel/dismiss post, disable account,
@@ -86,7 +96,7 @@ bars.
 
 `/status` · `/clips [text]` · `/renders` · `/ready` · `/calendar` · `/drafts` · `/failed` ·
 `/published [text]` · `/brands` · `/accounts` · `/help` (also `/start`) · `/cancel` (drops the pending
-question). Registered with `setMyCommands` for the operator's chat. Lists end each line with a tappable
+question). Registered with `setMyCommands` for the bot's paired chat. Lists end each line with a tappable
 id command: `/c12` clip, `/r34` render, `/p56` post, `/b4` brand, `/a1` account.
 
 ## 6. Flows
@@ -175,7 +185,8 @@ send the PNG as a file) · Default placement (the editor's grid, size and opacit
   - a "Post now" post: Published with the link, Failed with its card, or moved to a new slot.
   Watches expire after 2 h (posts after 1 h).
 - **Worker alerts** keep their text and link and gain buttons: a post alert gets **Open post** (the post
-  card, where the remedy is); an account disconnect gets **Sync accounts** and **Reconnect in Zernio**.
+  card, where the remedy is); an account disconnect gets **Sync accounts** and **Reconnect in Zernio**. They go
+  to every paired bot of the user the alert is about with its alerts switch on (`notify(user_id, …)`).
 
 ## 8. Changes outside the bot
 

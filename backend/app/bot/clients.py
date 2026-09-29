@@ -78,9 +78,12 @@ def _error(status: int, body) -> ApiError:
 
 
 class Clipper:
-    def __init__(self, base_url: str, transport: httpx.AsyncBaseTransport | None = None, user_id: int = 1):
-        # every call (and /media fetch) as user_id: the api honours X-Clipper-User only with the service's bearer
-        headers = {"Authorization": f"Bearer {settings.BOT_SERVICE_SECRET}", "X-Clipper-User": str(user_id)}
+    def __init__(self, base_url: str, transport: httpx.AsyncBaseTransport | None = None, user_id: int | None = 1):
+        # every call (and /media fetch) as user_id: the api honours X-Clipper-User only with the service's bearer.
+        # None: the service itself (the supervisor's /api/internal/* calls)
+        headers = {"Authorization": f"Bearer {settings.BOT_SERVICE_SECRET}"}
+        if user_id is not None:
+            headers["X-Clipper-User"] = str(user_id)
         self.http = httpx.AsyncClient(base_url=base_url, timeout=120, transport=transport, headers=headers)
 
     async def __call__(self, method: str, path: str, **kw):

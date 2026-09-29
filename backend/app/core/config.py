@@ -21,8 +21,14 @@ class Settings(BaseSettings):
     ZERNIO_MIN_REEL_SECONDS: int = 3
     APP_BASE_URL: str = "http://localhost:5173"
     STATIC_DIR: Path | None = None  # production: the built frontend, served at / (compose.prod.yml); dev uses Vite
+    # The operator's .env bots, read once, by `cli bootstrap` (user 1's import into telegram_bots): the first gets
+    # the alerts, _2 and _3 are interactive only. Every user's bots live in telegram_bots.
     TELEGRAM_BOT_TOKEN: str = ""
-    TELEGRAM_CHAT_ID: str = ""  # alerts go here, and the bot (app/bot) answers this chat only
+    TELEGRAM_CHAT_ID: str = ""
+    TELEGRAM_BOT_TOKEN_2: str = ""
+    TELEGRAM_CHAT_ID_2: str = ""
+    TELEGRAM_BOT_TOKEN_3: str = ""
+    TELEGRAM_CHAT_ID_3: str = ""
     CLIPPER_API_URL: str = "http://api:8000"  # the api as the bot container sees it
     PUBLISHING_ENABLED: bool = False
     PUBLISH_DEBUG_PAUSE: Literal["", "after_upload", "before_post", "after_post"] = ""
@@ -40,7 +46,8 @@ class Settings(BaseSettings):
     CLIPPER_USER: str = ""
     CLIPPER_PASSWORD_HASH: str = ""
 
-    @field_validator("ZERNIO_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "YTDLP_COOKIES_FILE", mode="before")
+    @field_validator("ZERNIO_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_BOT_TOKEN_2", "TELEGRAM_CHAT_ID_2",
+                     "TELEGRAM_BOT_TOKEN_3", "TELEGRAM_CHAT_ID_3", "YTDLP_COOKIES_FILE", mode="before")  # fmt: skip
     @classmethod
     def blank_if_comment(cls, v):
         # compose's env_file keeps `KEY=   # comment` as the value "# comment"; treat it as unset

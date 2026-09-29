@@ -10,6 +10,10 @@ x-safe: &safe
     BOT_SERVICE_SECRET: ""
     TELEGRAM_BOT_TOKEN: ""
     TELEGRAM_CHAT_ID: ""
+    TELEGRAM_BOT_TOKEN_2: ""
+    TELEGRAM_CHAT_ID_2: ""
+    TELEGRAM_BOT_TOKEN_3: ""
+    TELEGRAM_CHAT_ID_3: ""
 
 services:
   postgres:
@@ -18,6 +22,4 @@ services:
   api: *safe
   worker: *safe
   publisher: *safe
-  bot: { <<: *safe, profiles: [never] } # blank tokens too: naming a bot on the command line enables its profile
-  bot2: { <<: *safe, profiles: [never] }
-  bot3: { <<: *safe, profiles: [never] }
+  bot: { <<: *safe, profiles: [never] } # no service secret either: naming it on the command line enables its profile

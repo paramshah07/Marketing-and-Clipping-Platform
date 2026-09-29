@@ -229,6 +229,225 @@
         }
       }
     },
+    "/api/me/bots": {
+      "get": {
+        "summary": "List Bots",
+        "operationId": "list_bots",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BotOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Bots"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add Bot",
+        "description": "Check the token with Telegram (getMe), store it sealed, and hand out a pairing code. 422 TOKEN_REJECTED (not a\ntoken, or Telegram refuses it); 409 BOT_IN_USE (it has a webhook: another app gets its messages), BOT_TAKEN (another\nClipper user added it). Your own bot again with a new token (@BotFather /revoke) keeps its chat.",
+        "operationId": "add_bot",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPairing"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/bots/{id}/pair": {
+      "post": {
+        "summary": "Pair Bot",
+        "description": "A new pairing code: the chat that uses it becomes the bot's (the current one answers until then).",
+        "operationId": "pair_bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotPairing"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/bots/{id}": {
+      "patch": {
+        "summary": "Patch Bot",
+        "operationId": "patch_bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BotPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Bot",
+        "description": "The bot service stops it within ~10 s.",
+        "operationId": "delete_bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/bots/{id}/test": {
+      "post": {
+        "summary": "Test Bot",
+        "description": "Send the bot's chat a message now, from here (not the bot service): ok, or Telegram's reason.",
+        "operationId": "test_bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BotTest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/clips": {
       "get": {
         "summary": "List Clips",
@@ -2191,6 +2410,19 @@
         ],
         "title": "Body_upload_cover"
       },
+      "BotIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "BotIn"
+      },
       "BotOut": {
         "properties": {
           "id": {
@@ -2233,6 +2465,10 @@
             ],
             "title": "Health"
           },
+          "pairing": {
+            "type": "boolean",
+            "title": "Pairing"
+          },
           "last_seen_at": {
             "anyOf": [
               {
@@ -2258,10 +2494,98 @@
           "chat_title",
           "alerts",
           "health",
+          "pairing",
           "last_seen_at",
           "created_at"
         ],
         "title": "BotOut"
+      },
+      "BotPairing": {
+        "properties": {
+          "bot": {
+            "$ref": "#/components/schemas/BotOut"
+          },
+          "pair_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pair Url"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bot",
+          "pair_url",
+          "start",
+          "expires_at"
+        ],
+        "title": "BotPairing"
+      },
+      "BotPatch": {
+        "properties": {
+          "alerts": {
+            "type": "boolean",
+            "title": "Alerts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "alerts"
+        ],
+        "title": "BotPatch"
+      },
+      "BotTest": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok",
+          "error"
+        ],
+        "title": "BotTest"
       },
       "BrandCreate": {
         "properties": {

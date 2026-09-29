@@ -30,7 +30,7 @@ Day to day you need sections 4 to 6. Sections 1 to 3 are the one-time setup and 
 flowchart LR
   subgraph vm["Oracle Cloud VM: docker compose"]
     caddy["caddy<br/>:80, :443, basic auth"] --> api["api :8000<br/>FastAPI + the built app"]
-    bots["bot, bot2, bot3"] -->|HTTP| api
+    bots["bot: every user's bots"] -->|HTTP| api
     api --> pg[("postgres 16<br/>tables + job queue")]
     worker["worker<br/>ffmpeg, yt-dlp"] --> pg
     api --- data[("./data<br/>clips, renders, covers")]
@@ -140,7 +140,7 @@ the next minute. A post more than 30 min overdue at that point moves to the next
    ```
 2. **Mac, stop everything but Postgres** (and the Vite dev server), then note the counts to compare:
    ```sh
-   docker compose stop api worker bot bot2 bot3 &&
+   docker compose stop api worker publisher bot &&
    docker compose exec -T postgres psql -U clipper -c "select status, count(*) from posts group by 1 order by 1"
    ```
 3. **Copy**: section 2's Mac block again (rsync only sends what changed; `sudo rsync` because the VM's
@@ -226,7 +226,7 @@ reconciled:
 
 ```sh
 sed -i 's/^PUBLISHING_ENABLED=.*/PUBLISHING_ENABLED=false/' .env &&
-docker compose stop api worker bot bot2 bot3 &&
+docker compose stop api worker publisher bot &&
 docker compose exec -T postgres dropdb -U clipper clipper &&
 docker compose exec -T postgres createdb -U clipper clipper &&
 docker compose exec -T postgres pg_restore -U clipper -d clipper --no-owner --exit-on-error --single-transaction < backups/clipper-Mon.dump &&

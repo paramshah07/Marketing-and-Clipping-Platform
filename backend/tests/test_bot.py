@@ -238,7 +238,7 @@ class Phone:
 
     async def say(self, text: str | None = None, chat: int = CHAT, **message) -> None:
         self.n += 1
-        msg = {"message_id": 500000 + self.n, "chat": {"id": chat}} | ({"text": text} if text is not None else {}) | message
+        msg = {"message_id": 500000 + self.n, "chat": {"id": chat, "type": "private"}} | ({"text": text} if text is not None else {}) | message
         await self.bot.handle({"update_id": self.n, "message": msg})
 
     async def tap(self, label: str, mid: int | None = None) -> str | None:
@@ -339,8 +339,11 @@ def seed(tmp_path, auto_approve=False, width=1920, height=1080) -> dict:
 def test_gate_help_status(env):
     async def scenario(phone, tg, bot):
         await phone.say("/start", chat=999)  # anyone else: nothing, not even a reply
+        await phone.say("/start " + "c" * 22, chat=999)  # nor a pairing code that isn't this bot's
         assert tg.calls == []
         await phone.say("/start")
+        assert "everything the web app does" in phone.text()
+        await phone.say("/start " + "c" * 22)  # its own chat with a stale code: help, as ever
         assert "everything the web app does" in phone.text()
         await phone.say("/nonsense")
         assert "don't know that command" in phone.text()

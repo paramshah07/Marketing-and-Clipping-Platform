@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DataError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import auth, pipeline, recovery, scheduling
+from app.api import auth, bots, pipeline, recovery, scheduling
 from app.core.config import settings
 from app.core.db import SessionLocal
 from app.services import storage
@@ -70,6 +70,8 @@ class Media(StaticFiles):
 
 app.mount("/media", Media(directory=settings.DATA_DIR), name="media")
 app.include_router(auth.router)
+app.include_router(bots.router)
+app.include_router(bots.internal)
 app.include_router(pipeline.router)
 app.include_router(scheduling.router)
 app.include_router(recovery.router)

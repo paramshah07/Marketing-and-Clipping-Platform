@@ -5,6 +5,7 @@ Callback data is 'verb:args' (64 bytes at most). Card buttons carry ids, so they
 and lists (render editor, schedule form, /ready, /calendar...) keep their state in Bot.views under their
 message id. A verb ending in ! is a confirmed action and runs once per message (core.Bot.on_callback)."""
 
+import asyncio
 import json
 import re
 import time
@@ -24,6 +25,8 @@ PAGE = 10
 TG_DOWNLOAD_MAX = 20 * 1024**2  # getFile
 TG_UPLOAD_MAX = 50 * 1024**2  # sendVideo / sendDocument
 LOGO_MAX = 10 * 1024**2  # pipeline.MAX_LOGO_BYTES
+# One process runs every user's bots: at most this many files (up to 50 MB each) in its memory at once; the rest wait
+FILES = asyncio.Semaphore(3)
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}  # what POST /api/clips takes
 DOCUMENTS = {".docx", ".txt", ".csv", ".md", ".rtf", ".html", ".htm", ".xlsx", ".pptx", ".odt"}  # utils.ts DOCUMENTS
 ZERNIO_URL = "https://zernio.com"
@@ -204,13 +207,14 @@ def send_video(bot, url: str | None, size: int | None, caption: str, dims: tuple
     width, height, duration = (*dims, None, None, None)[:3]
 
     async def go():
-        data = await bot.api.media(url)
-        kind = VIDEO_TYPES.get(PurePath(name).suffix.lower(), "application/octet-stream")
-        await bot.tg(
-            "sendVideo" if mp4 else "sendDocument", files={"video" if mp4 else "document": (name, data, kind)},
-            chat_id=bot.chat, caption=caption, supports_streaming=mp4 or None, width=width if mp4 else None,
-            height=height if mp4 else None, duration=int(duration) if mp4 and duration else None,
-        )  # fmt: skip
+        async with FILES:
+            data = await bot.api.media(url)
+            kind = VIDEO_TYPES.get(PurePath(name).suffix.lower(), "application/octet-stream")
+            await bot.tg(
+                "sendVideo" if mp4 else "sendDocument", files={"video" if mp4 else "document": (name, data, kind)},
+                chat_id=bot.chat, caption=caption, supports_streaming=mp4 or None, width=width if mp4 else None,
+                height=height if mp4 else None, duration=int(duration) if mp4 and duration else None,
+            )  # fmt: skip
 
     bot.spawn(go())
     return "Sending the video…"
@@ -1199,8 +1203,9 @@ async def brand_answer(bot, m, p):
                         if m.get("photo") else "Send the PNG as a file (paperclip, then File).")  # fmt: skip
         if (d.get("file_size") or 0) > LOGO_MAX:
             raise Alert("The logo must be under 10 MB.")
-        data = await bot.tg.download(d["file_id"])
-        await bot.api.post(f"/api/brands/{bid}/logo", files={"file": (d.get("file_name") or "logo.png", data, "image/png")})
+        async with FILES:
+            data = await bot.tg.download(d["file_id"])
+            await bot.api.post(f"/api/brands/{bid}/logo", files={"file": (d.get("file_name") or "logo.png", data, "image/png")})
     else:
         if not (t := text_of(m)):
             raise Alert("Send it as text.")
@@ -1655,9 +1660,10 @@ async def upload_all(bot, msg: dict, v: dict) -> None:
     for f in v["files"]:
         fields = {"source_creator_handle": v["handle"]} if v["handle"] else {}
         try:
-            data = await bot.tg.download(f["file_id"])
-            kind = VIDEO_TYPES[PurePath(f["name"]).suffix.lower()]
-            clip = await bot.api("POST", "/api/clips", data=fields, files={"file": (f["name"], data, kind)})
+            async with FILES:
+                data = await bot.tg.download(f["file_id"])
+                kind = VIDEO_TYPES[PurePath(f["name"]).suffix.lower()]
+                clip = await bot.api("POST", "/api/clips", data=fields, files={"file": (f["name"], data, kind)})
         except (ApiError, TelegramError) as e:
             bad.append(f"{h(f['name'])}: {h(str(e))}")
             continue
@@ -1712,8 +1718,9 @@ async def import_document(bot, m: dict, d: dict) -> None:
     if (d.get("file_size") or 0) > TG_DOWNLOAD_MAX:
         return await bot.send(f"{h(name)} is {fmt.mb(d['file_size'])}: Telegram lets bots download files up to 20 MB. "
                               "Use Import links in the web app.", reply_to=m["message_id"])  # fmt: skip
-    data = await bot.tg.download(d["file_id"])
-    found = await bot.api.post("/api/clips/links", files={"file": (name, data, d.get("mime_type") or "application/octet-stream")})
+    async with FILES:
+        data = await bot.tg.download(d["file_id"])
+        found = await bot.api.post("/api/clips/links", files={"file": (name, data, d.get("mime_type") or "application/octet-stream")})
     if not found["links"]:
         other = f" ({fmt.plural(found['other_count'], 'other link')})" if found["other_count"] else ""
         return await bot.send(f"No video links in {h(name)}{other}.", reply_to=m["message_id"])

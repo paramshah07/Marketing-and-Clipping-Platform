@@ -23,12 +23,14 @@ import psycopg
 from psycopg import sql
 from pydantic import ValidationError
 from sqlalchemy import delete, select, update
+from sqlalchemy.dialects.postgresql import insert
 
 from app.api.auth import MAX_PASSWORD, MIN_PASSWORD, USERNAME, hash_password
+from app.api.bots import TOKEN
 from app.core import secrets
 from app.core.config import settings
 from app.core.db import SyncSession
-from app.models import AuthSession, Brand, Render, SourceClip, User, cas
+from app.models import AuthSession, Brand, Render, SourceClip, TelegramBot, User, cas
 from app.schemas import OverlayConfig
 from app.services import storage
 from app.tasks.media import probe_clip, render
@@ -59,12 +61,14 @@ def db_grants() -> None:
     print("db-grants: clipper_app ok")
 
 
-def import_env(user: User) -> None:
+def import_env(s, user: User) -> None:
     """The one-shot .env import into user 1, the operator (users.env_imported_at): ZERNIO_API_KEY becomes its sealed
     Zernio key, generation 1 (migration 0007 gave the posts it may already have sent key_gen 1, so those still
-    replay), valid without a network call (a Re-check fills in the Zernio user). The code never reads the .env key
-    after this. It waits, unstamped, until a SECRETS_KEY can seal (whatever .env holds). Every .env secret user 1
-    takes over is imported here, in this one step."""
+    replay), valid without a network call (a Re-check fills in the Zernio user). TELEGRAM_BOT_TOKEN / _CHAT_ID and
+    the _2 and _3 pairs become its bots, already paired with those chats (the first with alerts on, as before; the
+    bot service fills in their @names). The code never reads these .env values after this. It waits, unstamped,
+    until a SECRETS_KEY can seal (whatever .env holds). Every .env secret user 1 takes over is imported here, in
+    this one step."""
     if user.env_imported_at is not None:
         return
     if not secrets.ready():
@@ -73,8 +77,19 @@ def import_env(user: User) -> None:
     if key and user.zernio_key_enc is None:
         user.zernio_key_enc, user.zernio_key_last4 = secrets.seal(key), key[-4:]
         user.zernio_key_status, user.zernio_key_gen = "valid", 1
+    bots = 0
+    for n, alerts in (("", True), ("_2", False), ("_3", False)):
+        token, chat = getattr(settings, f"TELEGRAM_BOT_TOKEN{n}").strip(), getattr(settings, f"TELEGRAM_CHAT_ID{n}").strip()
+        if not (token or chat):
+            continue
+        if not (TOKEN.fullmatch(token) and re.fullmatch(r"-?\d{1,15}", chat)):
+            print(f"bootstrap: TELEGRAM_BOT_TOKEN{n} / TELEGRAM_CHAT_ID{n} is not a bot token and a chat id: skipped")
+            continue
+        q = insert(TelegramBot).values(user_id=user.id, bot_id=int(token.split(":")[0]), token_enc=secrets.seal(token),
+                                       chat_id=int(chat), alerts=alerts)  # fmt: skip
+        bots += s.scalar(q.on_conflict_do_nothing(index_elements=["bot_id"]).returning(TelegramBot.id)) is not None
     user.env_imported_at = datetime.now(UTC)
-    print(f"bootstrap: .env imported into user 1 (Zernio key: {'yes' if key else 'none in .env'})")
+    print(f"bootstrap: .env imported into user 1 (Zernio key: {'yes' if key else 'none in .env'}, Telegram bots: {bots})")
 
 
 def bootstrap() -> None:
@@ -101,7 +116,7 @@ def bootstrap() -> None:
                 user.password_hash = hashed
             else:
                 print("bootstrap: CLIPPER_PASSWORD_HASH is not a bcrypt hash (or the base64 of one): skipped")
-        import_env(user)
+        import_env(s, user)
     print(f"bootstrap: user 1 is {user.username!r}, password {'set' if user.password_hash else 'not set'}")
 
 
@@ -148,7 +163,8 @@ def main() -> None:
     for name in ("x", "y", "w", "opacity"):
         cmd.add_argument(f"--{name}", type=float, help="overlay fraction (default: the brand's)")
     sub.add_parser("db-grants", help="create/update the api's database role and its rights (superuser)")
-    sub.add_parser("bootstrap", help="user 1's username and password from CLIPPER_USER / CLIPPER_PASSWORD_HASH")
+    sub.add_parser("bootstrap", help="user 1's username and password from CLIPPER_USER / CLIPPER_PASSWORD_HASH, and "
+                   "its one-shot .env import (Zernio key, Telegram bots)")
     sub.add_parser("list-users")
     for name in ("set-password", "disable-user", "enable-user", "set-quota"):
         sub.add_parser(name).add_argument("username")

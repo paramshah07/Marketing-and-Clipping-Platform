@@ -414,11 +414,32 @@ class BotOut(BaseModel):
     id: int
     username: str | None  # @name, from getMe
     chat_title: str | None  # the paired chat
-    alerts: bool
+    alerts: bool  # it sends your failure alerts
     # running: seen in the last 90 s; waiting: for /start <code>; rejected: Telegram refused the token
     health: Literal["running", "waiting", "rejected", "not_responding"]
+    pairing: bool  # a pairing code is out (new bot or Re-pair): false again once a chat used it
     last_seen_at: datetime | None
     created_at: datetime
+
+
+class BotIn(BaseModel):
+    token: str  # from @BotFather; never sent back
+
+
+class BotPatch(BaseModel):
+    alerts: bool
+
+
+class BotPairing(BaseModel):  # open pair_url (or send the bot `start`) in a private chat to pair it with that chat
+    bot: BotOut
+    pair_url: str | None  # https://t.me/<bot>?start=<code>; null: no code (a paired bot's new token) or no @name yet
+    start: str | None  # "/start <code>"
+    expires_at: datetime | None  # the code's, 15 min
+
+
+class BotTest(BaseModel):
+    ok: bool  # Telegram took the test message
+    error: str | None  # Telegram's reason when not
 
 
 class Setup(BaseModel):  # the setup checklist: a valid key, a usable account, a paired bot

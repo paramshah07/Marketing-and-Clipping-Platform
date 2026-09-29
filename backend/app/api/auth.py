@@ -4,7 +4,8 @@ for). The request's Db session carries that user's id (app.core.db) and Postgres
 every query to their rows, so a forgotten filter fails closed.
 
 users and sessions have no row-level security: only this module and the CLI touch them, always by id or
-token. Errors are {"detail": {"code", "message"}}, as in scheduling. Each user's own Zernio key: /api/me/zernio-key."""
+token. Errors are {"detail": {"code", "message"}}, as in scheduling. Each user's own Zernio key: /api/me/zernio-key;
+their Telegram bots: app/api/bots.py."""
 
 import hashlib
 import hmac
@@ -283,7 +284,8 @@ def bot_out(b: TelegramBot, now: datetime) -> BotOut:
         "rejected" if b.error else "waiting" if b.chat_id is None
         else "running" if b.last_seen_at and now - b.last_seen_at < BOT_ALIVE else "not_responding"
     )  # fmt: skip
-    return BotOut(id=b.id, username=b.username, chat_title=b.chat_title, alerts=b.alerts, health=health,
+    pairing = b.pair_sha256 is not None and b.pair_expires_at is not None and b.pair_expires_at > now
+    return BotOut(id=b.id, username=b.username, chat_title=b.chat_title, alerts=b.alerts, health=health, pairing=pairing,
                   last_seen_at=b.last_seen_at, created_at=b.created_at)  # fmt: skip
 
 
@@ -295,7 +297,7 @@ def _zernio_out(u: User) -> ZernioKeyOut:
 @router.get("/me")
 async def me(user: CurrentUser, s: Db) -> Me:
     now = _now()
-    bots = (await s.scalars(select(TelegramBot).order_by(TelegramBot.id))).all()
+    bots = (await s.scalars(select(TelegramBot).where(TelegramBot.user_id == user.id).order_by(TelegramBot.id))).all()
     usable = exists().where(Account.connection_status == "connected", Account.disabled_at.is_(None))
     quota, used = (await s.execute(storage.USAGE, {"u": user.id})).one()
     return Me(

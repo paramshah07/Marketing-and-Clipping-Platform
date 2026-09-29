@@ -18,15 +18,20 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session
 
 from app import main
-from app.api import auth
+from app.api import auth, bots
+from app.api.auth import _sha
+from app.bot.clients import Clipper, Telegram
+from app.bot.core import Bot
 from app.cli import db_grants
 from app.core.config import settings
 from app.core.db import SessionLocal, engine
 from app.main import app
-from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip, User
-from app.services import zernio
+from app.core.secrets import seal
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip, TelegramBot, User
+from app.services import notify, zernio
 from app.tasks import accounts as account_sync
 from conftest import TEST_URL, as_user
+from test_bot import FakeTelegram, Phone
 
 APP_URL = TEST_URL.replace("://clipper:clipper@", f"://clipper_app:{settings.APP_DB_PASSWORD}@", 1)
 A = as_user(1)
@@ -43,7 +48,7 @@ def client(db, tmp_path_factory):
     db_grants()  # test_db's downgrade/upgrade dropped them
     app_engine = create_async_engine(APP_URL)
     with pytest.MonkeyPatch.context() as mp:
-        for module in (auth, main):
+        for module in (auth, main, bots, notify):
             mp.setattr(module, "SessionLocal", async_sessionmaker(app_engine, expire_on_commit=False))
         mp.setattr(settings, "DATA_DIR", tmp_path_factory.mktemp("data"))
         media = next(r for r in app.routes if getattr(r, "name", None) == "media").app
@@ -334,4 +339,59 @@ def test_storage_quota_and_disk_floor(db, client, monkeypatch):
     assert (r.status_code, r.json()["detail"]["code"]) == (507, "DISK_FULL")
     with Session(db) as s:
         s.execute(update(User).where(User.id == client.b).values(quota_bytes=None))
+        s.commit()
+
+
+def test_bots_are_their_owners_only(db, client, a, monkeypatch):
+    """Telegram under row-level security. A bot of B's (the bot service acting as B) finds none of A's rows, as B's
+    browser doesn't; B sees and changes only B's bots; the supervisor's list and report (SECURITY DEFINER) span every
+    user; a pairing code works for its bot's owner only; and each user's alerts reach only their own bots."""
+    ta, tb = f"{uuid.uuid4().int % 10**9}:{'a' * 35}", f"{uuid.uuid4().int % 10**9}:{'b' * 35}"
+    with Session(db) as s:
+        mine = TelegramBot(user_id=1, bot_id=int(ta.split(":")[0]), token_enc=seal(ta), chat_id=1111)
+        theirs = TelegramBot(user_id=client.b, bot_id=int(tb.split(":")[0]), token_enc=seal(tb),
+                             pair_sha256=_sha("q" * 22), pair_expires_at=datetime.now(UTC) + timedelta(minutes=5))  # fmt: skip
+        s.add_all([mine, theirs])
+        s.commit()
+        mine, theirs = mine.id, theirs.id
+    service = {"Authorization": A["Authorization"]}
+    listed = {x["id"]: x for x in client.get("/api/internal/bots", headers=service).json()}
+    assert {mine: 1, theirs: client.b}.items() <= {i: x["user_id"] for i, x in listed.items()}.items()
+    report = [{"id": i, "ver": listed[i]["ver"], "username": "n"} for i in (mine, theirs)]
+    assert client.post("/api/internal/bots/report", json=report, headers=service).status_code == 204
+    pair = f"/api/internal/bots/{theirs}/pair"
+    assert client.post(pair, json={"code": "q" * 22, "chat_id": 2222}, headers=A).status_code == 404  # not A's bot
+    assert client.post(pair, json={"code": "q" * 22, "chat_id": 2222}, headers=as_user(client.b)).status_code == 204
+    with Session(db) as s:
+        got = {b.id: (b.chat_id, b.username, b.last_seen_at is not None) for b in s.scalars(select(TelegramBot))}
+    assert (got[mine], got[theirs]) == ((1111, "n", True), (2222, "n", True))
+    assert [x["id"] for x in client.get("/api/me/bots").json()] == [theirs]
+    assert [x["id"] for x in client.get("/api/me").json()["bots"]] == [theirs]
+    assert client.patch(f"/api/me/bots/{mine}", json={"alerts": False}).status_code == 404
+    assert client.delete(f"/api/me/bots/{mine}").status_code == 404
+
+    async def as_b():  # the bot service's view of B, in the api's own event loop
+        tg = FakeTelegram()
+        bot = Bot(Telegram(tb, httpx.MockTransport(tg)), Clipper("http://api", httpx.ASGITransport(app=app), client.b), 4242, theirs)
+        phone = Phone(bot, tg)
+        await phone.say(f"/c{a['clip']}")
+        assert phone.text() == f"Clip {a['clip']} not found."
+        await phone.say(f"/p{a['post']}")
+        assert phone.text() == f"Post {a['post']} not found."
+        await phone.say("/clips")
+        assert f"/c{a['clip']}\n" not in phone.text() + "\n" and not phone.text().endswith(f"/c{a['clip']}")
+
+    client.portal.call(as_b)
+
+    sent = []
+    real = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(
+        lambda r: sent.append(str(r.url)) or httpx.Response(200, json={"ok": True})), **kw))  # fmt: skip
+    assert client.portal.call(notify.notify, client.b, "for B") is True  # as clipper_app: B's bots only
+    assert [u.split("/bot")[1].split("/")[0] for u in sent] == [tb]
+    sent.clear()
+    assert client.portal.call(notify.notify, 1, "for A") is True
+    assert tb not in "".join(sent) and ta in "".join(sent)
+    with Session(db) as s:
+        s.execute(text("DELETE FROM telegram_bots WHERE id IN (:a, :b)"), {"a": mine, "b": theirs})
         s.commit()
