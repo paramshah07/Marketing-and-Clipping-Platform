@@ -1,16 +1,34 @@
-# Production's only public entry point (compose.prod.yml, docs/deploy.md): HTTPS with an automatic Let's
-# Encrypt certificate, in front of the api, which has its own sign-in. Both values come from the VM's .env.
+# The VM's only public entry point (compose.prod.yml, docs/deploy.md), for production and staging: HTTPS with an
+# automatic Let's Encrypt certificate. Production's api signs users in itself; staging, a copy of production's data,
+# also sits behind the operator's shared password. The values come from the VM's .env; the password is only there as
+# a bcrypt hash (base64: no `$` for compose to interpolate).
 {
 	# With an email Caddy falls back to ZeroSSL: sslip.io is not on the Public Suffix List, so every *.sslip.io
 	# site shares one Let's Encrypt quota (50 certificates a week), which runs out.
 	email {$CLIPPER_ACME_EMAIL}
 }
 
-{$CLIPPER_HOST} {
-	# The bot service calls api:8000 directly, with its bearer and X-Clipper-User (the user it acts as), and is the
-	# only caller of /api/internal/*: from outside, none of them exists. (The api checks the bearer too.)
+# The bot service calls its api directly, with its bearer and X-Clipper-User (the user it acts as), and is the only
+# caller of /api/internal/*: from outside, none of them exists. (The api checks the bearer too.)
+(api) {
 	request_header -Authorization
 	request_header -X-Clipper-User
 	respond /api/internal/* 404
-	reverse_proxy api:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
+}
+
+# Caddy sits on the edge network only (compose.prod.yml), with every api on this VM, so it names each by its
+# container: an api's service name, `api`, is the same in both projects.
+{$CLIPPER_HOST} {
+	import api
+	reverse_proxy clipper-api-1:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
+}
+
+# Staging (docs/deploy.md section 7): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's
+# data. The operator's shared password first (basic_auth runs before the header strip), then the app's own sign-in.
+dev.{$CLIPPER_HOST} {
+	basic_auth {
+		{$CLIPPER_USER} {$CLIPPER_PASSWORD_HASH}
+	}
+	import api
+	reverse_proxy clipper-dev-api-1:8000
 }

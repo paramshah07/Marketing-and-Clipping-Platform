@@ -1,0 +1,24 @@
+# Staging on the production VM (docs/deploy.md section 7): the dev branch checked out as ~/clipper-dev, project
+# clipper-dev, on top of compose.yml and compose.prod.yml (its .env sets COMPOSE_PROJECT_NAME and COMPOSE_FILE). A copy
+# of production's data (staging-refresh.sh, every 5 days) with its own database, files and secrets. It never
+# publishes, holds nobody's Zernio key or bot (the refresh removes them), runs no Caddy of its own (production's serves
+# it at dev.<host>) and gets one CPU for renders, so production's always come first.
+x-staging: &staging
+  PUBLISHING_ENABLED: "false"
+
+services:
+  postgres: { ports: !reset [] } # production's owns 127.0.0.1:5432
+  migrate: { environment: *staging }
+  api:
+    ports: !override ["127.0.0.1:8001:8000"] # production's owns 8000; deploy.sh finds the port itself
+    environment: *staging
+  worker:
+    command: !override ["python", "-m", "app.worker", "--queues=media", "--concurrency=1", "--shutdown-graceful-timeout=60"]
+    environment: { <<: *staging, FFMPEG_THREADS: "1" }
+    cpus: 1
+  publisher: { environment: *staging }
+  bot: { environment: *staging }
+  caddy: { profiles: [never] }
+
+networks:
+  edge: { name: clipper-edge, external: true } # production's project owns it

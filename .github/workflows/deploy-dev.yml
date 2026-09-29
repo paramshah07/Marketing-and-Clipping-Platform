@@ -1,0 +1,25 @@
+# Staging (dev.<host>, docs/deploy.md section 7): once CI passes on a push to dev, deploy it to ~/clipper-dev on the
+# VM. Same SSH path as deploy.yml, with its own key, whose forced command on the VM is
+# `cd ~/clipper-dev && git pull --ff-only && exec sh deploy.sh`, so it can do nothing else.
+name: Deploy staging
+on:
+  workflow_run: { workflows: [CI], types: [completed], branches: [dev] }
+  workflow_dispatch: # "Run workflow" in the Actions tab redeploys staging by hand
+concurrency: { group: deploy-dev, cancel-in-progress: false }
+permissions: {}
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_DEV_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -T -i ~/.ssh/deploy -o BatchMode=yes -o ServerAliveInterval=30 "ubuntu@$HOST"
