@@ -31,11 +31,13 @@ async def _send(client: httpx.AsyncClient, token: str, body: dict) -> bool:
 
 
 async def notify(
-    user_id: int, text: str, link: str | None = None, buttons: list[list[tuple[str, str]]] | None = None
+    user_id: int, text: str, link: str | None = None, buttons: list[list[tuple[str, str]]] | None = None,
+    silent: bool = False,
 ) -> bool:
     """Send user_id text (Telegram HTML: html.escape anything dynamic) with an optional link button, and rows of
     (label, callback_data or https URL) buttons; the bot service (app/bot) answers the callbacks in each chat.
-    Returns True if Telegram accepted it from at least one bot."""
+    silent: routine news (a post went out), shown without a sound. Returns True if Telegram accepted it from at least
+    one bot."""
     try:  # as user_id: in the api (row-level security) that is the only way to see their bots
         async with SessionLocal(info={"uid": user_id}) as s:
             q = select(TelegramBot.token_enc, TelegramBot.chat_id).join(User, User.id == TelegramBot.user_id).where(
@@ -49,7 +51,7 @@ async def notify(
     bots = [(token, chat) for sealed, chat in found if (token := unseal(sealed))]
     if not bots:
         return False
-    body: dict = {"text": text, "parse_mode": "HTML"}
+    body: dict = {"text": text, "parse_mode": "HTML"} | ({"disable_notification": True} if silent else {})
     rows = [[{"text": t, "url" if d.startswith("https://") else "callback_data": d} for t, d in row] for row in buttons or []]
     if link and link.startswith("https://"):
         rows.append([{"text": "Open in Clipper", "url": link}])

@@ -430,7 +430,7 @@ function BotRow({ b, pair, onPair, onClose, onChange }: { b: BotOut; pair?: BotP
         </span>
         {b.chat_title && <span className="min-w-0 truncate text-sm text-subtle">· Paired with {b.chat_title}</span>}
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          <label className="mr-1.5 flex items-center gap-1.5 text-sm text-muted" title="Your failure alerts go to this bot's chat">
+          <label className="mr-1.5 flex items-center gap-1.5 text-sm text-muted" title="Your failure alerts, a quiet message when a post goes out, and the evening digest go to this bot's chat">
             <Switch checked={b.alerts} disabled={patch.isPending} onCheckedChange={(alerts) => patch.mutate({ ...path, body: { alerts } })} />
             Alerts
           </label>

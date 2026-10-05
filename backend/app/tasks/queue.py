@@ -1,6 +1,6 @@
 """The Procrastinate app (imported by the api to defer, run by the workers) and its tasks. Two worker services:
 `worker` runs the `media` queue (probe, download, render: ffmpeg and yt-dlp, no secrets), `publisher` the default
-queue (dispatch, publish_post, account sync, these sweeps: users' keys).
+queue (dispatch, publish_post, account sync, the digest, these sweeps: users' keys).
 
 Always give tasks an explicit name= so a module move never strands queued jobs (TaskNotFound).
 """
@@ -22,7 +22,7 @@ app = App(
         min_size=1,
         max_size=10,  # the publisher's concurrency 8 + 2
     ),
-    import_paths=["app.tasks.media", "app.tasks.accounts", "app.tasks.publish"],  # the worker only imports this module: list every task module here
+    import_paths=["app.tasks.media", "app.tasks.accounts", "app.tasks.publish", "app.tasks.digest"],  # the worker only imports this module: list every task module here
 )
 
 STALLED_MAX_ATTEMPTS = 3

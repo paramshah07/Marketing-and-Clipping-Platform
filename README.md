@@ -211,7 +211,7 @@ One Docker Compose stack ([compose.yml](compose.yml)):
 | `caddy` | The only public entry point, on the VM only ([compose.prod.yml](compose.prod.yml)): HTTPS for production and `dev.<host>`; strips the bot service's headers and hides `/api/internal/*` ([Caddyfile](Caddyfile)) |
 | `api` | FastAPI: sign-in, every route, and in production the built React app. Connects as `clipper_app`, which row-level security binds |
 | `worker` | Queue `media`: probe, download (yt-dlp) and render (ffmpeg), one job per user at a time. Holds no secret |
-| `publisher` | Queue `default`: publishes due posts every minute with each user's Zernio key, syncs accounts every 6 hours, sends alerts, re-queues stalled jobs |
+| `publisher` | Queue `default`: publishes due posts every minute with each user's Zernio key, syncs accounts every 6 hours, sends alerts and the evening digest, re-queues stalled jobs |
 | `bot` | Runs every user's Telegram bots by long polling; calls the api as each bot's owner. No database access |
 | `postgres` | PostgreSQL 16: the data and the job queue |
 | `migrate` | Runs once at every start: Alembic migrations, the queue's schema, the api's database role, user 1 |

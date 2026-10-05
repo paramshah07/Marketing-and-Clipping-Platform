@@ -67,7 +67,7 @@ first: never with the Mac's `.env`)
                   pipeline.py, scheduling.py, recovery.py
     /models       SQLAlchemy models (Owned: the user_id column of every tenant table)
     /schemas      Pydantic schemas
-    /tasks        Procrastinate tasks: media.py (queue media), publish.py, accounts.py, queue.py
+    /tasks        Procrastinate tasks: media.py (queue media), publish.py, accounts.py, digest.py, queue.py
     /services     business logic (zernio.py, publisher.py, render.py, storage.py, notify.py, errors.py, links.py)
     /core         config, db session (sets app.uid), secrets (seal / unseal)
     /bot          Telegram bot service: a client of the api (python -m app.bot)
@@ -148,7 +148,7 @@ Procrastinate tasks live in `app/tasks/`; add each new task module to `import_pa
 `app/tasks/queue.py` (the workers only import that module, so a task defined elsewhere fails with
 TaskNotFound). Always pass an explicit `name=`. `probe_clip`, `download_clip` and `render` run on queue `media`
 (the `worker` service: 2 at a time, one per user, fair-share priority set by `pipeline._defer`); everything else
-(dispatch, publish_post, the account sync, the sweeper) on `default` (the `publisher` service), so a render backlog
+(dispatch, publish_post, the account sync, the digest, the sweeper) on `default` (the `publisher` service), so a render backlog
 never holds up a post. The `retry_stalled_jobs` periodic task re-queues jobs a killed worker left in `doing`
 (within about 30-90 s). `docker compose restart worker` (or `publisher`) blocks for the full 90 s
 `stop_grace_period` when a sync job runs past the 60 s graceful timeout, then SIGKILLs it and the job re-runs from

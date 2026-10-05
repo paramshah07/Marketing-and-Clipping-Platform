@@ -258,7 +258,8 @@ written; a cover card is the image itself. They are saved, edited and made the d
   - clip Ready / Failed (its card);
   - render Ready / Failed (its card);
   - a bulk import when every clip has finished (one summary);
-  - a "Post now" post: Published with the link, Failed with its card, or moved to a new slot.
+  - a "Post now" post: Published with the link (unless this bot has **Alerts** on: the publisher's "is live" message
+    says it there), Failed with its card, or moved to a new slot.
   Watches expire after 2 h (posts after 1 h).
 - **Alerts** go to the user the alert is about (`notify(user_id, …)`), through every bot of theirs that is paired,
   has **Alerts** on and a token Telegram takes, unless the user is disabled. A user with no such bot gets none (the
@@ -272,6 +273,13 @@ written; a cover card is the image itself. They are saved, edited and made the d
 | "**@account** post 234 failed: *cause*" (or "dead letter", or "moved to a new slot") | A post fails, dead-letters, or moves to the next free slot | A failure once per post; account-wide causes (`ACCOUNT_DISCONNECTED`, `RATE_LIMITED`, `PROFILE_OVER_LIMIT`) once per account per 6 h; moves every time | **Open post** (the bot's post card, with the remedy), **Open in Clipper** (`/recover/<id>`) |
 | "Publishing is paused: *reason*. Update your Zernio key in Settings, then retry the failed posts." | Zernio refuses the user's key while publishing or in the 6-hourly account sync | Once per valid → invalid flip | **Open in Clipper** (`/settings`) |
 | "Instagram account **@account** is disconnected in Zernio. Reconnect it there, then Sync accounts in Clipper." | An account sync finds it disconnected | Once per account per 6 h | **Reconnect in Zernio**, **Sync accounts**, **Open in Clipper** (`/accounts`) |
+| "**@account** post 235 is live on Instagram." (silent: `disable_notification`) | A publish job marks a post PUBLISHED (`_resolve`); not Recover's "check now", which the user is watching | Once per post (the CAS) | **View on Instagram** (the permalink, when Zernio has one), **Open post** |
+| "**Evening digest** · Mon 5 Oct", then per enabled account "**@a**: 9 of 12 slots filled tomorrow, 2 drafts to approve /drafts" (" · disconnected in Zernio"), then the Ready tray, the failed posts and "Publishing is paused" when they apply | `digest`, hourly (`app/tasks/digest.py`): a user whose first enabled account's zone reads 20:00 | Once a day | **Open in Clipper** (`/calendar`) |
+
+The digest's numbers: tomorrow is each account's own local day; its posts are counted as the daily cap counts them
+(every status but CANCELLED), out of those plus the slots `slots.first_free` could still fill (cap and min gap, the
+same rules as auto-schedule). The Ready tray is `GET /api/renders?status=READY&unscheduled=true`; failed means FAILED
+or DEAD_LETTER. A user without enabled accounts gets none.
 
 **Open in Clipper** is a button only when `APP_BASE_URL` is https (Telegram refuses other button URLs); otherwise the
 link is added to the text. Both sites are https; so on the dev site, alerts link to the dev site.
@@ -317,13 +325,14 @@ database) and a recorded fake Telegram. They cover: another chat ignored; link i
 approve; a typed time; Post now (refused while publishing is off; from a post card and a render card); move, caption
 and cancel; remedy; account slots / timezone; brand create + logo PNG; Customizations (`/captions`, `/covers`, the
 cards, View logo, the editor starting on the default brand, caption and cover, the pickers, the cover copied onto the
-render, Re-render for… with the defaults). Zernio is never called (no key); nothing publishes (no worker on
-`clipper_test`). `test_telegram.py` covers the bots' endpoints, pairing and the supervisor.
+render, Re-render for… with the defaults), and a bot with **Alerts** on leaving "Live on Instagram" to the publisher.
+Zernio is never called (no key); nothing publishes (no worker on `clipper_test`). `test_telegram.py` covers the bots'
+endpoints, pairing and the supervisor; `test_publish.py` the "is live" message and the digest (`test_digest_*`).
 
 When the bot was built (2026-09-27) every screen was also sent once to the operator's chat, silently, then deleted,
 so Telegram's own HTML and keyboard validation passed. There are no live publishes without the operator's go-ahead.
 
 ## 10. Later (not now)
 
-A preview frame (worker job) before rendering · a local Bot API server (2 GB files) · a daily digest ·
-publish notifications for scheduled posts · webhook mode.
+A preview frame (worker job) before rendering · a local Bot API server (2 GB files) · webhook mode · the digest's hour
+and the posted message as per-user settings (now 20:00 in the first account's zone, and both follow **Alerts**).

@@ -2131,8 +2131,10 @@ async def watch_post(bot, pid, w, clips) -> bool:
     s = p["status"]
     if s == "PUBLISHED":
         link = p["permalink"] or ""
-        await bot.send(f"<b>Live on Instagram</b>: @{h(p['account_username'])}, post {pid}.",
-                       [[("View on Instagram", link)]] if link.startswith("https://") else None)  # fmt: skip
+        # a bot with Alerts on gets the publisher's "post … is live on Instagram" for it: once is enough
+        if not any(b["id"] == bot.id and b["alerts"] for b in await bot.api.get("/api/me/bots")):
+            await bot.send(f"<b>Live on Instagram</b>: @{h(p['account_username'])}, post {pid}.",
+                           [[("View on Instagram", link)]] if link.startswith("https://") else None)  # fmt: skip
     elif s in FAILED:
         await open_card(bot, "p", pid)  # with its remedy
     elif s in ("DRAFT", "SCHEDULED") and fmt.iso(p["scheduled_for"]) > w["at"] + timedelta(minutes=5):  # moved on
