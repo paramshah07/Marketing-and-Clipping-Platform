@@ -6,16 +6,16 @@ publishes them as Instagram Reels, on a schedule, to each user's own Instagram a
 Anyone can sign up with a username and password (nothing else) until `MAX_USERS` (15) users are enabled, the
 operator included. Each user brings their own Zernio API key (their own Zernio account, where they connect their
 Instagram accounts) and as many of their own Telegram bots as they like. A user sees only their own clips, brands,
-captions, covers, renders, accounts, posts, bots and files. There are no roles, orgs, sharing or billing. The
+captions, covers, songs, renders, accounts, posts, bots and files. There are no roles, orgs, sharing or billing. The
 operator is user 1 (`clipper`): everything from before users belongs to it, its three Telegram bots and Zernio key
-are imported once from `.env` (in production at the release below), and only its link imports use the server's yt-dlp
-cookies. How it all works: `docs/multi-user.md`.
+were imported once from `.env` (in production at the multi-user release, 2026-10-05), and only its link imports use the
+server's yt-dlp cookies. How it all works: `docs/multi-user.md`.
 
 **Production** (https://145-241-239-46.sslip.io, the `prod` branch, `~/clipper`) is this compose stack on one Oracle
 Cloud Arm VM with `compose.prod.yml` on top, behind Caddy (HTTPS; the app signs users in itself) (`docs/deploy.md`).
-Until the release pull request #20 (`dev` -> `prod`) is merged, production still runs the single-operator version: a
-shared browser password in Caddy, no users, one `worker` for every queue, and services `bot`, `bot2`, `bot3` reading
-the operator's key and tokens from `.env`. Everything in this file describes `dev`. **Staging**, the dev site
+It has run the multi-user version since the release of 2026-10-05 (pull request #20); before that it was the
+single-operator version behind a shared browser password in Caddy. Everything in this file describes `dev`, which
+production gets at each release. **Staging**, the dev site
 (https://dev.145-241-239-46.sslip.io), is the `dev` branch on the same VM (`~/clipper-dev`, project `clipper-dev`,
 `compose.staging.yml`, no Caddy of its own: production's serves it), with its own sign-in and no shared password, on
 a copy of production refreshed every 5 days by cron (`staging-refresh.sh`). It publishes for real (the operator's
@@ -72,18 +72,21 @@ first: never with the Mac's `.env`)
     /core         config, db session (sets app.uid), secrets (seal / unseal)
     /bot          Telegram bot service: a client of the api (python -m app.bot)
     cli.py        operator commands (render, users, quotas, db-grants, bootstrap)
-  /alembic        0007 users + row-level security, 0008 media queue, 0009 bot supervisor functions
+  /alembic        0007 users + row-level security, 0008 media queue, 0009 bot supervisor functions, 0010 renders.filter,
+                  0011 posts.music (Instagram's catalog), 0012 saved_tracks + renders.music (the user's songs)
   /scripts        spike_zernio.py (Phase 0), dump_openapi.py
   /tests          fixtures/zernio/ holds real recorded Zernio responses and copies from Zernio's docs;
                   test_tenancy.py runs the api as clipper_app with two users
   openapi.json    committed; regenerate after any API change
 /frontend
   /src
-    /components   FracBox (drag/resize in fractions), bits, ui/ (shadcn slider, switch)
+    /components   FracBox (drag/resize in fractions), bits, MusicPicker (Instagram's catalog, behind
+                  INSTAGRAM_CATALOG_MUSIC), ui/ (shadcn slider, switch)
     /routes       Library, Editor, Customizations, Calendar, Accounts, Recover, Login (+ Signup), Settings (+ Setup)
     /api          generated client (never edit by hand)
     /lib          geometry.ts (+ test), utils.ts (+ test), schedule.ts (+ test), cover.ts
-  /e2e            accept.mjs (Playwright acceptance, Google Chrome), docs-screenshots.mjs
+  /e2e            accept.mjs (Playwright acceptance, Google Chrome), docs-screenshots.mjs (the docs' screenshots and
+                  GIFs, against ./review.sh's stack; docs/README.md)
 /docs             multi-user.md, deploy.md, telegram-bot.md, guide/, PLAN.md, spec.md, phase-N.md, design/
 compose.yml       compose.prod.yml, compose.staging.yml, compose.review.yml, Caddyfile, deploy.sh, staging-refresh.sh, review.sh
 /.github/workflows  ci.yml (CI), deploy.yml (push to prod -> production), deploy-dev.yml (CI passed on dev -> staging)

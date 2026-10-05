@@ -8,11 +8,9 @@ user's side is the [Telegram bot guide](guide/08-telegram-bot.md); the data mode
 pairing and routing; `screens.py`: every command, button and answer; `fmt.py`, `clients.py`), the user's endpoints are
 `backend/app/api/bots.py`, alerts are `backend/app/services/notify.py`.
 
-> [!IMPORTANT]
-> Until the release pull request #20 (`dev` -> `prod`) is merged, production runs the old single-operator bots: one
-> compose service per bot (`bot`, `bot2`, `bot3`), each reading its token and chat from `.env`. The release imports
-> the three into the operator, user 1, already paired, alerts on for the first (`cli bootstrap`), and one `bot`
-> service then runs them with everyone else's. The dev site runs this version now.
+Before the multi-user release (2026-10-05), production ran one compose service per bot (`bot`, `bot2`, `bot3`), each
+reading its token and chat from `.env`. The release imported the three into the operator, user 1, already paired,
+alerts on for the first (`cli bootstrap`), and one `bot` service has run them with everyone else's since.
 
 ## 1. Shape
 
@@ -126,6 +124,7 @@ Settings' reload: every 10 s, every 2 s while a pairing code is out).
 | Retry · Remove | Clip card buttons |
 | Published tab: account / brand / range filters, search, permalink, "Re-render for…" | `/published [text]` with filter buttons; post card: Instagram link, Re-render for… |
 | Editor: brand, logo 3x3 snap grid, scale, opacity, crop, cover, caption from the brand template, saved captions, hashtag and length limits, Save as brand default, Render | Render editor (one message, edited in place). The same defaults as the web: the default brand, the default saved caption for a brand without a template, the default saved cover. Margin is fixed at the web default 4%. No free drag: grid positions, ±2% size steps, opacity 100/75/50/25, crop window centre / left / right (top / bottom for tall sources). Saved captions and Cover pick among the user's saved ones |
+| Editor: filter (Instagram-style looks baked into the render) and music (a saved song mixed in, with its volume and the clip's) | Render editor: **Filter** picks one of the 14 looks by name (**Normal** takes it off); **Music** picks a saved song (the default preselected, or **None**); **Song** and **Clip's sound** step the volumes 100, 75, 50, 25% (the clip's sound also 0%). Re-render for… keeps them, and the render card names them (`· Juno · ♫ Song`) |
 | Render queue: status, preview, download, retry, log, delete | `/renders`, render card: Watch (sends the MP4), Retry, Log, Delete. A render started from the bot reports when it finishes |
 | Schedule popover: account, suggested slot, other time, caption, Schedule, Post now | Schedule form on the render card |
 | Calendar week board per account, free slots, quota, cap and gap | `/calendar`: one account's week, day by day (its posts, then its free slots on one line), with week navigation |
@@ -136,22 +135,24 @@ Settings' reload: every 10 s, every 2 s while a pairing code is out).
 | Accounts: sync, timezone, slots, daily cap, min gap, disable / enable, reconnect link | `/accounts`, account card |
 | Customizations › Brands: list, archived, create, name, link, caption template, auto-approve, logo, default placement, archive, default brand | `/brands` (the default marked), brand card (**View logo** sends the PNG as a file), placement editor |
 | Customizations › Captions and Covers: the saved ones, the default of each | `/captions` and `/covers`, a caption card (its text) and a cover card (the image) |
+| Customizations › Music: upload, play, rename, make default, delete | `/music` (also `/songs`), a song card `/m7` (Play sends the file, Make default / Clear default, Rename, Delete); an audio file sent to the bot (an audio message, or MP3, M4A, AAC, WAV, Ogg or FLAC up to 20 MB) is saved as a song after "Save … as a song for your renders?" |
 | Recover: cause, one remedy, dismiss, technical details, play | Post card of a failed post (from `/failed` or the alert) |
 | Telegram alerts (link only) | Same alerts plus an **Open post** / **Sync accounts** button handled by the bot |
 
 Not in the bot, by design: sign-in, **Setup** and **Settings** (the Zernio key, the bots themselves, the password,
 storage), saving, editing or deleting saved captions and covers and choosing the defaults (**Customizations**), a cover
 from an image of your own (the bot offers the saved ones), free-drag logo and crop placement, a live preview before
-rendering (the render's thumbnail and video are the preview), videos over 20 MB from the phone, and upload progress
-bars. The card of a post that failed on the Zernio key links to **Settings** (**Open in Clipper**).
+rendering (the render's thumbnail and video are the preview, filters and songs included), ticking clips to delete many at once and **Free up space** (the clip card's **Remove** deletes a clip that has
+no renders yet), videos over 20 MB from the phone, and upload progress bars. The card of a post that failed on the
+Zernio key links to **Settings** (**Open in Clipper**).
 
 ## 5. Commands
 
 `/status` · `/clips [text]` (also `/library`) · `/renders` · `/ready` (also `/queue`) · `/calendar` (also `/week`) ·
-`/drafts` · `/failed` · `/published [text]` · `/brands` · `/captions` · `/covers` · `/accounts` · `/help` (also
-`/start`) · `/cancel` (drops the pending question). Registered with `setMyCommands` for the bot's paired chat. Lists
-end each line with a tappable id command: `/c12` clip, `/r34` render, `/p56` post, `/b4` brand, `/t3` saved caption,
-`/i5` saved cover, `/a1` account. Anything else: "I don't know that command. /help lists them."
+`/drafts` · `/failed` · `/published [text]` · `/brands` · `/captions` · `/covers` · `/music` (also `/songs`) ·
+`/accounts` · `/help` (also `/start`) · `/cancel` (drops the pending question). Registered with `setMyCommands` for the
+bot's paired chat. Lists end each line with a tappable id command: `/c12` clip, `/r34` render, `/p56` post, `/b4`
+brand, `/t3` saved caption, `/i5` saved cover, `/m7` song, `/a1` account. Anything else: "I don't know that command. /help lists them."
 
 `/status` puts the sidebar's state into words, with the reason publishing is off: "PUBLISHING_ENABLED is off on the
 server", "you have no Zernio key yet: add it in Settings" or "Zernio refused your key: update it in Settings".
@@ -178,21 +179,26 @@ render count. Buttons: Render… · Renders (n) · Creator · Watch source · Re
 [ ↙ ][ ↓ ][ ↘ ]
 [ − ][ 22% ][ + ][ Opacity 100% ]
 [ Crop: centre ][ Caption ]
+[ Filter: none ][ Music: Late night drive ]
+[ Song 100% ][ Clip's sound 100% ]   (with a song; the clip's sound only when the clip has audio)
 [ Saved captions ][ Cover: Neon ]   (each when the user has saved ones)
 [ Render ][ Save as default ][ Close ]
 ```
 
 It starts where the web Editor does (`Editor.tsx`). The brand is the one this clip was last rendered with, else the
 user's default brand (Customizations), else the user picks one first. The caption comes from the brand template, else
-the default saved caption (`{link}`, `{creator}` filled in either way), editable, max 2200 characters and 30
-hashtags; **Saved captions** replaces it with one of the user's saved captions, filled the same way. **Cover** starts
-on the default saved cover and picks another saved one or none (Instagram picks a frame). Render queues it; the editor
-stays open for another variant. With a cover chosen, the bot then copies it onto the render (it fetches the saved
-JPEG and `PUT /api/renders/{id}/cover`, as the web Editor does); if that fails it says "queued without its cover".
-When the render finishes, its card arrives.
+the default saved caption (`{link}`, `{creator}` filled in either way), editable, max 2200 characters and 30 hashtags;
+**Saved captions** replaces it with one of the user's saved captions, filled the same way. **Cover** starts on the
+default saved cover and picks another saved one or none (Instagram picks a frame). **Filter** lists the 14 looks three
+to a row (`GET /api/filters`), **Music** the user's songs with the default preselected; the volume buttons step down
+100, 75, 50, 25 (the clip's sound also 0) and round, as the render's `music` takes them. Render queues it; the editor
+stays open for another variant. With a cover chosen, the bot then copies it onto the render (it fetches the saved JPEG
+and `PUT /api/renders/{id}/cover`, as the web Editor does); if that fails it says "queued without its cover". When the
+render finishes, its card arrives.
 
 **Render card** (render thumbnail, so the logo shows): brand, placement ("Top right · 22% · 9:16
-crop", then "· cover" when it has one), duration · size, status, caption. Buttons: Watch · Schedule… · Post now ·
+crop", then its filter and "· ♫ song" when it has them, then "· cover" when it has one), duration · size, status,
+caption. Buttons: Watch · Schedule… · Post now ·
 Retry + Log (failed) · Delete.
 
 **Schedule form**: account (connected, enabled; picker if more than one), suggested time (`next-slot`),
@@ -210,8 +216,8 @@ Buttons by status:
 - SCHEDULED: Move… · Caption · Post now · Cancel post
 - FAILED / DEAD_LETTER: the remedy (Reconnect in Zernio + "I've reconnected: check now" · Re-render and
   retry · Retry now) · Details · Dismiss. `TOO_LONG` and `auto` get no remedy button, as on the web.
-- PUBLISHED: View on Instagram · Re-render for… (the same clip and crop with the picked brand's default placement,
-  its template or else the default saved caption, and the default saved cover)
+- PUBLISHED: View on Instagram · Re-render for… (the same clip, crop, filter and music with the picked brand's default
+  placement, its template or else the default saved caption, and the default saved cover)
 
 **`/calendar`**: one account (the picker remembers the last one), a week from today in its zone. Each day
 lists its posts in time order (status, brand, clip, `/p56`), then its free slots on one line (free as the

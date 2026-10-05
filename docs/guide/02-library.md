@@ -88,22 +88,35 @@ A file that can't be uploaded stops in its row before it reaches the server: "No
 
 - Type in the search box (or press `/`) to filter by file name, creator handle or URL.
 - Hover a **Ready** row and click the bin icon to remove the clip, its renders and all their files.
-- To clean up many at once, tick their boxes (the box in the header ticks every clip the search shows) and click **Delete _n_** in the bar that replaces the drop zone. It asks first, with how many clips and renders go.
-- A clip stays if one of its renders has a post that isn't cancelled: a published Reel keeps its clip for good (it is the history Clipper checks to never post a video twice), and a draft, scheduled or failed post keeps it until you cancel or dismiss that post. A clip that is still uploading, downloading or probing, or has a render still rendering, stays too. After a bulk delete, the clips that stayed remain ticked, and a note says why.
+- To clean up many at once, tick their boxes and click **Delete _n_** in the bar that replaces the drop zone.
+
+![The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3](../images/library-select.png)
+
+| # | What it is |
+|---|---|
+| 1 | The box in the header ticks every clip the search shows; click it again to untick them all. |
+| 2 | A ticked clip. |
+| 3 | How many are ticked. **Clear** unticks them. |
+| 4 | **Delete _n_**: deletes them with their renders and files. It asks first, with how many clips and renders go. |
+
+A clip stays if one of its renders has a post that isn't cancelled: a published Reel keeps its clip for good (it is the history Clipper checks to never post a video twice), and a draft, scheduled or failed post keeps it until you cancel or dismiss that post. A clip that is still uploading, downloading or probing, or has a render still rendering, stays too. After a bulk delete, the clips that stayed remain ticked, and a note says why.
+
+For a whole cleanup, start to finish: [Cleaning up your library](../workflows.md#cleaning-up-your-library).
 
 ## Published
 
 The **Published** tab lists the Reels that went out, newest first. It shows the last 30 days until you pick another range.
 
-![The Library's Published tab: filters for account, brand and date range, and a table of published posts with Instagram links and a Re-render for… menu](../images/library-published.png)
+![The Library's Published tab: filters for account, brand and date range, Free up space, and a table of published posts with Instagram links and a Re-render for… menu](../images/library-published.png)
 
 | # | What it is |
 |---|---|
 | 1 | Filter by **Account**, **Brand** and date range (last 7, 30 or 90 days, or last 12 months). |
 | 2 | How many posts match. Times are in your browser's time zone. |
-| 3 | When it went out, and how long ago. If the account uses another time zone, its local time follows. |
-| 4 | **View on Instagram** opens the Reel. |
-| 5 | **Re-render for…** a brand: same clip and crop, that brand's default logo and caption. Opens the Editor. |
+| 3 | **Free up space**: deletes the MP4s of renders that are on Instagram already ([below](#free-up-space)). |
+| 4 | When it went out, and how long ago. If the account uses another time zone, its local time follows. |
+| 5 | **View on Instagram** opens the Reel. |
+| 6 | **Re-render for…** a brand: same clip, crop and filter, that brand's default logo and caption. Opens the Editor. |
 
 On this tab the search box looks through captions and clip names.
 
@@ -114,7 +127,7 @@ On this tab the search box looks through captions and clip names.
 ### Re-render a published clip for another brand
 
 1. Find the post and open its **Re-render for…** menu. The brand it was made for is marked "(original)".
-2. Pick a brand. Clipper queues a new render with the same clip and crop, that brand's default logo placement, and that brand's caption template filled in.
+2. Pick a brand. Clipper queues a new render with the same clip, crop and filter, that brand's default logo placement, and that brand's caption template filled in.
 3. The [Editor](03-editor.md) opens with that brand, and the new render appears at the top of **Renders for this clip**.
 4. When it is **Ready**, click **Schedule…** on its card.
 

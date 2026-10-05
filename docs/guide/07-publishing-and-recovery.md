@@ -7,7 +7,7 @@ What Clipper does when a post's time comes, what each post status means, and how
 Every minute the publisher looks for scheduled posts whose time has come, of every user whose Zernio key works. For each one:
 
 1. **It checks the post can go.** A disabled account cancels the post; a disconnected one fails it. A render that is still rendering makes the post wait; a failed render, or one too long or too short for a Reel, fails it. A post more than 30 minutes late, or one whose account has used up its Meta quota, moves to the next free slot instead.
-2. **It sends it.** The post becomes **Publishing**. Clipper uploads the MP4 (and the cover, if there is one) to Zernio with your key and asks Zernio to publish it now.
+2. **It sends it.** The post becomes **Publishing**. Clipper uploads the MP4 (and the cover, if there is one) to Zernio with your key and asks Zernio to publish it now, naming the Reel's audio after its song if the render has one.
 3. **It waits for Instagram.** Zernio accepts at once, and the Reel is usually live about 45 seconds later. Clipper asks again every minute until Instagram confirms.
 4. **It records the result.** The post becomes **Published** with its Instagram link, or **Failed** with a reason.
 
@@ -112,7 +112,7 @@ Each failure has at most one remedy, and the button's label tells you which.
 | `ZERNIO_PAYMENT_REQUIRED` | Zernio payment failed | Zernio reports a failed payment on your Zernio account. Your publishing is paused. | Fix billing in Zernio, **Re-check** in **Settings**, then **Retry now** |
 | `ZERNIO_KEY_MISSING` | No Zernio key | There was no working key when the post was due. | Add your key in **Settings**, then **Retry now** |
 | `PROFILE_OVER_LIMIT` | Beyond your Zernio plan's limit | The Instagram account is beyond your Zernio plan's account limit. | Upgrade the plan (or remove an account) in Zernio, then **Retry now** |
-| `MUSIC_NEEDS_FACEBOOK_LOGIN` | Music needs Facebook Login | The post has Instagram music, and its account is connected to Zernio with Instagram Login. Nothing was posted. | Reconnect the account in Zernio choosing Facebook, then **Retry now**; or cancel it and schedule it again without music |
+| `MUSIC_NEEDS_FACEBOOK_LOGIN` | Music needs Facebook Login | The post has a track from Instagram's own music library (only possible while the operator has that library switched on), and its account is connected to Zernio with Instagram Login. Nothing was posted. Songs you upload yourself never cause this. | Reconnect the account in Zernio choosing Facebook, then **Retry now**; or cancel it and schedule it again without music |
 | `UNKNOWN` | Zernio reported a failure | A failure Clipper could not classify. **Technical details** has the message. | **Retry now** |
 | `TOO_LONG` | Video too long for a Reel | The render is longer than 15 minutes. | None: dismiss it |
 | `RATE_LIMITED` | Instagram rate limit reached | Instagram's rate limit or the account's Meta quota was reached. The post moved to the next free slot. | Automatic |
@@ -184,7 +184,7 @@ not affected.
 > scheduled posts stay **Scheduled** past their time and the status footer says why. When it works again, posts more
 > than 30 minutes late move to their next free slots.
 
-- The screenshot comes from a review copy with publishing off, taken on an earlier version: its amber line now reads **Publishing is switched off on this server: scheduled posts stay Scheduled and nothing reaches Instagram. A retry waits until then.** With no key or a refused key, the line gives that reason instead, with **Open Settings**. Its "Instagram said" line is sample text.
+- The screenshot comes from a review copy with publishing off, so its amber line reads **Publishing is switched off on this server: scheduled posts stay Scheduled and nothing reaches Instagram. A retry waits until then.** With no key or a refused key, the line gives that reason instead, with **Open Settings**. Its "Instagram said" line is sample text.
 - **Technical details** › **Restarts** counts worker restarts in the middle of publishing. Clipper restarts a post up to 3 times, then makes it a dead letter.
 
 ← Previous: [Accounts](06-accounts.md) · [Guide](README.md) · Next: [Telegram bot](08-telegram-bot.md) →

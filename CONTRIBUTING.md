@@ -62,7 +62,7 @@ backend/                  Python 3.12, run in containers only
   app/core/               settings, database sessions (they set app.uid), secrets (seal / unseal)
   app/cli.py              operator commands (render, users, quotas, db-grants, bootstrap)
   app/worker.py           the media worker's entry point (checks ffmpeg, then runs Procrastinate)
-  alembic/versions/       migrations 0001 to 0009
+  alembic/versions/       the migrations, numbered in order (0001_initial.py, …)
   tests/                  the suite; fixtures/zernio/ holds the only Zernio responses tests may serve
   openapi.json            the API schema, committed; the frontend client is generated from it
 frontend/                 React 19, Vite, TypeScript, Tailwind v4
@@ -71,7 +71,7 @@ frontend/                 React 19, Vite, TypeScript, Tailwind v4
   src/components/         shared components; ui/ holds the shadcn ones
   src/lib/                geometry.ts, schedule.ts, utils.ts (each with a test), cover.ts
   src/api/                generated from openapi.json: never edit by hand
-  e2e/                    accept.mjs (the acceptance run), docs-screenshots.mjs
+  e2e/                    accept.mjs (the acceptance run), docs-screenshots.mjs (the docs' screenshots and GIFs)
 docs/                     user guide, workflows, runbooks, reference, historical records (docs/README.md)
 compose.yml               the stack: postgres, migrate, api, worker, publisher, bot
 compose.prod.yml          production overlay (Caddy, code baked into the images); compose.staging.yml: the dev site;
@@ -323,7 +323,7 @@ Geist with tabular numerals for times and counts. Never keep anything that matte
 A change users can see updates its [guide](docs/guide/README.md) page in the same pull request, with every UI label
 in **bold** exactly as on screen. A change to how the server runs updates [docs/deploy.md](docs/deploy.md), and a new
 command or rule updates [CLAUDE.md](CLAUDE.md). Where the code and a doc disagree, the code wins: fix the doc. How the
-screenshots are made: [docs/README.md](docs/README.md#keeping-the-docs-current).
+screenshots and GIFs are made: [docs/README.md](docs/README.md#keeping-the-docs-current).
 
 ## Tenant isolation
 
@@ -380,11 +380,6 @@ flowchart LR
 Never push to `dev` or `prod` directly, and never force-push them: the VM's checkouts only fast-forward. `master` is
 legacy. Rarely, a maintainer lands a fix that production's current code needs at once as a pull request into
 `prod`, then brings `prod` back into `dev` with a branch that merges it and a pull request.
-
-> [!NOTE]
-> Until the release pull request [#20](https://github.com/paramshah07/Marketing-and-Clipping-Platform/pull/20) is
-> merged, production runs the single-operator version (a shared browser password, no users) and `dev` is many commits
-> ahead of it. Test multi-user behaviour locally or on the dev site, not on production.
 
 ### review.sh (maintainers only)
 

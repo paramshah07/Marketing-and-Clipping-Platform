@@ -7,21 +7,23 @@ For every user:
 
 1. [Your first day](#your-first-day): sign up, Zernio key, Instagram, a bot, then a first clip all the way to Instagram
 2. [The nightly routine](#the-nightly-routine): tomorrow's Reels, from clip to schedule
-3. [When a post fails](#when-a-post-fails): the alert, the Recover page, the one remedy
-4. [Adding an Instagram account](#adding-an-instagram-account): Zernio first, then Clipper
-5. [Adding another Telegram bot](#adding-another-telegram-bot): @BotFather, **Verify**, **Start**
-6. [Moving to a new Zernio key](#moving-to-a-new-zernio-key): the new key in Clipper first, then revoke the old one
+3. [A night from your phone](#a-night-from-your-phone): the same routine in a Telegram chat
+4. [When a post fails](#when-a-post-fails): the alert, the Recover page, the one remedy
+5. [Cleaning up your library](#cleaning-up-your-library): delete many clips at once, free the MP4s of what's on Instagram
+6. [Adding an Instagram account](#adding-an-instagram-account): Zernio first, then Clipper
+7. [Adding another Telegram bot](#adding-another-telegram-bot): @BotFather, **Verify**, **Start**
+8. [Moving to a new Zernio key](#moving-to-a-new-zernio-key): the new key in Clipper first, then revoke the old one
 
 For the operator:
 
-7. [Shipping a change](#shipping-a-change): branch, pull request into `dev`, the dev site, release to `prod`, verify
-8. [Backups and restore](#backups-and-restore): the nightly dump, and putting one back safely
+9. [Shipping a change](#shipping-a-change): branch, pull request into `dev`, the dev site, release to `prod`, verify
+10. [Backups and restore](#backups-and-restore): the nightly dump, and putting one back safely
 
 > [!NOTE]
-> Each user runs these flows on their own clips, accounts and bots; nobody sees anyone else's. Until the multi-user
-> release, the live app is the operator's alone: sign up and try these on the dev site, which publishes for real
-> ([Which site to use](guide/01-getting-started.md#which-site-to-use)). Most screenshots come from a review copy of
-> production with publishing off; the guide page linked under each one explains its numbered callouts.
+> Each user runs these flows on their own clips, accounts and bots; nobody sees anyone else's. Do them on the live app;
+> the dev site publishes for real too ([Which site to use](guide/01-getting-started.md#which-site-to-use)). The
+> screenshots and recordings come from a review copy of production with publishing off; the guide page linked under
+> each one explains its numbered callouts.
 
 ## Your first day
 
@@ -72,7 +74,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  lib["Library<br/>import or upload clips"] --> ed["Editor<br/>brand, crop, cover, caption"]
+  lib["Library<br/>import or upload clips"] --> ed["Editor<br/>brand, crop, filter,<br/>music, cover, caption"]
   ed -->|Render| ready["Ready render"]
   ready --> cal["Calendar<br/>Auto-schedule, drag, Schedule…"]
   cal -->|"no logo, or no Auto-approve"| draft["Draft"]
@@ -86,23 +88,61 @@ flowchart LR
    pasted list, or **Upload** files. Wait for **Ready**.
 2. **Make renders.** Open a clip in the [Editor](guide/03-editor.md). The brand, caption and cover start
    from [your defaults](guide/04-customizations.md#how-the-editor-uses-your-defaults), and a clip you
-   rendered before opens with its last brand. Adjust the logo, crop, cover and caption, then **Render**
+   rendered before opens with its last brand, and your default song is preselected under **Music**. Adjust the logo,
+   crop, cover and caption, pick a **Filter** if the clip needs a look and a song if it needs one
+   ([Pick a filter](guide/03-editor.md#pick-a-filter), [Add music](guide/03-editor.md#add-music)), then **Render**
    (⌘↵). Pick another brand and render again for each variant you want.
 3. **Schedule them.** On the [Calendar](guide/05-calendar.md), pick the account. Finished renders wait in
    **Ready to schedule**. Select them and press **Auto-schedule** to fill the next free slots, or drag one
-   onto a slot. From the Editor, a render card's **Schedule…** does the same for one render.
+   onto a slot. From the Editor, a render card's **Schedule…** does the same for one render. A video that already
+   went to the account (or is queued there) stays unplaced, with the reason: to post it again anyway, drag it onto a
+   slot and answer **OK** to "Post it there again?".
 4. **Approve the drafts.** Posts land as **Draft** unless their brand has **Auto-approve**, and a render
    with no logo always lands as a draft. A draft never publishes. Press **Approve** on each one, or
    **Approve _n_ drafts** in the header to approve them all at once.
 5. **Leave it.** At each slot the publisher publishes the post with your Zernio key. Once it is live, the Reel shows up in
    **Library** › **Published**. Anything that goes wrong reaches you as in [When a post fails](#when-a-post-fails).
 
-![Three renders selected in the Ready to schedule tray; dashed Fill previews show where Auto-schedule will place them on the board](images/calendar-schedule.png)
+![The Calendar: ticking renders in Ready to schedule shows a dashed Fill preview where each will land, then Auto-schedule places them in the next free slots](images/calendar-auto-schedule.gif)
 
-*Callouts: [Auto-schedule several renders](guide/05-calendar.md#auto-schedule-several-renders).*
+*Step 3: tick the renders, check the dashed **Fill** previews, **Auto-schedule**. The same screen with numbered
+callouts: [Auto-schedule several renders](guide/05-calendar.md#auto-schedule-several-renders).*
 
 > [!TIP]
-> From your phone, the bot's `/ready` and `/drafts` do steps 3 and 4 ([Telegram bot](guide/08-telegram-bot.md)).
+> From your phone, the bot's `/ready` and `/drafts` do steps 3 and 4, and the bot can do the rest too:
+> [A night from your phone](#a-night-from-your-phone).
+
+## A night from your phone
+
+```mermaid
+flowchart LR
+  send["Send the bot links,<br/>or a document of links"] --> imp["Import: one message<br/>when every clip is in"]
+  imp --> ren["/clips, a clip's Render…<br/>starts from your defaults"]
+  ren -->|Render| ready["/ready: tick,<br/>Auto-schedule → @account"]
+  ready --> drafts["/drafts: Approve all"]
+  drafts -->|"slot time"| pub["Published on Instagram,<br/>an alert if not"]
+```
+
+The same routine in a private chat with your own Telegram bot ([add one](guide/09-settings.md#telegram-bots)). The bot
+calls Clipper as you, so every rule and confirmation is the web app's.
+
+1. **Bring in clips.** Send the bot a video link (with the creator's `@handle` if you have it), several links, a
+   document full of links, or a video up to 20 MB. It sums up what it found, asks **Import**, and sends one message
+   when every clip has finished ([Import videos](guide/08-telegram-bot.md#import-videos)).
+2. **Render them.** `/clips`, tap a clip's id, then **Render…**. The render editor starts where the web Editor does:
+   the clip's last brand or your default brand, the brand's caption template or your default saved caption, your
+   default cover and your default song. Snap the logo with the arrows, size it with − and +, pick a **Filter** or
+   another song under **Music** if you like, then **Render**. The render's card arrives when it is done
+   ([Render a clip](guide/08-telegram-bot.md#render-a-clip)).
+3. **Schedule them.** `/ready`, tick each render (or **Select all**), then **Auto-schedule _n_ → @account**. The reply
+   says where each went, which ones are drafts, and why any were not placed
+   ([Your week](guide/08-telegram-bot.md#your-week)).
+4. **Approve the drafts.** `/drafts`, then **Approve all _n_** (it lists them first). `/calendar` shows the week.
+5. **Leave it.** Failures reach the chat as alerts, with **Open post** and the one remedy
+   ([Failed posts and alerts](guide/08-telegram-bot.md#failed-posts-and-alerts)).
+
+The browser still does what a chat can't: dragging the logo freely, a live preview of filters and songs, and saving
+captions and covers. A song you send the bot as an audio file is saved to your songs.
 
 ## When a post fails
 
@@ -146,6 +186,44 @@ flowchart TD
 
 Rate limits and missed slots are not failures: Clipper moves the post to the next free slot on its own and
 tells you in Telegram. Every cause is listed in [Failure reasons](guide/07-publishing-and-recovery.md#failure-reasons).
+
+## Cleaning up your library
+
+```mermaid
+flowchart LR
+  st["Settings › Account:<br/>storage near the limit"] --> tick["Library: tick clips,<br/>Delete n"]
+  tick --> post{"A post that isn't<br/>cancelled?"}
+  post -->|no| gone["Gone, with its renders<br/>and their files"]
+  post -->|yes| stays["Stays, still ticked,<br/>a note says why"]
+  st --> free["Library › Published:<br/>Free up space"]
+  free --> mp4["MP4s of Reels on Instagram deleted;<br/>rows, thumbnails, links stay"]
+```
+
+Clips and renders count against your storage (5 GB unless the operator changed it). When it fills up, uploads, imports
+and renders stop with "your storage is full". Make room like this:
+
+1. **See how much you use.** **Settings** › **Account** › **Storage**: used against your limit, amber past 80%
+   ([Storage](guide/09-settings.md#storage)).
+2. **Delete clips you won't use.** In the **Library**, tick them (the box in the header ticks every clip the search
+   shows), click **Delete _n_** in the bar that replaces the drop zone, and confirm. Each goes with its renders and
+   their files ([Find and remove clips](guide/02-library.md#find-and-remove-clips)).
+3. **Read what stayed.** A clip stays while one of its renders has a post that isn't cancelled: a draft, scheduled or
+   failed post keeps it until you cancel or dismiss that post, and a published one keeps it for good (it is how
+   Clipper knows never to post the video twice). The clips that stayed remain ticked, and a note says why.
+4. **Free the MP4s of what's on Instagram.** On **Library** › **Published**, click **Free up space**. It says how many
+   renders and how much space first; confirm. The Published tab doesn't change (rows, thumbnails, captions and
+   Instagram links stay), but those renders can't be posted again: their cards in the Editor say **MP4 deleted**, and
+   **Re-render for…** makes a fresh one ([Free up space](guide/02-library.md#free-up-space)).
+5. **Delete renders you don't need** in the [Editor](guide/03-editor.md#work-with-renders) (the bin on a render card):
+   failed renders, and variants you won't schedule.
+
+![The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3](images/library-select.png)
+
+*Callouts: [Find and remove clips](guide/02-library.md#find-and-remove-clips).*
+
+> [!NOTE]
+> Deleting can't be undone, and a deleted clip's video has to be imported or uploaded again. Logos, covers and songs
+> don't count against your storage.
 
 ## Adding an Instagram account
 
