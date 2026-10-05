@@ -27,7 +27,7 @@ from app.bot.core import Bot
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import app
-from app.models import Account, Brand, Post, Render, SourceClip
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip
 from app.schemas import CropConfig, OverlayConfig
 from app.services import errors, zernio
 from conftest import zernio_key
@@ -681,3 +681,86 @@ def test_accounts_and_brands(env):
         assert close((o["x"], o["y"]), fmt.snap(7, 0.22, 0.22 * fmt.logo_aspect((8, 4))))
 
     run(scenario)
+
+
+def test_customizations(env):
+    """The user's Customizations in the bot: brands, saved captions and saved covers to see, and renders that start
+    from the defaults (brand, caption, cover), as the web Editor's do."""
+    ids = seed(env)
+    neon, calm = b"\xff\xd8\xff\xe0neon", b"\xff\xd8\xff\xe0calm"  # the JPEG magic is all the api checks
+    with SyncSession() as s:
+        s.execute(text("DELETE FROM renders WHERE id = :r"), {"r": ids["render"]})  # a clip never rendered
+        for model in (Brand, SavedCaption, SavedCover):  # defaults other tests left
+            s.execute(update(model).where(model.user_id == 1, model.is_default).values(is_default=False))
+        flux = Brand(name="Flux", link="flux.gg", is_default=True)  # no caption template
+        late = SavedCaption(name="Late night", text="Night fuel → {link} · clip by {creator}", is_default=True)
+        plain = SavedCaption(name="Plain", text="Just #ad")
+        covers = [SavedCover(name="Neon", image_key="cover-library/neon.jpg", is_default=True),
+                  SavedCover(name="Calm", image_key="cover-library/calm.jpg")]  # fmt: skip
+        s.add_all([flux, late, plain, *covers])
+        s.flush()
+        flux.logo_key = f"logos/{flux.id}.png"
+        s.commit()
+    (env / flux.logo_key).write_bytes(rgba_png(400, 160))
+    (env / "cover-library").mkdir()
+    (env / "cover-library/neon.jpg").write_bytes(neon)
+    (env / "cover-library/calm.jpg").write_bytes(calm)
+
+    async def scenario(phone, tg, bot):
+        await phone.say(f"/b{flux.id}")
+        assert phone.text().startswith(f"<b>Flux</b> · brand {flux.id} · default")
+        assert await phone.tap("View logo") == "Sending the logo…"
+        await phone.settle()
+        assert any(m == "sendDocument" and p["document"]["filename"] == f"logo-{flux.id}.png" for m, p in tg.calls)
+        await phone.say("/captions")
+        assert f"/t{late.id} · Late night · default · Night fuel → {{link}} · clip by {{creator}}" in phone.text()
+        await phone.say(f"/t{plain.id}")
+        assert "<b>Plain</b> · saved caption" in phone.text() and "<blockquote>Just #ad</blockquote>" in phone.text()
+        await phone.say("/covers")
+        assert f"/i{covers[0].id} · Neon · default" in phone.text() and f"/i{covers[1].id} · Calm" in phone.text()
+        await phone.say(f"/i{covers[1].id}")
+        assert tg.last()["photo"] and "<b>Calm</b> · saved cover" in phone.text()
+
+        # the render editor starts from the defaults: no render of this clip yet, so the default brand
+        await phone.say(f"/c{ids['clip']}")
+        await phone.tap("Render…")
+        editor = max(tg.messages)
+        assert "Brand: <b>Flux</b>" in phone.text(editor) and "Cover: Neon (default)" in phone.text(editor)
+        assert "<blockquote>Night fuel → flux.gg · clip by @maya</blockquote>" in phone.text(editor)  # Flux has no template
+        await phone.tap("Saved captions", editor)
+        await phone.tap("Plain", editor)
+        assert "<blockquote>Just #ad</blockquote>" in phone.text(editor)
+        await phone.tap("Cover: Neon", editor)
+        await phone.tap("Calm", editor)
+        assert "Cover: Calm" in phone.text(editor)
+        toast = await phone.tap("Render", editor)
+        await phone.settle()  # the cover's copy goes up in the background
+        with SyncSession() as s:
+            r = s.scalars(select(Render).where(Render.source_clip_id == ids["clip"])).one()
+        assert toast == f"Render #{r.id} queued" and (r.brand_id, r.caption) == (flux.id, "Just #ad")
+        assert r.cover_key.startswith("u/1/covers/") and (env / r.cover_key).read_bytes() == calm
+
+        # Re-render for… a brand: its template, else the default caption, and the default cover
+        with SyncSession() as s:
+            p = Post(render_id=r.id, account_id=ids["account"], caption="c", status="PUBLISHED", idempotency_key=f"cust{r.id}",
+                     scheduled_for=datetime.now(UTC) - timedelta(hours=1), published_at=datetime.now(UTC) - timedelta(hours=1),
+                     permalink="https://www.instagram.com/reel/C/")  # fmt: skip
+            s.add(p)
+            s.commit()
+        await phone.say(f"/p{p.id}")
+        card = max(tg.messages)
+        await phone.tap("Re-render for…", card)
+        assert (await phone.tap("Flux (original)", card)).startswith("Render #")
+        await phone.settle()
+        with SyncSession() as s:
+            again = s.scalars(select(Render).where(Render.source_clip_id == ids["clip"], Render.id != r.id)).one()
+        assert (again.brand_id, again.caption) == (flux.id, "Night fuel → flux.gg · clip by @maya")
+        assert (env / again.cover_key).read_bytes() == neon
+
+    try:
+        run(scenario)
+    finally:
+        with SyncSession() as s:  # later tests start without these defaults
+            for model in (Brand, SavedCaption, SavedCover):
+                s.execute(update(model).where(model.user_id == 1, model.is_default).values(is_default=False))
+            s.commit()
