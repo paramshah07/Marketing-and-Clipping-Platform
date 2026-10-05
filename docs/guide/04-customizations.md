@@ -1,6 +1,6 @@
 # Customizations
 
-Customizations holds the brands, saved captions and saved covers the Editor offers, and which one of each it preselects.
+Customizations holds the brands, saved captions and saved covers the Editor offers, and which one of each it preselects. Your [Telegram bot](08-telegram-bot.md) shows them too (`/brands`, `/captions`, `/covers`) and starts its renders from the same defaults.
 
 ![The Brands tab with the Flux Energy drawer open: logo, name and link, caption template, Auto-approve, Default brand and the default logo placement](../images/customizations-brands.png)
 

@@ -34,12 +34,14 @@ site.
 | `/drafts` | Drafts waiting for approval, with **Approve all** |
 | `/failed` | Failed posts, oldest first |
 | `/published [text]` | Published posts, with day range, account and brand filters |
-| `/brands` | Brands, their logos and caption templates |
+| `/brands` | Brands, their logos and caption templates, your default brand marked |
+| `/captions` | Your saved captions from [Customizations](04-customizations.md#captions), the default first |
+| `/covers` | Your saved covers from [Customizations](04-customizations.md#covers), the default first |
 | `/accounts` | Instagram accounts and their posting slots |
 | `/help` | What the bot does (also `/start`) |
 | `/cancel` | Drops a question the bot is waiting on |
 
-Lists end each line with a tappable id: `/c12` opens clip 12, `/r34` render 34, `/p56` post 56, `/b4` brand 4, `/a1` account 1.
+Lists end each line with a tappable id: `/c12` opens clip 12, `/r34` render 34, `/p56` post 56, `/b4` brand 4, `/t3` saved caption 3, `/i5` saved cover 5, `/a1` account 1.
 
 ## Import videos
 
@@ -67,6 +69,7 @@ Render · clip 12 · tiktok.com/@creator/video/7684…
 Brand: Kite VPN
 Logo: Top right · 22% of the width · opacity 100% (brand default)
 Crop: centre, the source fills the 9:16 frame
+Cover: Neon (default)
 Caption: 79/2200 characters · 2/30 hashtags
 [Brand: Kite VPN]
 [↖] [↑] [↗]
@@ -74,10 +77,17 @@ Caption: 79/2200 characters · 2/30 hashtags
 [↙] [↓] [↘]
 [−] [22%] [+] [Opacity 100%]
 [Crop: centre] [Caption]
+[Saved captions] [Cover: Neon]
 [Render] [Close]
 ```
 
-The brand starts as the one this clip was last rendered with; otherwise you pick one. The arrows snap the logo to a corner, edge or centre; − and + change its size by 2%, and **Opacity** steps through 100, 75, 50 and 25%. Once you move the logo, **Save as default** makes that placement the brand's default. The caption comes from the brand's template, and **Template** puts it back after you edit it. **Render** queues it, and the render's card arrives when it is done. The editor stays open for another variant.
+The editor starts from your [Customizations](04-customizations.md), as the web Editor does:
+
+- **Brand**: the one this clip was last rendered with; otherwise your default brand; otherwise you pick one.
+- **Caption**: the brand's template, or your default saved caption when the brand has no template, with `{link}` and `{creator}` filled in. **Saved captions** swaps in one of your saved captions instead, and **Template** puts the starting caption back after you edit it.
+- **Cover**: your default saved cover. Tap **Cover** to pick another saved cover, or **None** to let Instagram pick a frame. These buttons only appear once you have saved captions or covers.
+
+The arrows snap the logo to a corner, edge or centre; − and + change its size by 2%, and **Opacity** steps through 100, 75, 50 and 25%. Once you move the logo, **Save as default** makes that placement the brand's default. **Render** queues it, and the render's card arrives when it is done (its first line ends in `· cover` when it has one). The editor stays open for another variant.
 
 ## Schedule a render
 
@@ -109,7 +119,7 @@ Every post opens as a card: its status, account, time, brand, clip and caption. 
 | Published | **View on Instagram** · **Re-render for…** |
 | Failed or dead letter | The remedy · **Details** · **Dismiss** |
 
-**Move…** works like **Other time…** above. **Re-render for…** renders the same clip and crop again for the brand you pick, with that brand's default logo placement and caption.
+**Move…** works like **Other time…** above. **Re-render for…** renders the same clip and crop again for the brand you pick, with that brand's default logo placement and caption (your default saved caption if the brand has no template) and your default cover.
 
 ## Your week
 
@@ -161,7 +171,8 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 ## Accounts and brands
 
 - **Account card** (`/accounts`, then `/a1`): **Slots** (the same presets as the web app, or **Type times…** like `09:00 13:00 19:00`), **Timezone**, **Daily cap**, **Min gap**, **Calendar**, **Disable** or **Enable**, and **Sync accounts**. A disconnected account adds **Reconnect in Zernio**.
-- **Brand card** (`/brands`, then `/b4`): **Name**, **Template**, **Link**, **Logo**, **Placement** (the default logo placement), **Auto-approve on/off** and **Archive**. `/brands` also has **New brand** and **Show archived**.
+- **Brand card** (`/brands`, then `/b4`): **Name**, **Template**, **Link**, **Logo**, **Placement** (the default logo placement), **Auto-approve on/off**, **View logo** (sends the logo PNG as a file) and **Archive**. The card says when it is your default brand. `/brands` also has **New brand** and **Show archived**.
+- **Saved captions and covers** (`/captions`, then `/t3`; `/covers`, then `/i5`): a caption's card shows its whole text, a cover's card shows the image. Save, edit and choose the defaults in [Customizations](04-customizations.md) in the web app; the bot uses them.
 
 > [!TIP]
 > Send a logo as a **file** (paperclip, then File), not as a photo. Telegram turns photos into JPEGs, which loses the transparency.
@@ -179,6 +190,6 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 - Anything you send while the bot is down is ignored, so an old **Post now** tap never publishes hours later. The bot says so when it is back: send it again.
 - A confirm button acts once; a second tap only answers **Already done.** Open forms and lists expire when the bot restarts (**This has expired: run the command again**); buttons on cards keep working.
 - While publishing is off, **Post now** answers **Publishing is off … nothing can post now**.
-- The web app alone has free drag for the logo and crop, a live preview before rendering, and the saved captions and covers from [Customizations](04-customizations.md).
+- The web app alone has free drag for the logo and crop, a live preview before rendering, a cover from an image of your own, and saving, editing and choosing the defaults in [Customizations](04-customizations.md).
 
 ← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Settings and your account](09-settings.md) →

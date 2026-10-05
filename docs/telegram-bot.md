@@ -125,7 +125,7 @@ Settings' reload: every 10 s, every 2 s while a pairing code is out).
 | Import links from a document or pasted text | Send a document (docx, xlsx, pptx, odt, txt, csv, md, rtf, html) or a message with several links → summary → Import. One message when the whole import has finished |
 | Retry · Remove | Clip card buttons |
 | Published tab: account / brand / range filters, search, permalink, "Re-render for…" | `/published [text]` with filter buttons; post card: Instagram link, Re-render for… |
-| Editor: brand, logo 3x3 snap grid, scale, opacity, crop, caption from the brand template, hashtag and length limits, Save as brand default, Render | Render editor (one message, edited in place). Margin is fixed at the web default 4%. No free drag: grid positions, ±2% size steps, opacity 100/75/50/25, crop window centre / left / right (top / bottom for tall sources) |
+| Editor: brand, logo 3x3 snap grid, scale, opacity, crop, cover, caption from the brand template, saved captions, hashtag and length limits, Save as brand default, Render | Render editor (one message, edited in place). The same defaults as the web: the default brand, the default saved caption for a brand without a template, the default saved cover. Margin is fixed at the web default 4%. No free drag: grid positions, ±2% size steps, opacity 100/75/50/25, crop window centre / left / right (top / bottom for tall sources). Saved captions and Cover pick among the user's saved ones |
 | Render queue: status, preview, download, retry, log, delete | `/renders`, render card: Watch (sends the MP4), Retry, Log, Delete. A render started from the bot reports when it finishes |
 | Schedule popover: account, suggested slot, other time, caption, Schedule, Post now | Schedule form on the render card |
 | Calendar week board per account, free slots, quota, cap and gap | `/calendar`: one account's week, day by day (its posts, then its free slots on one line), with week navigation |
@@ -134,23 +134,24 @@ Settings' reload: every 10 s, every 2 s while a pairing code is out).
 | Approve, Approve all drafts | Post card Approve; `/drafts` Approve all (lists them first) |
 | Post drawer: caption, time, approve, post now, cancel, player, permalink | Post card |
 | Accounts: sync, timezone, slots, daily cap, min gap, disable / enable, reconnect link | `/accounts`, account card |
-| Brands: list, archived, create, name, link, caption template, auto-approve, logo, default placement, archive | `/brands`, brand card, placement editor |
+| Customizations › Brands: list, archived, create, name, link, caption template, auto-approve, logo, default placement, archive, default brand | `/brands` (the default marked), brand card (**View logo** sends the PNG as a file), placement editor |
+| Customizations › Captions and Covers: the saved ones, the default of each | `/captions` and `/covers`, a caption card (its text) and a cover card (the image) |
 | Recover: cause, one remedy, dismiss, technical details, play | Post card of a failed post (from `/failed` or the alert) |
 | Telegram alerts (link only) | Same alerts plus an **Open post** / **Sync accounts** button handled by the bot |
 
 Not in the bot, by design: sign-in, **Setup** and **Settings** (the Zernio key, the bots themselves, the password,
-storage), the **Captions** and **Covers** tabs of Customizations and a render's cover, free-drag logo and crop
-placement, a live preview before rendering (the render's thumbnail and video are the preview), videos over 20 MB from
-the phone, and upload progress bars. The card of a post that failed on the Zernio key links to **Settings** (**Open
-in Clipper**).
+storage), saving, editing or deleting saved captions and covers and choosing the defaults (**Customizations**), a cover
+from an image of your own (the bot offers the saved ones), free-drag logo and crop placement, a live preview before
+rendering (the render's thumbnail and video are the preview), videos over 20 MB from the phone, and upload progress
+bars. The card of a post that failed on the Zernio key links to **Settings** (**Open in Clipper**).
 
 ## 5. Commands
 
 `/status` · `/clips [text]` (also `/library`) · `/renders` · `/ready` (also `/queue`) · `/calendar` (also `/week`) ·
-`/drafts` · `/failed` · `/published [text]` · `/brands` · `/accounts` · `/help` (also `/start`) · `/cancel` (drops
-the pending question). Registered with `setMyCommands` for the bot's paired chat. Lists end each line with a tappable
-id command: `/c12` clip, `/r34` render, `/p56` post, `/b4` brand, `/a1` account. Anything else: "I don't know that
-command. /help lists them."
+`/drafts` · `/failed` · `/published [text]` · `/brands` · `/captions` · `/covers` · `/accounts` · `/help` (also
+`/start`) · `/cancel` (drops the pending question). Registered with `setMyCommands` for the bot's paired chat. Lists
+end each line with a tappable id command: `/c12` clip, `/r34` render, `/p56` post, `/b4` brand, `/t3` saved caption,
+`/i5` saved cover, `/a1` account. Anything else: "I don't know that command. /help lists them."
 
 `/status` puts the sidebar's state into words, with the reason publishing is off: "PUBLISHING_ENABLED is off on the
 server", "you have no Zernio key yet: add it in Settings" or "Zernio refused your key: update it in Settings".
@@ -177,17 +178,22 @@ render count. Buttons: Render… · Renders (n) · Creator · Watch source · Re
 [ ↙ ][ ↓ ][ ↘ ]
 [ − ][ 22% ][ + ][ Opacity 100% ]
 [ Crop: centre ][ Caption ]
+[ Saved captions ][ Cover: Neon ]   (each when the user has saved ones)
 [ Render ][ Save as default ][ Close ]
 ```
 
-The default brand is the one this clip was last rendered with, else the user picks one first. The
-caption comes from the brand template (`{link}`, `{creator}`), editable, max 2200 characters and 30
-hashtags. Render queues it; the editor stays open for another variant. When the render finishes, its card
-arrives.
+It starts where the web Editor does (`Editor.tsx`). The brand is the one this clip was last rendered with, else the
+user's default brand (Customizations), else the user picks one first. The caption comes from the brand template, else
+the default saved caption (`{link}`, `{creator}` filled in either way), editable, max 2200 characters and 30
+hashtags; **Saved captions** replaces it with one of the user's saved captions, filled the same way. **Cover** starts
+on the default saved cover and picks another saved one or none (Instagram picks a frame). Render queues it; the editor
+stays open for another variant. With a cover chosen, the bot then copies it onto the render (it fetches the saved
+JPEG and `PUT /api/renders/{id}/cover`, as the web Editor does); if that fails it says "queued without its cover".
+When the render finishes, its card arrives.
 
 **Render card** (render thumbnail, so the logo shows): brand, placement ("Top right · 22% · 9:16
-crop"), duration · size, status, caption. Buttons: Watch · Schedule… · Post now · Retry + Log (failed) ·
-Delete.
+crop", then "· cover" when it has one), duration · size, status, caption. Buttons: Watch · Schedule… · Post now ·
+Retry + Log (failed) · Delete.
 
 **Schedule form**: account (connected, enabled; picker if more than one), suggested time (`next-slot`),
 caption. [Schedule for Sun 27 19:00] [Other time…] [Post now]. Other time → day buttons (next 8 days in
@@ -204,7 +210,8 @@ Buttons by status:
 - SCHEDULED: Move… · Caption · Post now · Cancel post
 - FAILED / DEAD_LETTER: the remedy (Reconnect in Zernio + "I've reconnected: check now" · Re-render and
   retry · Retry now) · Details · Dismiss. `TOO_LONG` and `auto` get no remedy button, as on the web.
-- PUBLISHED: View on Instagram · Re-render for…
+- PUBLISHED: View on Instagram · Re-render for… (the same clip and crop with the picked brand's default placement,
+  its template or else the default saved caption, and the default saved cover)
 
 **`/calendar`**: one account (the picker remembers the last one), a week from today in its zone. Each day
 lists its posts in time order (status, brand, clip, `/p56`), then its free slots on one line (free as the
@@ -226,9 +233,15 @@ accounts. The account card has Slots (one tap: every hour 07:00–23:00, the def
 gap, Disable (asks first; cancels its drafts and scheduled posts, and its failed ones too) / Enable, Reconnect in
 Zernio (link) and Calendar.
 
-**Brands**: `/brands` (Show archived toggle, New brand). The brand card has the logo, template, link,
-auto-approve and default placement. Buttons: Name · Template · Link · Auto-approve on/off · Logo (then
-send the PNG as a file) · Default placement (the editor's grid, size and opacity) · Archive / Unarchive.
+**Brands**: `/brands` (Show archived toggle, New brand; the default brand marked). The brand card has the logo,
+template, link, auto-approve and default placement, and says when it is the default. Buttons: Name · Template · Link ·
+Auto-approve on/off · Logo (then send the PNG as a file) · Default placement (the editor's grid, size and opacity) ·
+View logo (sends the PNG as a file: a photo would lose its transparency) · Archive / Unarchive.
+
+**Saved captions and covers**: `/captions` (the default first, then by name, each with the start of its text) and
+`/covers` (the default first, then the newest). A caption card has the whole text, with `{link}` and `{creator}` as
+written; a cover card is the image itself. They are saved, edited and made the default in the web app
+(**Customizations**); each card's **Open in Clipper** goes there.
 
 **Free-text answers** use a ForceReply prompt. The next plain text message answers the latest prompt (for
 10 min); `-` clears an optional field; a command or `/cancel` drops it.
@@ -296,8 +309,10 @@ and the flows end to end. The flows drive the bot with real api calls (httpx ASG
 database) and a recorded fake Telegram. They cover: another chat ignored; link import → clip DOWNLOADING; video upload
 → clip PROBING; document import → bulk; render editor → render PENDING with the snapped overlay; schedule → draft →
 approve; a typed time; Post now (refused while publishing is off; from a post card and a render card); move, caption
-and cancel; remedy; account slots / timezone; brand create + logo PNG. Zernio is never called (no key); nothing
-publishes (no worker on `clipper_test`). `test_telegram.py` covers the bots' endpoints, pairing and the supervisor.
+and cancel; remedy; account slots / timezone; brand create + logo PNG; Customizations (`/captions`, `/covers`, the
+cards, View logo, the editor starting on the default brand, caption and cover, the pickers, the cover copied onto the
+render, Re-render for… with the defaults). Zernio is never called (no key); nothing publishes (no worker on
+`clipper_test`). `test_telegram.py` covers the bots' endpoints, pairing and the supervisor.
 
 When the bot was built (2026-09-27) every screen was also sent once to the operator's chat, silently, then deleted,
 so Telegram's own HTML and keyboard validation passed. There are no live publishes without the operator's go-ahead.

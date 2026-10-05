@@ -30,7 +30,7 @@ FILES = asyncio.Semaphore(3)
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}  # what POST /api/clips takes
 DOCUMENTS = {".docx", ".txt", ".csv", ".md", ".rtf", ".html", ".htm", ".xlsx", ".pptx", ".odt"}  # utils.ts DOCUMENTS
 ZERNIO_URL = "https://zernio.com"
-NAMES = {"c": "Clip", "r": "Render", "p": "Post", "b": "Brand", "a": "Account"}
+NAMES = {"c": "Clip", "r": "Render", "p": "Post", "b": "Brand", "a": "Account", "t": "Saved caption", "i": "Saved cover"}
 FAILED = ("FAILED", "DEAD_LETTER")
 STATUS = {"DRAFT": "Draft", "SCHEDULED": "Scheduled", "PUBLISHING": "Publishing", "PUBLISHED": "Published",
           "FAILED": "Failed", "DEAD_LETTER": "Failed", "CANCELLED": "Cancelled"}  # fmt: skip
@@ -56,6 +56,7 @@ MENU = [
     ("renders", "Recent renders"), ("ready", "Renders ready to schedule"), ("calendar", "An account's week, slot by slot"),
     ("drafts", "Drafts waiting for approval"), ("failed", "Failed posts to recover"),
     ("published", "Published posts (add text to search)"), ("brands", "Brands, logos and caption templates"),
+    ("captions", "Saved captions (Customizations)"), ("covers", "Saved Reel covers (Customizations)"),
     ("accounts", "Instagram accounts and posting slots"), ("help", "What this bot does"), ("cancel", "Drop my question"),
 ]  # fmt: skip
 HELP = """<b>Clipper</b>: everything the web app does, from here.
@@ -64,10 +65,10 @@ HELP = """<b>Clipper</b>: everything the web app does, from here.
 
 /clips [text] the library · /renders · /ready renders to schedule
 /calendar an account's week · /drafts approve · /failed recover
-/published history · /brands · /accounts · /status
+/published history · /brands · /captions · /covers · /accounts · /status
 /cancel drops a question I asked.
 
-Tap an id to open it: /c12 clip, /r34 render, /p56 post, /b4 brand, /a1 account. A clip's card has Render…, a render's card has Schedule… and Post now."""
+Tap an id to open it: /c12 clip, /r34 render, /p56 post, /b4 brand, /t3 caption, /i5 cover, /a1 account. A clip's card has Render… (it starts from your default brand, caption and cover in Customizations), a render's card has Schedule… and Post now."""
 
 
 class Alert(Exception):
@@ -141,6 +142,11 @@ async def lookups(bot) -> tuple[dict[int, dict], dict[int, dict]]:
 
 def brand_name(brands: dict, brand_id: int | None) -> str:
     return "No logo" if brand_id is None else brands[brand_id]["name"] if brand_id in brands else f"Brand {brand_id}"
+
+
+def default_of(items) -> dict | None:
+    """The one marked default in Customizations (a brand, saved caption or saved cover), if any."""
+    return next((x for x in items if x["is_default"]), None)
 
 
 def text_of(m: dict) -> str:
@@ -431,13 +437,46 @@ async def brands_list(bot, v):
     items, nav = paged(brands, v)
     lines = [f"<b>Brands</b> · {len(brands)}" + (", archived included" if v["archived"] else "")]
     for b in items:
-        bits = [f"/b{b['id']}", h(b["name"])] + (["archived"] if b["archived_at"] else [])
+        bits = [f"/b{b['id']}", h(b["name"])] + (["default"] if b["is_default"] else []) + (["archived"] if b["archived_at"] else [])
         bits += (["auto-approve"] if b["auto_approve"] else []) + ([] if b["logo_url"] else ["<b>no logo</b>"])
         lines.append(" · ".join(bits))
     if not brands:
         lines.append("No brands yet. Create one with its logo to start rendering.")
     toggle = ("Hide archived", "f:archived:0") if v["archived"] else ("Show archived", "f:archived:1")
     return "\n".join(lines), nav + [[("New brand", "bn"), toggle]]
+
+
+@command("captions")
+async def captions_cmd(bot, arg):
+    await open_list(bot, "captions")
+
+
+@listing("captions")
+async def captions_list(bot, v):
+    caps = await bot.api.get("/api/captions")  # the default first, then by name
+    items, nav = paged(caps, v)
+    lines = [f"<b>Saved captions</b> · {len(caps)}"]
+    for c in items:
+        bits = [f"/t{c['id']}", h(c["name"])] + (["default"] if c["is_default"] else [])
+        lines.append(" · ".join(bits + ([h(fmt.cut(" ".join(c["text"].split()), 50))] if c["text"].strip() else [])))
+    if not caps:
+        lines.append("None yet: save them in Customizations › Captions. The default one starts the caption of any brand without a template.")
+    return "\n".join(lines), nav + web("/customizations/captions")
+
+
+@command("covers")
+async def covers_cmd(bot, arg):
+    await open_list(bot, "covers")
+
+
+@listing("covers")
+async def covers_list(bot, v):
+    covers = await bot.api.get("/api/covers")  # the default first, then the newest
+    items, nav = paged(covers, v)
+    lines = [f"<b>Saved covers</b> · {len(covers)}"] + [f"/i{c['id']} · {h(c['name'])}" + (" · default" if c["is_default"] else "") for c in items]
+    if not covers:
+        lines.append("None yet: upload them in Customizations › Covers. The default one becomes every new render's Reel cover.")
+    return "\n".join(lines), nav + web("/customizations/covers")
 
 
 @command("accounts")
@@ -732,7 +771,7 @@ async def render_card(bot, rid):
     c = await bot.api.get(f"/api/clips/{r['source_clip_id']}")
     s, long = r["status"], (r["duration_s"] or 0) > settings.ZERNIO_MAX_REEL_SECONDS
     brand = brand_name(await brands_by_id(bot), r["brand_id"])
-    lines = [f"<b>Render #{rid}</b> · {h(brand)} · {fmt.placement(r)}",
+    lines = [f"<b>Render #{rid}</b> · {h(brand)} · {fmt.placement(r)}" + (" · cover" if r["cover_url"] else ""),
              f"{h(fmt.cut(fmt.clip_name(c), 60))} /c{c['id']}"]  # fmt: skip
     if s == "READY":
         lines.append(f"Ready · {fmt.mmss(r['duration_s'])} · {fmt.mb(r['size_bytes'])} · 1080x1920")
@@ -1030,7 +1069,7 @@ async def post_rerender_pick(bot, msg, pid):
         raise Alert("No brand has a logo yet: /brands.")
     rows = [[(b["name"] + (" (original)" if b["id"] == p["render"]["brand_id"] else ""), f"pr!:{pid}:{b['id']}")] for b in brands]
     await bot.buttons(msg, rows + [[("Back", f"re:p:{pid}")]])
-    return "Same clip and crop, with the brand's default logo placement and caption"
+    return "Same clip and crop, with the brand's default logo placement and caption, and your default cover if you have one"
 
 
 @button("pr!")
@@ -1040,9 +1079,13 @@ async def post_rerender(bot, msg, pid, bid):
     clip = await bot.api.get(f"/api/clips/{orig['source_clip_id']}")
     if (b := (await brands_by_id(bot)).get(int(bid))) is None:
         raise Alert(f"Brand {bid} not found.")
-    caption = fmt.fill_caption(b["caption_template"], b["link"], clip["source_creator_handle"]).strip() or None
+    caps, covers = await bot.api.get("/api/captions"), await bot.api.get("/api/covers")
+    text = b["caption_template"] or (default_of(caps) or {}).get("text")  # as the render editor's template()
+    caption = fmt.fill_caption(text, b["link"], clip["source_creator_handle"]).strip() or None
     r = await bot.api.post("/api/renders", json={"clip_id": clip["id"], "brand_id": b["id"], "crop_config": orig["crop_config"], "caption": caption})
     bot.watch("render", r["id"])
+    if cover := default_of(covers):
+        bot.spawn(attach_cover(bot, r["id"], cover))
     await refresh(bot, msg, "p", int(pid))
     return f"Render #{r['id']} queued for {b['name']}: its card follows when it's done"
 
@@ -1171,7 +1214,7 @@ async def brand_card(bot, bid):
     if (b := (await brands_by_id(bot)).get(bid)) is None:
         raise ApiError(404, f"brand {bid} not found")
     o = b["default_overlay_config"]
-    lines = [f"<b>{h(b['name'])}</b> · brand {bid}" + (" · <b>archived</b>" if b["archived_at"] else ""),
+    lines = [f"<b>{h(b['name'])}</b> · brand {bid}" + (" · default" if b["is_default"] else "") + (" · <b>archived</b>" if b["archived_at"] else ""),
              "Logo: set" if b["logo_url"] else "Logo: <b>none yet</b>. Tap Logo, then send a PNG with transparency as a file.",
              f"Default placement: {fmt.bucket(o)} · {round(o['w'] * 100)}% · opacity {round(o.get('opacity', 1) * 100)}%",
              "Auto-approve: " + ("on, its posts are scheduled straight away" if b["auto_approve"] else "off, its posts start as drafts"),
@@ -1179,8 +1222,24 @@ async def brand_card(bot, bid):
              "Caption template:" + (f"\n<blockquote>{h(fmt.cut(b['caption_template'], 400))}</blockquote>" if b["caption_template"] else " none")]  # fmt: skip
     rows = [[("Name", f"bk:{bid}:n"), ("Template", f"bk:{bid}:t"), ("Link", f"bk:{bid}:l")],
             [("Logo", f"bk:{bid}:g"), ("Placement", f"bo:{bid}"), (f"Auto-approve {'on' if b['auto_approve'] else 'off'}", f"ba:{bid}")],
-            [("Unarchive" if b["archived_at"] else "Archive", f"bz:{bid}")]]  # fmt: skip
+            ([("View logo", f"bv:{bid}")] if b["logo_url"] else []) + [("Unarchive" if b["archived_at"] else "Archive", f"bz:{bid}")]]  # fmt: skip
     return "\n".join(lines), rows + web("/brands"), None
+
+
+@button("bv")
+async def brand_logo(bot, msg, bid):
+    """The logo PNG as a file: a photo would lose its transparency."""
+    if not (b := (await brands_by_id(bot)).get(int(bid))) or not b["logo_url"]:
+        raise Alert("No logo yet: tap Logo, then send a PNG with transparency as a file.")
+
+    async def go():
+        async with FILES:
+            data = await bot.api.media(b["logo_url"])
+            await bot.tg("sendDocument", files={"document": (f"logo-{bid}.png", data, "image/png")}, chat_id=bot.chat,
+                         caption=f"{h(b['name'])}: logo", parse_mode="HTML")  # fmt: skip
+
+    bot.spawn(go())
+    return "Sending the logo…"
 
 
 BRAND_FIELDS = {
@@ -1255,6 +1314,29 @@ async def brand_archive(bot, msg, bid):
     return "Unarchived" if b["archived_at"] else "Archived: it keeps its renders and posts, but can't be picked for new renders"
 
 
+# saved captions and covers (Customizations: made and set as default in the web app)
+
+
+@card("t")
+async def caption_card(bot, tid):
+    if (c := next((x for x in await bot.api.get("/api/captions") if x["id"] == tid), None)) is None:
+        raise ApiError(404, f"caption {tid} not found")
+    lines = [f"<b>{h(c['name'])}</b> · saved caption {tid}" + (" · default" if c["is_default"] else ""),
+             "The default: it starts the caption of any brand without a template." if c["is_default"] else
+             "Pick it in the render editor: Saved captions.",
+             f"<blockquote>{h(c['text'])}</blockquote>" if c["text"].strip() else "No text."]  # fmt: skip
+    return "\n".join(lines), web("/customizations/captions"), None
+
+
+@card("i")
+async def cover_card(bot, iid):
+    if (c := next((x for x in await bot.api.get("/api/covers") if x["id"] == iid), None)) is None:
+        raise ApiError(404, f"cover {iid} not found")
+    text = (f"<b>{h(c['name'])}</b> · saved cover {iid}" + (" · default" if c["is_default"] else "") + "\n"
+            + ("The default: every new render gets a copy as its Reel cover." if c["is_default"] else "Pick it in the render editor: Cover."))  # fmt: skip
+    return text, web("/customizations/covers"), c["image_url"]
+
+
 # ---------------------------------------------------------------- render editor and placement editor
 
 
@@ -1293,8 +1375,10 @@ def edited(v: dict) -> bool:
 
 
 def template(v: dict, brand_id: int | None) -> str:
+    """The brand's caption template, else the default saved caption, filled in (Editor.tsx template)."""
     b = v["brands"].get(brand_id) or {}
-    return fmt.fill_caption(b.get("caption_template"), b.get("link"), v["clip"]["source_creator_handle"])
+    text = b.get("caption_template") or (default_of(v["captions"]) or {}).get("text")
+    return fmt.fill_caption(text, b.get("link"), v["clip"]["source_creator_handle"])
 
 
 def editor_view(v: dict) -> tuple[str, list]:
@@ -1308,6 +1392,9 @@ def editor_view(v: dict) -> tuple[str, list]:
         lines.append(f"Brand: <b>{h(b['name']) if b else 'No logo'}</b>")
         lines += [f"Logo: {logo_line(v)}" + ("" if edited(v) else " (brand default)")] if b else []
         lines.append(f"Crop: {v['crop']}" + (", the source fills the 9:16 frame" if v["crop"] == "centre" else " 9:16 window of the source"))
+        if v["covers"]:
+            x = v["cover"]
+            lines.append("Cover: " + (h(x["name"]) + (" (default)" if x["is_default"] else "") if x else "none, Instagram picks a frame"))
         lines.append(f"Caption: {len(cap)}/{fmt.CAPTION_MAX} characters · {tags}/{fmt.HASHTAG_MAX} hashtags"
                      + (" · <b>too long for Instagram</b>" if len(cap) > fmt.CAPTION_MAX or tags > fmt.HASHTAG_MAX else ""))  # fmt: skip
         lines += [f"<blockquote>{h(fmt.cut(cap, 350))}</blockquote>"] if cap else []
@@ -1315,6 +1402,14 @@ def editor_view(v: dict) -> tuple[str, list]:
         lines.append(f"The clip is {fmt.mmss(c['duration_s'])}: Reels can be at most {settings.ZERNIO_MAX_REEL_SECONDS // 60} min. It still renders.")
     if v.get("last"):
         lines.append(f"Queued render #{v['last']}: its card follows when it's done.")
+    if v["picking"] == "caption":  # an action, not a state: the pick replaces the caption (Editor.tsx)
+        rows = [[(x["name"] + (" (default)" if x["is_default"] else ""), f"e:sc:{x['id']}")] for x in v["captions"]]
+        return "\n".join(lines), rows + [[("Back", "e:bk")]]
+    if v["picking"] == "cover":
+        mine = (v["cover"] or {}).get("id")
+        rows = [[(("● " if x["id"] == mine else "") + x["name"] + (" (default)" if x["is_default"] else ""), f"e:v:{x['id']}")]
+                for x in v["covers"]]  # fmt: skip
+        return "\n".join(lines), rows + [[(("● " if mine is None else "") + "None: Instagram picks", "e:v:0"), ("Back", "e:bk")]]
     if v["picking"] or not v["chosen"]:
         names = [(("● " if v["chosen"] and bid == v["brand"] else "") + x["name"], f"e:b:{bid}") for bid, x in v["brands"].items()]
         rows = [names[i : i + 2] for i in range(0, len(names), 2)]
@@ -1322,6 +1417,9 @@ def editor_view(v: dict) -> tuple[str, list]:
     rows = [[(f"Brand: {b['name'] if b else 'No logo'}", "e:bp")]] + (logo_rows(v) if b else [])
     crop = [(f"Crop: {v['crop']}", "e:c")] if len(fmt.crop_options(c["width"], c["height"])) > 1 else []
     rows.append(crop + [("Caption", "e:t")] + ([("Template", "e:tr")] if cap != template(v, v["brand"]) else []))
+    saved = [("Saved captions", "e:tp")] if v["captions"] else []
+    saved += [(f"Cover: {fmt.cut(v['cover']['name'], 24) if v['cover'] else 'none'}", "e:vp")] if v["covers"] else []
+    rows += [saved] if saved else []
     rows.append([("Render", "e:go")] + ([("Save as default", "e:s")] if b and edited(v) else []) + [("Close", "e:x")])
     return "\n".join(lines), rows
 
@@ -1353,10 +1451,13 @@ async def open_editor(bot, cid: int) -> None:
     if c["status"] != "READY" or not c["width"]:
         raise Alert(f"Clip {cid} is {c['status'].lower()}: the editor opens once it is ready.")
     brands = {b["id"]: b for b in await bot.api.get("/api/brands") if b["logo_url"]}
-    # the brand this clip was last rendered with (newest first), else the operator picks
+    # the brand this clip was last rendered with (newest first), else the default brand, else the user picks (Editor.tsx)
     first = next((r["brand_id"] for r in await bot.api.get("/api/renders", clip_id=cid) if r["brand_id"] in brands), None)
+    first = first or (default_of(brands.values()) or {}).get("id")
+    covers = await bot.api.get("/api/covers")
     v = {"kind": "editor", "clip": c, "brands": brands, "brand": None, "chosen": False, "picking": False, "cell": None,
-         "overlay": dict(fmt.DEFAULT_OVERLAY), "aspect": 1.0, "crop": "centre", "caption": ""}  # fmt: skip
+         "overlay": dict(fmt.DEFAULT_OVERLAY), "aspect": 1.0, "crop": "centre", "caption": "",
+         "captions": await bot.api.get("/api/captions"), "covers": covers, "cover": default_of(covers)}  # fmt: skip
     if first:
         await set_brand(bot, v, first)
     text, rows = editor_view(v)
@@ -1367,12 +1468,18 @@ async def open_editor(bot, cid: int) -> None:
 async def editor_op(bot, msg, op, arg=""):
     v = bot.view(msg, "editor", "overlay")
     o, toast = v["overlay"], None
-    if op == "bp":
-        v["picking"] = True
+    if op in ("bp", "tp", "vp"):
+        v["picking"] = {"bp": "brand", "tp": "caption", "vp": "cover"}[op]
     elif op == "bk":
         v["picking"] = False
     elif op == "b":
         await set_brand(bot, v, int(arg) or None)
+    elif op == "sc":  # a saved caption, filled like the template
+        text = next(x["text"] for x in v["captions"] if x["id"] == int(arg))
+        v["caption"] = fmt.fill_caption(text, (editor_brand(v) or {}).get("link"), v["clip"]["source_creator_handle"])
+        v["picking"] = False
+    elif op == "v":
+        v["cover"], v["picking"] = next((x for x in v["covers"] if x["id"] == int(arg)), None), False
     elif op == "g":
         v["cell"] = int(arg)
         v["overlay"] = fmt.place(o, v["cell"], v["aspect"])
@@ -1425,7 +1532,19 @@ async def render_go(bot, v: dict) -> str:
     r = await bot.api.post("/api/renders", json=body)
     v["went"], v["last"] = time.monotonic(), r["id"]
     bot.watch("render", r["id"])
+    if v["cover"]:
+        bot.spawn(attach_cover(bot, r["id"], v["cover"]))
     return f"Render #{r['id']} queued"
+
+
+async def attach_cover(bot, rid: int, cover: dict) -> None:
+    """A copy of a saved cover becomes the render's Reel cover (Editor.tsx: savedCover, then setRenderCover)."""
+    try:
+        async with FILES:
+            data = await bot.api.media(cover["image_url"])
+            await bot.api("PUT", f"/api/renders/{rid}/cover", files={"file": ("cover.jpg", data, "image/jpeg")})
+    except ApiError as e:
+        await bot.send(f"Render #{rid} queued without its cover: {h(e.message)}")
 
 
 @answer("editor_caption")
