@@ -128,15 +128,19 @@ def filter_chain(name: str) -> str:
     return ",".join(steps)
 
 
+MUSIC_FADE_S = 2  # a song fades out over the video's last seconds
+
+
 def build_ffmpeg_args(
     clip: dict, overlay: dict | None, crop: dict | None, logo_path, in_path, out_path, threads: int,
-    filter_name: str | None = None,
+    filter_name: str | None = None, music: dict | None = None,
 ) -> list[str]:
-    """The one render command. clip: display width/height, has_audio, color_transfer (probe output).
+    """The one render command. clip: display width/height, duration_s, has_audio, color_transfer (probe output).
     Chain: fps 30 -> crop (source fractions) -> tonemap if HLG/PQ -> fill + centre-crop 1080x1920
     (limited range) -> filter (FILTERS, under the logo) -> logo (output fractions; its width is a fraction of 1080,
     not of the logo) -> H.264/AAC. The output is exactly as long as the video: audio is padded with silence and cut
-    at the last frame."""
+    at the last frame. music: {path, volume, clip_volume} (renders.music, volumes 0-100), a song looped to the video,
+    faded out over its last MUSIC_FADE_S, mixed with the clip's own sound."""
     inputs = ["-i", str(in_path)]
     v = "[0:V:0]fps=30"  # V: not cover art (attached_pic), the same stream parse_probe measured
     if crop:
@@ -155,7 +159,20 @@ def build_ffmpeg_args(
             f"[bg][logo]overlay=x={round(overlay['x'] * OUT_W)}:y={round(overlay['y'] * OUT_H)}"
         )
     v += "[v]"
-    if clip["has_audio"]:  # first audio track only, padded so a short track still spans the video
+    stereo = "aresample=48000,aformat=channel_layouts=stereo"
+    if music:  # looped; an endless input never ends with -shortest, so the mix stops 1 s past the video (atrim)
+        inputs += ["-stream_loop", "-1", "-i", str(music["path"])]
+        end = clip.get("duration_s") or 0
+        song = (f"[{2 if logo_path else 1}:a:0]{stereo},volume={music['volume'] / 100:g},"
+                f"afade=t=out:st={max(0, end - MUSIC_FADE_S):.3f}:d={MUSIC_FADE_S}")  # fmt: skip
+        if clip["has_audio"] and music["clip_volume"]:  # amix without normalize keeps both volumes; the limiter, peaks
+            v += (f";{song}[song];[0:a:0]{stereo},volume={music['clip_volume'] / 100:g},apad[own];"
+                  "[own][song]amix=inputs=2:normalize=0,alimiter=limit=0.95:level=0")  # fmt: skip
+        else:
+            v += f";{song}"
+        v += f",atrim=end={end + 1:.3f}[a]"
+        audio = "[a]"
+    elif clip["has_audio"]:  # first audio track only, padded so a short track still spans the video
         v += ";[0:a:0]apad[a]"
         audio = "[a]"
     else:  # Reels need an audio track: silent stereo

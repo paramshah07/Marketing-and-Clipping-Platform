@@ -98,6 +98,7 @@ class SystemStatus(BaseModel):
     publishing_enabled: bool  # PUBLISHING_ENABLED and your Zernio key is valid: off, your SCHEDULED posts never go out
     # why it is off: the server's switch (PUBLISHING_ENABLED), or your key (none yet, or Zernio refused it)
     publishing_off: Literal["switch", "no_key", "key_invalid"] | None = None
+    instagram_music: bool = False  # INSTAGRAM_CATALOG_MUSIC: posts can take music from Instagram's catalog
 
 
 KEY_OFF = {"none": "no_key", "invalid": "key_invalid"}  # users.zernio_key_status -> SystemStatus.publishing_off
@@ -136,7 +137,7 @@ async def status(request: Request, response: Response) -> SystemStatus:
             return SystemStatus(
                 db=True, worker_alive=alive, worker_last_heartbeat=last, publisher_alive=publisher, failed_posts=failed,
                 rendering_renders=rendering, scheduled_posts=scheduled, publishing_enabled=off is None,
-                publishing_off=off,
+                publishing_off=off, instagram_music=settings.INSTAGRAM_CATALOG_MUSIC,
             )  # fmt: skip
     except SQLAlchemyError:
         logger.exception("status query failed")

@@ -1010,6 +1010,18 @@ def test_publish_with_music(db, env, monkeypatch):
                   "audioConfiguration": {"audioId": MUSIC["id"], "audioVolume": 80, "videoVolume": 0}}  # fmt: skip
 
 
+def test_publish_names_the_reels_audio_after_its_song(db, env, monkeypatch):
+    pid = make_post(db, env)
+    with Session(db) as s:
+        song = {"track_id": 1, "name": "Morning Coffee", "volume": 80, "clip_volume": 50}
+        s.execute(update(Render).where(Render.id == row(db, pid).render_id).values(music=song))
+        s.commit()
+    z = use(monkeypatch, Zernio(routes()))
+    go(pid)
+    ig = json.loads(z.sent(POST_)[0].content)["platforms"][0]["platformSpecificData"]
+    assert ig == {"shareToFeed": True, "audioName": "Morning Coffee"}
+
+
 def test_music_on_an_instagram_login_account_fails_the_post(db, env, monkeypatch):
     pid = make_post(db, env, music=MUSIC)
     use(monkeypatch, Zernio(routes("docs_400_audio_requires_facebook_login")))
@@ -1022,6 +1034,12 @@ def test_music_on_an_instagram_login_account_fails_the_post(db, env, monkeypatch
 
 def test_music_search(db, env, monkeypatch):
     aid = row(db, make_post(db, env, status="CANCELLED")).account_id
+    with TestClient(api_app, headers=as_user()) as c:  # the server's switch is off: no call to Zernio
+        r = c.get(f"/api/accounts/{aid}/music")
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "INSTAGRAM_MUSIC_OFF")
+        assert c.get("/api/status").json()["instagram_music"] is False
+        c.portal.call(engine.dispose)
+    monkeypatch.setattr(settings, "INSTAGRAM_CATALOG_MUSIC", True)
     with Session(db) as s:
         search = f"GET /accounts/{s.get(Account, aid).zernio_account_id}/instagram/audio"
     z = use(monkeypatch, Zernio({search: ["docs_audio_search", "docs_400_audio_requires_facebook_login",

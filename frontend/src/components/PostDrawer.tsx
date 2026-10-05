@@ -140,7 +140,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
                 onChange={(e) => setCaption(e.target.value)}
               />
             </div>
-            <MusicPicker accountId={a.id} value={music} onChange={setMusic} />
+            {st.data?.instagram_music && <MusicPicker accountId={a.id} value={music} onChange={setMusic} />}
           </fieldset>
         ) : (
           <>

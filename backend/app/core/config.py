@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     TELEGRAM_CHAT_ID_3: str = ""
     CLIPPER_API_URL: str = "http://api:8000"  # the api as the bot container sees it
     PUBLISHING_ENABLED: bool = False
+    # Instagram's own music catalog through Zernio (posts.music, GET /api/accounts/{id}/music). Off for everyone: it
+    # only works for Instagram accounts connected to Zernio with Facebook Login. Own songs (saved_tracks) need no switch.
+    INSTAGRAM_CATALOG_MUSIC: bool = False
     PUBLISH_DEBUG_PAUSE: Literal["", "after_upload", "before_post", "after_post"] = ""
     FFMPEG_THREADS: int = 2
     YTDLP_COOKIES_FILE: str = ""

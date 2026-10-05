@@ -114,12 +114,15 @@ async def upload(c: httpx.AsyncClient, path: Path, content_type: str = "video/mp
 
 async def create_post(
     c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str, cover_url: str | None = None,
-    music: dict | None = None,
+    music: dict | None = None, audio_name: str | None = None,
 ) -> dict:
     """POST /v1/posts with publishNow and the post's Idempotency-Key. A 409 duplicate resolves to the
     existing post (GET details.existingPostId). cover_url: the Reel cover (instagramThumbnail), sent only when set.
-    music: posts.music, Instagram's catalog track (audioConfiguration), sent only when set."""
+    music: posts.music, Instagram's catalog track (audioConfiguration), sent only when set. audio_name: the label of
+    the Reel's own audio instead of "Original audio" (audioName: the song mixed into the render)."""
     ig = {"shareToFeed": True} | ({"instagramThumbnail": cover_url} if cover_url else {})
+    if audio_name:
+        ig["audioName"] = audio_name
     if music:
         ig["audioConfiguration"] = {
             "audioId": music["id"], "audioVolume": music["volume"], "videoVolume": music["video_volume"]

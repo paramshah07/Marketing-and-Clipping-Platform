@@ -35,7 +35,8 @@ from test_bot import FakeTelegram, Phone
 
 APP_URL = TEST_URL.replace("://clipper:clipper@", f"://clipper_app:{settings.APP_DB_PASSWORD}@", 1)
 A = as_user(1)
-OWNED = {"source_clips", "brands", "saved_captions", "saved_covers", "renders", "accounts", "posts", "telegram_bots"}
+OWNED = {"source_clips", "brands", "saved_captions", "saved_covers", "saved_tracks", "renders", "accounts", "posts",
+         "telegram_bots"}
 JPEG = b"\xff\xd8\xff\xe0" + bytes(100)
 PNG = b"\x89PNG\r\n\x1a\n"
 PNG_RGBA = PNG + b"\0\0\0\rIHDR" + bytes(8) + b"\x08\x06" + bytes(7) + b"\0\0\0\0IDAT\0\0\0\0\0\0\0\0IEND\0\0\0\0"

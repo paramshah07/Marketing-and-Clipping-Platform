@@ -309,9 +309,10 @@ async def _send(s: AsyncSession, c, post: Post, gen: int, now: datetime, fresh: 
         await s.commit()
         post.first_post_at, post.key_gen = now, gen
     account = await s.get(Account, post.account_id)
+    render = await s.get(Render, post.render_id)
     zpost = await publisher.create_post(
         c, post.idempotency_key, post.caption, post.zernio_media_url, account.zernio_account_id, post.zernio_cover_url,
-        post.music,
+        post.music, (render.music or {}).get("name"),
     )
     await _pause("after_post")
     await _resolve(s, post, zpost)

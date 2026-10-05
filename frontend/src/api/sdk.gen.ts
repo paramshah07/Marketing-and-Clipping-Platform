@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddBotData, AddBotErrors, AddBotResponses, ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckZernioKeyData, CheckZernioKeyResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateCaptionData, CreateCaptionErrors, CreateCaptionResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteBotData, DeleteBotErrors, DeleteBotResponses, DeleteCaptionData, DeleteCaptionErrors, DeleteCaptionResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteCoverData, DeleteCoverErrors, DeleteCoverResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, DeleteZernioKeyData, DeleteZernioKeyResponses, FindLinksData, FindLinksErrors, FindLinksResponses, FreePublishedRendersData, FreePublishedRendersErrors, FreePublishedRendersResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBotsData, ListBotsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListCaptionsData, ListCaptionsResponses, ListClipsData, ListClipsResponses, ListCoversData, ListCoversResponses, ListFiltersData, ListFiltersResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, MeData, MeResponses, NextSlotData, NextSlotErrors, NextSlotResponses, PairBotData, PairBotErrors, PairBotResponses, PatchBotData, PatchBotErrors, PatchBotResponses, PutZernioKeyData, PutZernioKeyErrors, PutZernioKeyResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SearchMusicData, SearchMusicErrors, SearchMusicResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, SignupData, SignupErrors, SignupResponses, SignupStatusData, SignupStatusResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, TestBotData, TestBotErrors, TestBotResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateCaptionData, UpdateCaptionErrors, UpdateCaptionResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdateCoverData, UpdateCoverErrors, UpdateCoverResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses, UploadCoverData, UploadCoverErrors, UploadCoverResponses } from './types.gen';
+import type { AddBotData, AddBotErrors, AddBotResponses, ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckZernioKeyData, CheckZernioKeyResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateCaptionData, CreateCaptionErrors, CreateCaptionResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteBotData, DeleteBotErrors, DeleteBotResponses, DeleteCaptionData, DeleteCaptionErrors, DeleteCaptionResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteCoverData, DeleteCoverErrors, DeleteCoverResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, DeleteTrackData, DeleteTrackErrors, DeleteTrackResponses, DeleteZernioKeyData, DeleteZernioKeyResponses, FindLinksData, FindLinksErrors, FindLinksResponses, FreePublishedRendersData, FreePublishedRendersErrors, FreePublishedRendersResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBotsData, ListBotsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListCaptionsData, ListCaptionsResponses, ListClipsData, ListClipsResponses, ListCoversData, ListCoversResponses, ListFiltersData, ListFiltersResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, ListTracksData, ListTracksResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, MeData, MeResponses, NextSlotData, NextSlotErrors, NextSlotResponses, PairBotData, PairBotErrors, PairBotResponses, PatchBotData, PatchBotErrors, PatchBotResponses, PutZernioKeyData, PutZernioKeyErrors, PutZernioKeyResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SearchMusicData, SearchMusicErrors, SearchMusicResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, SignupData, SignupErrors, SignupResponses, SignupStatusData, SignupStatusResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, TestBotData, TestBotErrors, TestBotResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateCaptionData, UpdateCaptionErrors, UpdateCaptionResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdateCoverData, UpdateCoverErrors, UpdateCoverResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UpdateTrackData, UpdateTrackErrors, UpdateTrackResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses, UploadCoverData, UploadCoverErrors, UploadCoverResponses, UploadTrackData, UploadTrackErrors, UploadTrackResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -457,6 +457,48 @@ export const updateCover = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
+ * List Tracks
+ *
+ * The default first, then the newest.
+ */
+export const listTracks = <ThrowOnError extends boolean = false>(options?: Options<ListTracksData, ThrowOnError>): RequestResult<ListTracksResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListTracksResponses, unknown, ThrowOnError>({ url: '/api/tracks', ...options });
+
+/**
+ * Upload Track
+ *
+ * A song up to 20 MB (MP3, M4A, AAC, WAV, Ogg or FLAC), kept as uploaded. Its name is also the Reel's audio
+ * label on Instagram.
+ */
+export const uploadTrack = <ThrowOnError extends boolean = false>(options: Options<UploadTrackData, ThrowOnError>): RequestResult<UploadTrackResponses, UploadTrackErrors, ThrowOnError> => (options.client ?? client).post<UploadTrackResponses, UploadTrackErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/tracks',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Track
+ *
+ * The file goes too (after the commit). Finished renders keep the song in their MP4; re-rendering one fails.
+ */
+export const deleteTrack = <ThrowOnError extends boolean = false>(options: Options<DeleteTrackData, ThrowOnError>): RequestResult<DeleteTrackResponses, DeleteTrackErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTrackResponses, DeleteTrackErrors, ThrowOnError>({ url: '/api/tracks/{track_id}', ...options });
+
+/**
+ * Update Track
+ */
+export const updateTrack = <ThrowOnError extends boolean = false>(options: Options<UpdateTrackData, ThrowOnError>): RequestResult<UpdateTrackResponses, UpdateTrackErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTrackResponses, UpdateTrackErrors, ThrowOnError>({
+    url: '/api/tracks/{track_id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List Accounts
  */
 export const listAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListAccountsData, ThrowOnError>): RequestResult<ListAccountsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListAccountsResponses, unknown, ThrowOnError>({ url: '/api/accounts', ...options });
@@ -489,7 +531,8 @@ export const nextSlot = <ThrowOnError extends boolean = false>(options: Options<
  * Search Music
  *
  * Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,
- * the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login.
+ * the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login,
+ * 409 INSTAGRAM_MUSIC_OFF while the server's INSTAGRAM_CATALOG_MUSIC switch is off.
  */
 export const searchMusic = <ThrowOnError extends boolean = false>(options: Options<SearchMusicData, ThrowOnError>): RequestResult<SearchMusicResponses, SearchMusicErrors, ThrowOnError> => (options.client ?? client).get<SearchMusicResponses, SearchMusicErrors, ThrowOnError>({ url: '/api/accounts/{account_id}/music', ...options });
 

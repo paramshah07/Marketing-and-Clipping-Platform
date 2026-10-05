@@ -101,6 +101,12 @@ def _usable(acc: Account) -> None:
         raise _err(422, "ACCOUNT_UNAVAILABLE", f"@{acc.username} is {'disabled' if acc.disabled_at else 'disconnected'}")
 
 
+def _catalog_music() -> None:
+    """409 INSTAGRAM_MUSIC_OFF unless the server's INSTAGRAM_CATALOG_MUSIC switch is on."""
+    if not settings.INSTAGRAM_CATALOG_MUSIC:
+        raise _err(409, "INSTAGRAM_MUSIC_OFF", "Instagram's music library is turned off on this server")
+
+
 def _aware(t: datetime) -> datetime:
     if t.tzinfo is None:
         raise _err(422, "BAD_TIME", "scheduled_for needs a timezone offset")
@@ -256,7 +262,9 @@ async def search_music(
     kind: Literal["music", "original_sound"] = "music",
 ) -> list[MusicOut]:
     """Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,
-    the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login."""
+    the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login,
+    409 INSTAGRAM_MUSIC_OFF while the server's INSTAGRAM_CATALOG_MUSIC switch is off."""
+    _catalog_music()
     if (acc := await s.get(Account, account_id)) is None:
         raise _err(404, "NOT_FOUND", f"account {account_id} not found")
     if (key := await zernio_key(s)) is None:
@@ -397,6 +405,8 @@ async def create_post(body: PostCreate, s: Db, response: Response) -> PostOut:
     # and time (a double submit). 409 SLOT_TAKEN when another post is at that exact instant.
     # (Comments, not docstrings: those would change openapi.json.)
     at = _aware(body.scheduled_for)
+    if body.music:
+        _catalog_music()
     acc = await _lock_account(s, body.account_id)
     same = (Post.render_id == body.render_id, Post.account_id == acc.id, Post.scheduled_for == at)
     live = await s.scalar(select(Post.id).where(*same, Post.status.not_in(LIVE_KEY_STATUSES)).limit(1))
@@ -459,6 +469,8 @@ async def update_post(post_id: int, body: PostPatch, s: Db) -> PostOut:
     if body.caption is not None:
         values["caption"] = body.caption
     if "music" in body.model_fields_set:
+        if body.music:  # taking it off always works
+            _catalog_music()
         if post.first_post_at is not None:  # Zernio has (or may have) the post with its first body, track included
             raise _err(409, "MUSIC_LOCKED", "the music can't change once publishing was attempted")
         values["music"] = body.music and body.music.model_dump()
