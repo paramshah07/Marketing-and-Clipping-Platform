@@ -213,6 +213,7 @@ class Render(Owned, Base):
     brand_id: Mapped[int | None]  # null = no logo
     overlay_config: Mapped[dict[str, Any] | None]  # fractions of the 1080x1920 output
     crop_config: Mapped[dict[str, Any] | None]  # fractions of the source frame
+    filter: Mapped[str | None]  # a FILTERS name (services.render), baked in under the logo; null = none
     caption: Mapped[str | None]
     status: Mapped[str] = mapped_column(server_default="PENDING")
     output_key: Mapped[str | None]

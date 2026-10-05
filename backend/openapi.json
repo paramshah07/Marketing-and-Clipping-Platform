@@ -1086,6 +1086,29 @@
         }
       }
     },
+    "/api/filters": {
+      "get": {
+        "summary": "List Filters",
+        "description": "The Instagram-style filters a render can take (RenderCreate.filter), with the CSS the Editor previews them by.",
+        "operationId": "list_filters",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FilterOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Filters"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/renders/{render_id}": {
       "get": {
         "summary": "Get Render",
@@ -3380,6 +3403,81 @@
         "title": "CropConfig",
         "description": "Crop rectangle as fractions of the source frame (after autorotate)."
       },
+      "FilterLayer": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "multiply",
+              "screen",
+              "overlay",
+              "darken",
+              "lighten",
+              "color-dodge",
+              "soft-light",
+              "exclusion"
+            ],
+            "title": "Mode"
+          },
+          "color": {
+            "type": "string",
+            "title": "Color"
+          },
+          "opacity": {
+            "type": "number",
+            "title": "Opacity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "color",
+          "opacity"
+        ],
+        "title": "FilterLayer"
+      },
+      "FilterOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "Clarendon",
+              "Gingham",
+              "Moon",
+              "Lark",
+              "Reyes",
+              "Juno",
+              "Slumber",
+              "Crema",
+              "Ludwig",
+              "Aden",
+              "Valencia",
+              "Nashville",
+              "Inkwell",
+              "1977"
+            ],
+            "title": "Name"
+          },
+          "layers": {
+            "items": {
+              "$ref": "#/components/schemas/FilterLayer"
+            },
+            "type": "array",
+            "title": "Layers"
+          },
+          "css": {
+            "type": "string",
+            "title": "Css"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "layers",
+          "css"
+        ],
+        "title": "FilterOut"
+      },
       "FoundLink": {
         "properties": {
           "url": {
@@ -4073,6 +4171,33 @@
               }
             ]
           },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Clarendon",
+                  "Gingham",
+                  "Moon",
+                  "Lark",
+                  "Reyes",
+                  "Juno",
+                  "Slumber",
+                  "Crema",
+                  "Ludwig",
+                  "Aden",
+                  "Valencia",
+                  "Nashville",
+                  "Inkwell",
+                  "1977"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter"
+          },
           "caption": {
             "anyOf": [
               {
@@ -4132,6 +4257,17 @@
                 "type": "null"
               }
             ]
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter"
           },
           "caption": {
             "anyOf": [
@@ -4258,6 +4394,7 @@
           "brand_id",
           "overlay_config",
           "crop_config",
+          "filter",
           "caption",
           "status",
           "error_code",
@@ -4313,6 +4450,17 @@
                 "type": "null"
               }
             ]
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter"
           },
           "caption": {
             "anyOf": [
@@ -4428,6 +4576,7 @@
           "brand_id",
           "overlay_config",
           "crop_config",
+          "filter",
           "caption",
           "status",
           "error_code",

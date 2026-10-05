@@ -146,7 +146,7 @@ def make_post(
         key = f"renders/{uuid.uuid4().hex}.mp4"
         (env.dir / key).write_bytes(bytes(range(256)) * 10_000)  # 2.5 MB: several 1 MB chunks
         r = Render(user_id=user_id, source_clip_id=clip.id, status=render_status, output_key=key, duration_s=duration,
-                   overlay_config={"x": 0.1}, crop_config={"x": 0.2}, caption="render caption")  # fmt: skip
+                   overlay_config={"x": 0.1}, crop_config={"x": 0.2}, filter="Juno", caption="render caption")  # fmt: skip
         s.add(r)
         s.flush()
         at = at or now() - timedelta(minutes=1)
@@ -652,7 +652,7 @@ def test_remedy_rerender(db, env, monkeypatch):
     p = row(db, pid)
     with Session(db) as s:
         a, b = s.get(Render, old.render_id), s.get(Render, p.render_id)
-        same = lambda x: (x.source_clip_id, x.brand_id, x.overlay_config, x.crop_config, x.caption)  # noqa: E731
+        same = lambda x: (x.source_clip_id, x.brand_id, x.overlay_config, x.crop_config, x.filter, x.caption)  # noqa: E731
         assert b.id != a.id and same(b) == same(a) and b.status == "PENDING"
     assert (p.status, p.scheduled_for, p.idempotency_key) == (
         "SCHEDULED",

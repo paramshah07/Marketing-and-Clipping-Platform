@@ -56,6 +56,12 @@ With **Crop** off, the source fills the 9:16 frame and is centred, so a landscap
 > [!TIP]
 > A large upscale (a small region of a small source) gives a soft picture. Keep the box as large as the shot allows.
 
+## Pick a filter
+
+Instagram's own filters can't be applied when a Reel is posted through its API, so Clipper bakes a look-alike into the render. Under **Filter**, each tile shows this clip with one filter: Normal (no filter), then Clarendon, Gingham, Moon, Lark, Reyes, Juno, Slumber, Crema, Ludwig, Aden, Valencia, Nashville, Inkwell and 1977. Point at a tile for its name; the chosen one's name shows beside **Filter**.
+
+Click a tile and the stage shows the result; the render matches it. The filter goes under the logo, so the advertiser's colours stay true. The render card names the filter, and **Re-render for…** and **Re-render and retry** keep it.
+
 ## Choose a cover
 
 The cover is the still Instagram shows before the Reel plays and in your profile grid.

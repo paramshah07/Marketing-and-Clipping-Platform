@@ -33,6 +33,8 @@ from app.schemas import (
     ClipsFromUrlsOut,
     CoverOut,
     CoverPatch,
+    FilterLayer,
+    FilterOut,
     FoundLink,
     FreedSpace,
     LinksOut,
@@ -41,6 +43,7 @@ from app.schemas import (
     RenderOut,
 )
 from app.services import links, storage
+from app.services.render import FILTERS
 from app.tasks.media import download_clip, probe_clip, render
 
 router = APIRouter(prefix="/api", dependencies=[Depends(current_user)])
@@ -482,6 +485,7 @@ async def create_render(body: RenderCreate, s: Db) -> RenderOut:
         brand_id=body.brand_id,
         overlay_config=overlay,
         crop_config=body.crop_config and body.crop_config.model_dump(),
+        filter=body.filter,
         caption=body.caption,
     )
     s.add(r)
@@ -490,6 +494,15 @@ async def create_render(body: RenderCreate, s: Db) -> RenderOut:
     await s.commit()
     await s.refresh(r)
     return r
+
+
+@router.get("/filters")
+async def list_filters() -> list[FilterOut]:
+    """The Instagram-style filters a render can take (RenderCreate.filter), with the CSS the Editor previews them by."""
+    return [
+        FilterOut(name=name, css=css, layers=[FilterLayer(mode=m, color=f"rgb{rgb}", opacity=a) for m, rgb, a in layers])
+        for name, (css, layers) in FILTERS.items()
+    ]
 
 
 @router.get("/renders")

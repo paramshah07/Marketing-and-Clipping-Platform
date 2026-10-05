@@ -79,12 +79,13 @@ def bucket(o: dict) -> str:
 
 
 def placement(r: dict) -> str:
-    """'Top right · 22% · 9:16 crop' / 'Full frame' for a render (Editor.tsx placement)."""
+    """'Top right · 22% · 9:16 crop' / 'Full frame · Juno' for a render (Editor.tsx placement)."""
     c, o = r.get("crop_config"), r.get("overlay_config")
     crop = "full frame" if not c or (c["w"] > 0.999 and c["h"] > 0.999) else "9:16 crop"
+    look = f" · {r['filter']}" if r.get("filter") else ""
     if r.get("brand_id") is None or not o:
-        return crop.capitalize()
-    return f"{bucket(o)} · {round(o['w'] * 100)}% · {crop}"
+        return crop.capitalize() + look
+    return f"{bucket(o)} · {round(o['w'] * 100)}% · {crop}{look}"
 
 
 def crop_options(sw: int, sh: int) -> list[str]:

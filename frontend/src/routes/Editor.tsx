@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarPlus, Camera, ChevronDown, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react"
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 
-import type { BrandOut, CaptionOut, ClipOut, CoverOut, OverlayConfig, RenderOut } from "@/api"
+import type { BrandOut, CaptionOut, ClipOut, CoverOut, FilterOut, OverlayConfig, RenderOut } from "@/api"
 import {
   createRenderMutation,
   deleteRenderMutation,
@@ -14,6 +14,7 @@ import {
   listBrandsQueryKey,
   listCaptionsOptions,
   listCoversOptions,
+  listFiltersOptions,
   listRendersOptions,
   listRendersQueryKey,
   retryRenderMutation,
@@ -43,14 +44,15 @@ export function Editor() {
   })
   const brands = useQuery(listBrandsOptions())
   const history = useQuery(listRendersOptions({ query: { clip_id: id } }))
-  // Saved captions and covers (Customizations) are extras: the editor opens without them if they fail to load
+  // Saved captions and covers (Customizations) and the filters are extras: the editor opens without them if they fail to load
   const captions = useQuery(listCaptionsOptions())
   const covers = useQuery(listCoversOptions())
+  const filters = useQuery({ ...listFiltersOptions(), staleTime: Infinity })
   const def = covers.data?.find((c) => c.is_default)
   const defCover = useQuery({ queryKey: ["saved-cover", def?.id], queryFn: () => savedCover(def!), enabled: !!def, staleTime: Infinity })
   const [params] = useSearchParams()
   if (clip.isError || brands.isError) return <Page title="Clip">{errorText(clip.error ?? brands.error)}</Page>
-  if (!clip.data || !brands.data || history.isPending || captions.isPending || covers.isPending || (def && defCover.isPending))
+  if (!clip.data || !brands.data || history.isPending || captions.isPending || covers.isPending || filters.isPending || (def && defCover.isPending))
     return <Page title="Clip">Loading…</Page>
   // ?brand= wins, else the brand this clip was last rendered with (newest first), else the default brand, else the operator picks
   const byId = (bid: number | null | undefined) => brands.data.find((b) => b.id === bid && b.logo_url)
@@ -65,7 +67,7 @@ export function Editor() {
   if (clip.data.status !== "READY" || !clip.data.width || !clip.data.height)
     return <Page title={clipName(clip.data)}>This clip is {clip.data.status.toLowerCase()}; the editor opens once it is READY.</Page>
   const cover = def && defCover.data ? { jpeg: defCover.data, url: def.image_url, from: def.id } : null
-  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} captions={captions.data ?? []} covers={covers.data ?? []} initialCover={cover} />
+  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} captions={captions.data ?? []} covers={covers.data ?? []} filters={filters.data ?? []} initialCover={cover} />
 }
 
 function Page({ title, children }: { title: string; children: ReactNode }) {
@@ -95,7 +97,7 @@ function useSize<T extends HTMLElement>() {
 // url: an object URL for a chosen file, a saved cover's own /media URL (revoking that is a no-op); from: that saved cover
 type Cover = { jpeg: Blob; url: string; from?: number }
 
-function EditorBody({ clip, brands, initial, captions, covers, initialCover }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null; captions: CaptionOut[]; covers: CoverOut[]; initialCover: Cover | null }) {
+function EditorBody({ clip, brands, initial, captions, covers, filters, initialCover }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null; captions: CaptionOut[]; covers: CoverOut[]; filters: FilterOut[]; initialCover: Cover | null }) {
   const qc = useQueryClient()
   const W = clip.width!
   const H = clip.height!
@@ -114,6 +116,7 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
   const [logoAR, setLogoAR] = useState<number | null>(null) // logo natural h/w
   const [cropOn, setCropOn] = useState(false)
   const [crop, setCrop] = useState<Box>(() => crop916(W, H))
+  const [filter, setFilter] = useState<FilterOut | null>(null)
   const [mode, setMode] = useState<"output" | "crop" | "cover">("output")
   const [cover, setCover] = useState<Cover | null>(initialCover) // the Reel cover exactly as uploaded
   useEffect(() => () => void (cover && URL.revokeObjectURL(cover.url)), [cover]) // on replace and unmount
@@ -182,6 +185,7 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
           brand_id: brand?.id ?? null,
           overlay_config: brand ? overlay : null,
           crop_config: cropOn ? { x: crop.x, y: crop.y, w: Math.min(1, crop.w), h: Math.min(1, crop.h) } : null,
+          filter: filter?.name ?? null,
           caption: caption.trim() || null,
         },
       })
@@ -252,6 +256,7 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
           previewLabel={preview ? `#${preview.id} · ${brandName(preview.brand_id)} · 1080x1920` : ""}
           onExitPreview={() => setPreview(null)}
           view={outputView(W, H, cropOn ? crop : null)}
+          look={filter}
           setMode={(m) => {
             if (m === "crop") setCropOn(true)
             setMode(m)
@@ -426,6 +431,36 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
               )}
             </div>
 
+            {filters.length > 0 && (
+              <div className="space-y-2 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className={label}>Filter</span>
+                  <span className="text-sm text-muted">{filter?.name ?? "Normal"}</span>
+                </div>
+                <div className="grid grid-cols-[repeat(8,28px)] justify-between gap-y-2.5 py-0.5">
+                  {[null, ...filters].map((f) => {
+                    const name = f?.name ?? "Normal"
+                    const on = filter?.name === f?.name
+                    return (
+                      <button
+                        key={name}
+                        aria-label={name}
+                        aria-pressed={on}
+                        title={name}
+                        className={cn("h-[50px] w-7 rounded-sm", on ? "ring-2 ring-fg ring-offset-1 ring-offset-panel" : "hover:ring-1 hover:ring-line-strong")}
+                        onClick={() => setFilter(f)}
+                      >
+                        <Look look={f} className="relative size-full rounded-sm bg-raised">
+                          {clip.thumbnail_url && <img src={clip.thumbnail_url} alt="" className="block size-full object-cover" />}
+                        </Look>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-sm text-subtle">Baked into the render, under the logo.</p>
+              </div>
+            )}
+
             <div className="space-y-2 px-4 py-3">
               <div className="flex items-center justify-between">
                 <span className={label}>Cover</span>
@@ -548,6 +583,19 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
   )
 }
 
+/** A filter's preview: its colour layers blended over children, its CSS filter over the lot (CSSgram's way), the maths
+ * render.py's filter_chain replays in ffmpeg. */
+function Look({ look, className, style, children }: { look: FilterOut | null; className?: string; style?: CSSProperties; children: ReactNode }) {
+  return (
+    <div className={cn("isolate overflow-hidden", className)} style={{ ...style, filter: look?.css }}>
+      {children}
+      {look?.layers.map((l, i) => (
+        <div key={i} className="absolute inset-0" style={{ background: l.color, mixBlendMode: l.mode, opacity: l.opacity }} />
+      ))}
+    </div>
+  )
+}
+
 function Labeled({ name, value, children }: { name: string; value: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -573,6 +621,7 @@ function Stage(props: {
   previewLabel: string
   onExitPreview: () => void
   view: ReturnType<typeof outputView>
+  look: FilterOut | null
   setMode: (m: "output" | "crop" | "cover") => void
   ig: boolean
   setIg: (v: boolean) => void
@@ -626,26 +675,28 @@ function Stage(props: {
         )}
         <div data-stage={mode} className={cn("relative shrink-0", mode !== "crop" && "rounded ring-1 ring-line")} style={{ width: fw, height: fh }}>
           <div className="absolute inset-0 overflow-hidden rounded bg-black">
-            {failed ? (
-              <img src={clip.thumbnail_url ?? ""} alt="" className="absolute max-w-none" style={mode === "preview" ? full : pos} />
-            ) : (
-              <video
-                ref={video}
-                src={src}
-                poster={(mode === "preview" ? props.previewPoster : clip.thumbnail_url) ?? undefined}
-                muted={muted}
-                playsInline
-                loop
-                preload="auto"
-                className="absolute max-w-none object-fill"
-                style={pos}
-                onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
-                onLoadedMetadata={(e) => (e.currentTarget.videoWidth ? setDur(e.currentTarget.duration) : setBroken(src))}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onError={() => setBroken(src)}
-              />
-            )}
+            {/* a render has its filter baked in */}
+            <Look look={mode === "preview" ? null : props.look} className="absolute" style={pos}>
+              {failed ? (
+                <img src={clip.thumbnail_url ?? ""} alt="" className="block size-full max-w-none" />
+              ) : (
+                <video
+                  ref={video}
+                  src={src}
+                  poster={(mode === "preview" ? props.previewPoster : clip.thumbnail_url) ?? undefined}
+                  muted={muted}
+                  playsInline
+                  loop
+                  preload="auto"
+                  className="block size-full max-w-none object-fill"
+                  onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
+                  onLoadedMetadata={(e) => (e.currentTarget.videoWidth ? setDur(e.currentTarget.duration) : setBroken(src))}
+                  onPlay={() => setPlaying(true)}
+                  onPause={() => setPlaying(false)}
+                  onError={() => setBroken(src)}
+                />
+              )}
+            </Look>
             {mode === "output" && props.ig && (
               <>
                 <div
@@ -891,10 +942,10 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
   )
 }
 
-/** "Top right · 22% · 9:16 crop" / "Full frame" (no logo: the card already says so). */
+/** "Top right · 22% · 9:16 crop" / "Full frame · Juno" (no logo: the card already says so). */
 function placement(r: RenderOut) {
   const c = r.crop_config
-  const crop = !c || (c.w > 0.999 && c.h > 0.999) ? "full frame" : "9:16 crop"
+  const crop = (!c || (c.w > 0.999 && c.h > 0.999) ? "full frame" : "9:16 crop") + (r.filter ? ` · ${r.filter}` : "")
   const o = r.overlay_config
   if (r.brand_id == null || !o) return crop[0].toUpperCase() + crop.slice(1)
   // ponytail: the row buckets the logo's centre, estimated as if the logo were square (renders don't carry its aspect);

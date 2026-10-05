@@ -654,6 +654,42 @@ export type CropConfig = {
 };
 
 /**
+ * FilterLayer
+ */
+export type FilterLayer = {
+    /**
+     * Mode
+     */
+    mode: 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'soft-light' | 'exclusion';
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Opacity
+     */
+    opacity: number;
+};
+
+/**
+ * FilterOut
+ */
+export type FilterOut = {
+    /**
+     * Name
+     */
+    name: 'Clarendon' | 'Gingham' | 'Moon' | 'Lark' | 'Reyes' | 'Juno' | 'Slumber' | 'Crema' | 'Ludwig' | 'Aden' | 'Valencia' | 'Nashville' | 'Inkwell' | '1977';
+    /**
+     * Layers
+     */
+    layers: Array<FilterLayer>;
+    /**
+     * Css
+     */
+    css: string;
+};
+
+/**
  * FoundLink
  */
 export type FoundLink = {
@@ -1046,6 +1082,10 @@ export type RenderCreate = {
     overlay_config?: OverlayConfig | null;
     crop_config?: CropConfig | null;
     /**
+     * Filter
+     */
+    filter?: 'Clarendon' | 'Gingham' | 'Moon' | 'Lark' | 'Reyes' | 'Juno' | 'Slumber' | 'Crema' | 'Ludwig' | 'Aden' | 'Valencia' | 'Nashville' | 'Inkwell' | '1977' | null;
+    /**
      * Caption
      */
     caption?: string | null;
@@ -1069,6 +1109,10 @@ export type RenderDetail = {
     brand_id: number | null;
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
+    /**
+     * Filter
+     */
+    filter: string | null;
     /**
      * Caption
      */
@@ -1137,6 +1181,10 @@ export type RenderOut = {
     brand_id: number | null;
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
+    /**
+     * Filter
+     */
+    filter: string | null;
     /**
      * Caption
      */
@@ -1541,6 +1589,10 @@ export type RenderDetailWritable = {
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
     /**
+     * Filter
+     */
+    filter: string | null;
+    /**
      * Caption
      */
     caption: string | null;
@@ -1596,6 +1648,10 @@ export type RenderOutWritable = {
     brand_id: number | null;
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
+    /**
+     * Filter
+     */
+    filter: string | null;
     /**
      * Caption
      */
@@ -2394,6 +2450,24 @@ export type CreateRenderResponses = {
 };
 
 export type CreateRenderResponse = CreateRenderResponses[keyof CreateRenderResponses];
+
+export type ListFiltersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/filters';
+};
+
+export type ListFiltersResponses = {
+    /**
+     * Response List Filters
+     *
+     * Successful Response
+     */
+    200: Array<FilterOut>;
+};
+
+export type ListFiltersResponse = ListFiltersResponses[keyof ListFiltersResponses];
 
 export type DeleteRenderData = {
     body?: never;

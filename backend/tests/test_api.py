@@ -256,6 +256,8 @@ def test_upload_probe_render(client, db, data_dir, media):
         {"overlay_config": {"x": 0.5, "y": 0, "w": 0.2, "opacity": 2}},
         {"crop_config": {"x": 0, "y": 0, "w": 0, "h": 1}},
         {"crop_config": {"x": 0.5, "y": 0, "w": 0.6, "h": 1}},  # past the right edge
+        {"filter": "Kelvin"},  # not one of GET /api/filters
+        {"filter": "juno"},
     ]:
         assert client.post("/api/renders", json=create | bad).status_code == 422, bad
     assert client.post("/api/renders", json=create | {"clip_id": 999999}).status_code == 409
@@ -266,10 +268,15 @@ def test_upload_probe_render(client, db, data_dir, media):
     assert client.get(f"/api/renders/{too_big * 50}").status_code == 422
 
     crop = {"x": 0.341796875, "y": 0, "w": 0.31640625, "h": 1}
-    r = client.post("/api/renders", json=create | {"crop_config": crop, "caption": "hi"})
+    filters = client.get("/api/filters").json()
+    assert filters[0] == {"name": "Clarendon", "css": "contrast(1.2) saturate(1.35)",
+                          "layers": [{"mode": "overlay", "color": "rgb(127, 187, 227)", "opacity": 0.2}]}  # fmt: skip
+    assert "Juno" in [f["name"] for f in filters]
+    r = client.post("/api/renders", json=create | {"crop_config": crop, "filter": "Juno", "caption": "hi"})
     assert r.status_code == 201, r.text
     rendered = r.json()
     assert rendered["status"] == "PENDING" and rendered["overlay_config"] == brand["default_overlay_config"]
+    assert rendered["filter"] == "Juno"
     assert job(db, "render", render_id=rendered["id"])
     render(rendered["id"])
     rendered = client.get(f"/api/renders/{rendered['id']}").json()
