@@ -27,7 +27,7 @@ from app.bot.core import Bot
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import app
-from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SourceClip
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SavedTrack, SourceClip
 from app.schemas import CropConfig, OverlayConfig
 from app.services import errors, zernio
 from conftest import zernio_key
@@ -799,4 +799,87 @@ def test_customizations(env):
         with SyncSession() as s:  # later tests start without these defaults
             for model in (Brand, SavedCaption, SavedCover):
                 s.execute(update(model).where(model.user_id == 1, model.is_default).values(is_default=False))
+            s.commit()
+
+
+ID3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(64)  # an MP3's start: all the api checks
+
+
+def test_filters_and_music(env):
+    """The web Editor's Filter and Music in the bot's render editor (the default song preselected, its two volumes);
+    /music and the song cards manage the songs, and an audio file sent to the bot becomes one."""
+    ids = seed(env)
+    with SyncSession() as s:
+        s.execute(text("DELETE FROM renders WHERE id = :r"), {"r": ids["render"]})
+        s.execute(update(SavedTrack).where(SavedTrack.user_id == 1, SavedTrack.is_default).values(is_default=False))
+        coffee = SavedTrack(name="Morning Coffee", audio_key="music/coffee.mp3", is_default=True)
+        neon = SavedTrack(name="Neon", audio_key="music/neon.mp3")
+        s.add_all([coffee, neon])
+        s.commit()
+    (env / "music").mkdir()
+    (env / "music/coffee.mp3").write_bytes(ID3)
+    (env / "music/neon.mp3").write_bytes(ID3)
+
+    async def scenario(phone, tg, bot):
+        await phone.say("/music")
+        assert f"/m{coffee.id} · Morning Coffee · default" in phone.text() and f"/m{neon.id} · Neon" in phone.text()
+        await phone.say(f"/m{neon.id}")
+        card = max(tg.messages)
+        assert phone.text(card).startswith(f"<b>Neon</b> · song {neon.id}")
+        assert await phone.tap("Play", card) == "Sending the song…"
+        await phone.settle()
+        assert any(m == "sendAudio" and p["audio"]["filename"] == f"song-{neon.id}.mp3" for m, p in tg.calls)
+        assert await phone.tap("Make default", card) == "Now the default song"
+        await phone.tap("Rename", card)
+        await phone.say("Neon Lights")
+        with SyncSession() as s:
+            assert (s.get(SavedTrack, neon.id).name, s.get(SavedTrack, neon.id).is_default) == ("Neon Lights", True)
+
+        # the render editor: no filter, the default song at 100% and 100%
+        await phone.say(f"/c{ids['clip']}")
+        await phone.tap("Render…")
+        editor = max(tg.messages)
+        await phone.tap("Northwind", editor)
+        assert "Filter: none" in phone.text(editor)
+        assert "Music: ♫ Neon Lights · song 100% · clip's sound 100%" in phone.text(editor)
+        await phone.tap("Filter: none", editor)
+        await phone.tap("Juno", editor)
+        assert "Filter: Juno" in phone.text(editor)
+        await phone.tap("Song 100%", editor)
+        await phone.tap("Clip's sound 100%", editor)
+        await phone.tap("Clip's sound 75%", editor)
+        assert "song 75% · clip's sound 50%" in phone.text(editor)
+        toast = await phone.tap("Render", editor)
+        with SyncSession() as s:
+            r = s.scalars(select(Render).where(Render.source_clip_id == ids["clip"])).one()
+        assert toast == f"Render #{r.id} queued"
+        assert (r.filter, r.music) == ("Juno", {"track_id": neon.id, "volume": 75, "clip_volume": 50, "name": "Neon Lights"})
+        await phone.tap("Music: Neon Lights", editor)  # another song keeps the volumes; None takes it off
+        await phone.tap("Morning Coffee", editor)
+        assert "Music: ♫ Morning Coffee · song 75% · clip's sound 50%" in phone.text(editor)
+        await phone.tap("Music: Morning Coffee", editor)
+        await phone.tap("None: the clip's own sound", editor)
+        assert "Music: none, the clip's own sound" in phone.text(editor)
+
+        # an audio file sent to the bot becomes a song, named after its title tag
+        tg.files["aud1"] = ID3
+        await phone.say(audio={"file_id": "aud1", "file_name": "beat.mp3", "mime_type": "audio/mpeg", "file_size": len(ID3),
+                               "title": "Beat"})  # fmt: skip
+        assert phone.text().startswith("Save Beat (")
+        await phone.tap("Save")
+        await phone.settle()
+        with SyncSession() as s:
+            beat = s.scalars(select(SavedTrack).where(SavedTrack.user_id == 1, SavedTrack.name == "Beat")).one()
+        assert phone.text().startswith(f"Saved: /m{beat.id} Beat") and (env / beat.audio_key).read_bytes() == ID3
+        await phone.say(f"/m{coffee.id}")
+        await phone.tap("Delete")
+        await phone.tap("Delete the song")
+        with SyncSession() as s:
+            assert s.get(SavedTrack, coffee.id) is None
+
+    try:
+        run(scenario)
+    finally:
+        with SyncSession() as s:  # later tests start without a default song
+            s.execute(update(SavedTrack).where(SavedTrack.user_id == 1, SavedTrack.is_default).values(is_default=False))
             s.commit()
