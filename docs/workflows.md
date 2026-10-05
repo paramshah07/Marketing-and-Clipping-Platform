@@ -75,6 +75,7 @@ flowchart LR
 ```mermaid
 flowchart LR
   lib["Library<br/>import or upload clips"] --> ed["Editor<br/>brand, crop, filter,<br/>music, cover, caption"]
+  lib -->|"Render n: your defaults"| ready
   ed -->|Render| ready["Ready render"]
   ready --> cal["Calendar<br/>Auto-schedule, drag, Schedule…"]
   cal -->|"no logo, or no Auto-approve"| draft["Draft"]
@@ -86,7 +87,9 @@ flowchart LR
 1. **Bring in clips.** In the [Library](guide/02-library.md), paste a video URL (with the creator's
    `@handle` if you have it) and press **Import**, use **Import links** for every video in a document or a
    pasted list, or **Upload** files. Wait for **Ready**.
-2. **Make renders.** Open a clip in the [Editor](guide/03-editor.md). The brand, caption and cover start
+2. **Make renders.** For most clips, tick them in the Library and click **Render _n_**: one render each with your
+   default brand, caption, cover and song ([Render many at once](guide/02-library.md#render-many-at-once)). For a clip
+   that needs more, open it in the [Editor](guide/03-editor.md). The brand, caption and cover start
    from [your defaults](guide/04-customizations.md#how-the-editor-uses-your-defaults), and a clip you
    rendered before opens with its last brand, and your default song is preselected under **Music**. Adjust the logo,
    crop, cover and caption, pick a **Filter** if the clip needs a look and a song if it needs one

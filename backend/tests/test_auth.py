@@ -163,6 +163,18 @@ def test_csrf(browser):
     assert browser.post("/api/brands", json=brand, headers=as_user()).status_code == 201  # the bot: bearer, no Origin
 
 
+def test_me_timezone(browser):
+    """The web app stores its browser's zone (App.tsx): the evening digest goes out at 20:00 there."""
+    assert signup(browser, "tz.user").status_code == 201
+    assert browser.get("/api/me").json()["timezone"] is None
+    assert browser.patch("/api/me", json={"timezone": "America/New_York"}).status_code == 204
+    assert browser.get("/api/me").json()["timezone"] == "America/New_York"
+    for bad in ("Mars/Olympus", "../../etc/passwd", "x" * 65):
+        r = browser.patch("/api/me", json={"timezone": bad})
+        assert r.status_code == 422 and (len(bad) > 64 or code(r) == "BAD_TIMEZONE"), bad
+    assert browser.get("/api/me").json()["timezone"] == "America/New_York"
+
+
 def test_bot_service_path(client, monkeypatch):
     client.cookies.clear()
     assert client.get("/api/me", headers=as_user()).json()["id"] == 1

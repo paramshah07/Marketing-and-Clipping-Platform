@@ -812,6 +812,10 @@ export type Me = {
      * Username
      */
     username: string;
+    /**
+     * Timezone
+     */
+    timezone: string | null;
     setup: Setup;
     zernio: ZernioKeyOut;
     /**
@@ -819,6 +823,16 @@ export type Me = {
      */
     bots: Array<BotOut>;
     storage: Storage;
+};
+
+/**
+ * MePatch
+ */
+export type MePatch = {
+    /**
+     * Timezone
+     */
+    timezone: string;
 };
 
 /**
@@ -1961,6 +1975,31 @@ export type MeResponses = {
 };
 
 export type MeResponse = MeResponses[keyof MeResponses];
+
+export type UpdateMeData = {
+    body: MePatch;
+    path?: never;
+    query?: never;
+    url: '/api/me';
+};
+
+export type UpdateMeErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateMeError = UpdateMeErrors[keyof UpdateMeErrors];
+
+export type UpdateMeResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type UpdateMeResponse = UpdateMeResponses[keyof UpdateMeResponses];
 
 export type ChangePasswordData = {
     body: PasswordChange;

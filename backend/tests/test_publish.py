@@ -8,8 +8,10 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from datetime import time as hm
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -24,7 +26,7 @@ from app.models import Account, Post, Render, SourceClip, User, cas
 from app.services import publisher, slots, zernio
 from app.services.errors import CATEGORY
 from app.tasks import accounts as account_sync
-from app.tasks import publish
+from app.tasks import digest, publish
 from app.tasks.publish import dispatch, publish_post
 from app.tasks.queue import app
 from conftest import as_user, zernio_key
@@ -93,8 +95,12 @@ def env(db, tmp_path, monkeypatch):
     zernio_key(1, "sk_test")  # user 1 (the posts' owner) publishes with its own key, generation 1
     alerts: list[tuple[str, str]] = []
     uids: list[int] = []  # whom each alert went to
+    posted: list[tuple[int, str, list]] = []  # the quiet "is live" messages: (uid, text, buttons)
 
-    async def record(uid, text_, link=None, buttons=None):
+    async def record(uid, text_, link=None, buttons=None, silent=False):
+        if silent:
+            posted.append((uid, text_, buttons))
+            return True
         alerts.append((text_, link))
         uids.append(uid)
         return True
@@ -108,7 +114,7 @@ def env(db, tmp_path, monkeypatch):
     monkeypatch.setattr(slots, "next_free_slot", next_slot)
     zernio._quota_cache.clear()
     use(monkeypatch, Zernio({}))  # nothing ever reaches the real Zernio: an unrouted call fails the test
-    yield SimpleNamespace(alerts=alerts, uids=uids, dir=tmp_path)
+    yield SimpleNamespace(alerts=alerts, uids=uids, posted=posted, dir=tmp_path)
     zernio_key(1, None)
 
 
@@ -224,6 +230,8 @@ def test_publish_happy_path(db, env, monkeypatch):
     }
     assert post.extensions["timeout"]["read"] == 300
     assert env.alerts == []
+    assert env.posted == [(1, f"<b>@ig_acct</b> post {pid} is live on Instagram.",
+                           [[("View on Instagram", "https://www.instagram.com/p/DGx7Yk2ScAb/"), ("Open post", f"p:{pid}")]])]  # fmt: skip
 
 
 LIVE_ZPOST = "6ab81e960931bc4d7225a320"  # the live Phase 5 recording's post id
@@ -238,10 +246,14 @@ def test_publish_live_flow_201_publishing_then_polls_to_published(db, env, monke
     p = row(db, pid)
     assert (p.status, p.zernio_post_id, p.permalink) == ("PUBLISHING", LIVE_ZPOST, None)
     assert [j["status"] for j in jobs(db, pid)] == ["todo"]  # polled again later, never re-POSTed
+    assert env.posted == []  # not live yet
     go(pid)
     p = row(db, pid)
     assert (p.status, p.permalink) == ("PUBLISHED", "https://www.instagram.com/reel/DdwzLx_jozA/")
     assert len(z.sent(POST_)) == 1 and len(z.sent(f"GET /posts/{LIVE_ZPOST}")) == 1
+    go(pid)  # a stray re-run of a published post does nothing, and says nothing
+    [(_, text_, [buttons])] = env.posted
+    assert text_.endswith(f"post {pid} is live on Instagram.") and buttons[0][1] == p.permalink
 
 
 def presign_name(db, post_id: int) -> str:
@@ -1355,3 +1367,97 @@ def test_periodic_sync_runs_per_user_with_their_key(db, env, monkeypatch):
         assert s.scalar(select(Account.user_id).where(Account.zernio_account_id == zid)) == ok
     assert (user(db, refused).zernio_key_status, user(db, ok).zernio_key_status) == ("invalid", "valid")
     assert env.uids == [refused]
+
+
+# ---------------------------------------------------------------- the evening digest
+
+
+def test_digest_at_20_in_the_users_zone(db, env, monkeypatch):
+    """Hourly; a user with no zone stored yet hears at 20:00 in their first account's: per enabled account, tomorrow's posts out of those
+    plus what auto-schedule could still place (the min gap and the daily cap), its drafts; then the Ready tray, the
+    failed posts and a paused key. Other users' rows never count (the publisher's session ignores row-level security)."""
+    uid, other = new_user(db), new_user(db)
+    zernio_key(uid, "sk_digest")
+    tz = ZoneInfo("Asia/Kathmandu")  # +05:45: no other test's account reads 20:00 at that instant
+    eight = datetime.now(tz).replace(hour=20, minute=0, second=0, microsecond=0)
+    tomorrow = (eight + timedelta(days=1)).date()
+
+    def account(owner, name, zone, times, **kw) -> int:
+        with Session(db) as s:
+            a = Account(user_id=owner, zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username=name,
+                        timezone=zone, posting_slots={"times": times}, **kw)  # fmt: skip
+            s.add(a)
+            s.commit()
+            return a.id
+
+    night = account(uid, "night", "Asia/Kathmandu", ["09:00", "09:15", "13:00", "19:00"], daily_cap=10, min_gap_minutes=30)
+    capped = account(uid, "capped", "UTC", [f"{h:02d}:00" for h in range(7, 24)], daily_cap=2)
+    account(uid, "b.side", "UTC", [], connection_status="disconnected")
+    account(uid, "gone", "UTC", ["09:00"], disabled_at=now())
+    theirs = account(other, "theirs", "Asia/Kathmandu", ["09:00"])
+
+    def at(t: str, zone=tz) -> datetime:
+        return datetime.combine(tomorrow, hm.fromisoformat(t), zone)
+
+    make_post(db, env, at=at("09:00"), account_id=night, user_id=uid)  # 09:15 is within its 30 min gap
+    make_post(db, env, status="DRAFT", at=at("19:00"), account_id=night, user_id=uid)
+    make_post(db, env, status="CANCELLED", at=at("13:00"), account_id=night, user_id=uid)  # its render: the Ready tray
+    make_post(db, env, at=at("10:00", UTC), account_id=capped, user_id=uid)
+    make_post(db, env, status="DEAD_LETTER", at=now() - timedelta(days=3), account_id=capped, user_id=uid)
+    for status, t in (("DRAFT", at("09:00")), ("FAILED", now()), ("CANCELLED", at("13:00"))):  # not in uid's digest
+        make_post(db, env, status=status, at=t, account_id=theirs, user_id=other)
+    sent = []
+
+    async def record(to, text_, link=None, buttons=None, silent=False):
+        sent.append((to, text_, link, silent))
+        return True
+
+    monkeypatch.setattr(digest, "notify", record)
+    run(digest.digest(timestamp=int((eight - timedelta(hours=1)).timestamp())))
+    assert [m for m in sent if m[0] == uid] == []
+    run(digest.digest(timestamp=int(eight.timestamp())))
+    mine = [m for m in sent if m[0] == uid]
+    assert mine == [(uid, "\n".join([
+        f"<b>Evening digest</b> · {eight:%a} {eight.day} {eight:%b}",
+        "<b>@b.side</b>: no posting slots · disconnected in Zernio",
+        "<b>@capped</b>: 1 of 2 slots filled tomorrow",
+        "<b>@night</b>: 2 of 3 slots filled tomorrow, 1 draft to approve /drafts",
+        "1 render in the Ready tray /ready",
+        "1 failed post to recover /failed",
+    ]), f"{settings.APP_BASE_URL}/calendar", False)]  # fmt: skip
+    assert len([m for m in sent if m[0] == other]) == 1  # their own, at their 20:00 too
+    zernio_key(uid, None)
+    sent.clear()
+    run(digest.digest(timestamp=int(eight.timestamp())))
+    assert [m[1] for m in sent if m[0] == uid][0].endswith("<b>Publishing is paused</b>: you have no Zernio key. Fix it in Settings.")
+
+
+def test_digest_in_the_users_own_zone(db, env, monkeypatch):
+    """users.timezone (the web app's browser zone) decides when, and whose tomorrow: at 20:00 New York a London
+    account's Tuesday has begun, but its slots haven't, and it is the Tuesday a New Yorker queues for that night."""
+    uid = new_user(db, timezone="America/New_York")
+    zernio_key(uid, "sk_ny")
+    ny, london = ZoneInfo("America/New_York"), ZoneInfo("Europe/London")
+    eight = datetime.now(ny).replace(hour=20, minute=0, second=0, microsecond=0)
+    tomorrow = (eight + timedelta(days=1)).date()  # New York's
+    with Session(db) as s:
+        a = Account(user_id=uid, zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username="uk.page",
+                    timezone="Europe/London", posting_slots={"times": ["09:00", "13:00", "19:00"]})  # fmt: skip
+        s.add(a)
+        s.commit()
+        acc = a.id
+    make_post(db, env, at=datetime.combine(tomorrow, hm(9), london), account_id=acc, user_id=uid)
+    make_post(db, env, at=datetime.combine(tomorrow + timedelta(days=1), hm(9), london), account_id=acc, user_id=uid)
+    sent = []
+
+    async def record(to, text_, link=None, buttons=None, silent=False):
+        sent.append((to, text_))
+        return True
+
+    monkeypatch.setattr(digest, "notify", record)
+    run(digest.digest(timestamp=int(datetime.now(london).replace(hour=20, minute=0, second=0, microsecond=0).timestamp())))
+    assert [m for m in sent if m[0] == uid] == []  # 20:00 in London is the afternoon in New York
+    run(digest.digest(timestamp=int(eight.timestamp())))
+    [(_, text_)] = [m for m in sent if m[0] == uid]
+    assert text_.splitlines()[:2] == [f"<b>Evening digest</b> · {eight:%a} {eight.day} {eight:%b}",
+                                      "<b>@uk.page</b>: 1 of 3 slots filled tomorrow"]  # fmt: skip

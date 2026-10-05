@@ -1,6 +1,6 @@
 # Telegram bot
 
-A Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends your failure alerts.
+A Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends your alerts: failures, posts going out, and an evening digest of tomorrow.
 
 It is your own bot, made with Telegram's @BotFather, and it works through the same API as the web app, as you: every rule and confirmation is the same, and it only ever sees your clips, renders, accounts and posts. This page shows how to use it (adding one is in [Settings](09-settings.md#telegram-bots)); [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots of the chat: the examples are chat transcripts, with buttons in `[brackets]`.
 
@@ -19,7 +19,7 @@ site.
 ## Before you start
 
 - Open your private chat with your bot and send `/help`. Tap `/` in the chat for the command menu.
-- Failure alerts go to every bot of yours with **Alerts** on.
+- Failure alerts, the quiet message when a post goes out and the evening digest go to every bot of yours with **Alerts** on.
 - **Open in Clipper** buttons open the web app, which asks you to sign in first if you aren't.
 
 ## Commands
@@ -178,7 +178,35 @@ Zernio said: Media processing failed: …
 [Open in Clipper]
 ```
 
-For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, then **I've reconnected: check now**. After a remedy, and after **Post now**, the bot follows the post for an hour and tells you when it is live, fails again, or moves to another slot. An account-disconnected alert (from any account sync) has **Reconnect in Zernio** and **Sync accounts** buttons.
+For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, then **I've reconnected: check now**. After a remedy, and after **Post now**, the bot follows the post for an hour and tells you when it is live (with **Alerts** on, the "is live on Instagram" message below says so), fails again, or moves to another slot. An account-disconnected alert (from any account sync) has **Reconnect in Zernio** and **Sync accounts** buttons.
+
+## Posts going out, and the evening digest
+
+Each bot of yours with **Alerts** on also says when a post goes out, quietly (the message arrives without a sound):
+
+```text
+Bot:  @afro.yahu post 235 is live on Instagram.
+      [View on Instagram] [Open post]
+```
+
+At 20:00 in your time zone it sends the evening digest: how full tomorrow is on each account, and what is waiting for
+you. Tap a command in it to open that list. Your time zone is your browser's, which the web app saves whenever you use
+it; until you have opened the web app, it is your first account's.
+
+```text
+Bot:  Evening digest · Mon 5 Oct
+      @afro.yahu: 9 of 12 slots filled tomorrow, 2 drafts to approve /drafts
+      @kite.clips: 3 of 10 slots filled tomorrow
+      5 renders in the Ready tray /ready
+      1 failed post to recover /failed
+      [Open in Clipper]
+```
+
+Tomorrow is your tomorrow, on each account's own clock: from New York at 20:00, a London account's Tuesday is the
+Tuesday you are queueing for, though it is already 01:00 there. _9 of 12_ is that day's posts out of those plus the slots
+[Auto-schedule](05-calendar.md) could still fill, within the account's daily cap and minimum gap. A disconnected
+account says so, and a missing or refused Zernio key adds **Publishing is paused**. A disabled account is left out.
+Turn a bot's **Alerts** off to stop all three in its chat: failure alerts, these messages and the digest.
 
 ## Accounts, brands and songs
 

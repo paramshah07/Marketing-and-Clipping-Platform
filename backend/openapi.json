@@ -127,6 +127,35 @@
             }
           }
         }
+      },
+      "patch": {
+        "summary": "Update Me",
+        "operationId": "update_me",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MePatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/me/password": {
@@ -3866,6 +3895,17 @@
             "type": "string",
             "title": "Username"
           },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
           "setup": {
             "$ref": "#/components/schemas/Setup"
           },
@@ -3887,12 +3927,27 @@
         "required": [
           "id",
           "username",
+          "timezone",
           "setup",
           "zernio",
           "bots",
           "storage"
         ],
         "title": "Me"
+      },
+      "MePatch": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "maxLength": 64,
+            "title": "Timezone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone"
+        ],
+        "title": "MePatch"
       },
       "MusicOut": {
         "properties": {

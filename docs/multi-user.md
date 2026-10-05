@@ -153,7 +153,8 @@ only sealed values; `compose.review.yml` blanks both secrets, so a review copy c
 A user creates a key in Zernio (**API keys** › **Create API key**, scope **Full**, permission **Read-write**, no
 expiry) and pastes it in **Settings**. `users` holds `zernio_key_enc`, `zernio_key_last4`, `zernio_user_id` (unique),
 `zernio_email`, `zernio_name`, `zernio_key_status` (`none` / `valid` / `invalid`), `zernio_checked_at`, `zernio_error`
-and `zernio_key_gen`.
+and `zernio_key_gen`. (`users.timezone`, migration 0013, is the user's browser zone, sent by the web app with
+`PATCH /api/me`: the evening digest's 20:00.)
 
 **Verify** (`PUT /api/me/zernio-key`):
 
@@ -266,7 +267,7 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 | Service | Queue | Runs | Concurrency |
 |---|---|---|---|
 | `worker` | `media` | `probe_clip`, `download_clip`, `render` (ffmpeg, yt-dlp) | 2 jobs, `FFMPEG_THREADS=2` each |
-| `publisher` | `default` | `dispatch`, `publish_post`, `sync_accounts`, `retry_stalled_jobs`, alerts | 8 jobs (async, network-bound) |
+| `publisher` | `default` | `dispatch`, `publish_post`, `sync_accounts`, `digest`, `retry_stalled_jobs`, alerts | 8 jobs (async, network-bound) |
 
 - **One media job per user at a time**: every media job gets the lock `media:u{uid}`, so the worker's second slot
   goes to another user. A lone user's render still gets both cores (2 ffmpeg threads), but waits behind their own

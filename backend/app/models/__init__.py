@@ -97,6 +97,7 @@ class User(Base):
     zernio_key_gen: Mapped[int] = mapped_column(server_default="0")  # +1 on every key change (posts.key_gen)
     quota_bytes: Mapped[int | None] = mapped_column(BigInteger)  # storage cap; null = unlimited
     env_imported_at: Mapped[datetime | None]  # the one-shot .env import into user 1 ran
+    timezone: Mapped[str | None]  # IANA, the web app's browser zone (PATCH /api/me): the evening digest's 20:00
 
 
 class AuthSession(Base):  # a signed-in browser: the clipper_session cookie's sha256

@@ -435,7 +435,7 @@ const shots = (d) => [
     file: "library-select.png",
     page: "docs/guide/02-library.md",
     title: "Library: select clips",
-    alt: "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3",
+    alt: "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear, Delete 3 and Render 3",
     go: async (p) => {
       await p.goto(`${BASE}/library`)
       for (const n of [1, 2, 4]) await p.locator(`tr[data-clip] >> nth=${n} >> input[type=checkbox]`).check()
@@ -447,6 +447,7 @@ const shots = (d) => [
       { sel: "tr[data-clip] >> nth=1 >> input[type=checkbox]", at: "r", dx: 2, label: "A ticked clip" },
       { sel: ["[data-selection] span.tabular-nums", "[data-selection] button:text-is('Clear')"], at: "l", label: "How many are ticked; Clear unticks them" },
       { sel: "[data-selection] button:has-text('Delete')", at: "l", label: "Delete them with their renders and files (it asks first; a clip with a post stays)" },
+      { sel: "[data-selection] button:has-text('Render')", at: "b", label: "Render each one with your defaults: brand, caption, cover and song (it asks first)" },
     ],
   },
   {

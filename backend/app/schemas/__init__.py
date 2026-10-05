@@ -462,6 +462,10 @@ class PasswordChange(BaseModel):
     new: str
 
 
+class MePatch(BaseModel):
+    timezone: str = Field(max_length=64)  # IANA name, validated with zoneinfo: the web app sends its browser's
+
+
 class ZernioKeyOut(BaseModel):  # the key itself never leaves the server
     status: Literal["none", "valid", "invalid"]
     last4: str | None
@@ -491,7 +495,7 @@ class BotOut(BaseModel):
     id: int
     username: str | None  # @name, from getMe
     chat_title: str | None  # the paired chat
-    alerts: bool  # it sends your failure alerts
+    alerts: bool  # it sends your alerts: failures, posts going out, the evening digest
     # running: seen in the last 90 s; waiting: for /start <code>; rejected: Telegram refused the token
     health: Literal["running", "waiting", "rejected", "not_responding"]
     pairing: bool  # a pairing code is out (new bot or Re-pair): false again once a chat used it
@@ -528,6 +532,7 @@ class Setup(BaseModel):  # the setup checklist: a valid key, a usable account, a
 class Me(BaseModel):
     id: int
     username: str
+    timezone: str | None  # the evening digest goes out at 20:00 here; null: in the user's first account's zone
     setup: Setup
     zernio: ZernioKeyOut
     bots: list[BotOut]

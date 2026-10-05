@@ -245,8 +245,10 @@ Each bot has a row: its status, "Paired with" its chat, an **Alerts** switch, **
 | **Token rejected** | Telegram refused the token (revoked or replaced in @BotFather), so the bot is stopped. | Paste a fresh token ([below](#a-revoked-or-new-token)), or **Remove** it. |
 | **Not responding** · last seen … | Paired, but not heard from for 90 seconds: Clipper's bot service is down, or another program uses the same token. | If it lasts, make sure nothing else runs this bot (not the other Clipper site either), or tell the operator. |
 
-- **Alerts** (on for a new bot): your failure alerts go to this bot's chat. Turn it off for a bot you only use to run
-  Clipper. With no bot's **Alerts** on, the red badge in the app is your only sign of a failure.
+- **Alerts** (on for a new bot): your failure alerts go to this bot's chat, with a quiet message when a post goes out
+  and the evening digest at 20:00 your time ([Telegram bot](08-telegram-bot.md#posts-going-out-and-the-evening-digest)). Turn it
+  off for a bot you only use to run Clipper. With no bot's **Alerts** on, the red badge in the app is your only sign of
+  a failure.
 - **Test** sends the test message straight from Clipper, and shows Telegram's reason if it fails ("Telegram didn't take
   the test message: …"; for example the chat blocked the bot). It is off while the bot waits for **Start** or its token
   is rejected.

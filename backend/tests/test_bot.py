@@ -19,15 +19,16 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
-from sqlalchemy import select, text, update
+from sqlalchemy import delete, select, text, update
 
 from app.bot import fmt, screens
 from app.bot.clients import Clipper, Telegram
 from app.bot.core import Bot
 from app.core.config import settings
 from app.core.db import SyncSession, engine
+from app.core.secrets import seal
 from app.main import app
-from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SavedTrack, SourceClip
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedCover, SavedTrack, SourceClip, TelegramBot
 from app.schemas import CropConfig, OverlayConfig
 from app.services import errors, zernio
 from conftest import zernio_key
@@ -552,6 +553,22 @@ def test_schedule_and_posts(env, monkeypatch):
         await screens.check_watches(bot)
         assert phone.text().startswith("<b>Live on Instagram</b>: @acct, post") and ("post", p.id) not in bot.watches
         assert tg.buttons(max(tg.messages)) == [("View on Instagram", "https://www.instagram.com/reel/X/")]
+        # a bot with Alerts on stays quiet: the publisher's "post … is live on Instagram" reaches its chat already
+        with SyncSession() as s:
+            alerting = TelegramBot(user_id=1, bot_id=uuid.uuid4().int % 10**9, token_enc=seal(f"9:{'x' * 35}"),
+                                   chat_id=CHAT, alerts=True)  # fmt: skip
+            s.add(alerting)
+            s.commit()
+        bot.id, shown = alerting.id, len(tg.messages)
+        bot.watch("post", p.id, at=datetime.now(UTC))
+        try:
+            await screens.check_watches(bot)
+        finally:
+            bot.id = None
+            with SyncSession() as s:
+                s.execute(delete(TelegramBot).where(TelegramBot.id == alerting.id))
+                s.commit()
+        assert len(tg.messages) == shown and ("post", p.id) not in bot.watches
         # Post now from a render card: one confirm per account, then the post at this second, approved
         await phone.say(f"/r{other['render']}")
         card = max(tg.messages)

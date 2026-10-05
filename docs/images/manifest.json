@@ -122,7 +122,7 @@
     "file": "library-select.png",
     "page": "docs/guide/02-library.md",
     "title": "Library: select clips",
-    "alt": "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3",
+    "alt": "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear, Delete 3 and Render 3",
     "callouts": [
       {
         "n": 1,
@@ -143,6 +143,11 @@
         "n": 4,
         "selector": "[data-selection] button:has-text('Delete')",
         "label": "Delete them with their renders and files (it asks first; a clip with a post stays)"
+      },
+      {
+        "n": 5,
+        "selector": "[data-selection] button:has-text('Render')",
+        "label": "Render each one with your defaults: brand, caption, cover and song (it asks first)"
       }
     ]
   },

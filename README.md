@@ -72,7 +72,7 @@ flowchart LR
 | Part | What you do there |
 |---|---|
 | Sign up, **Set up Clipper**, **Settings** | Make your account, paste your Zernio API key, see your Instagram accounts, add Telegram bots, change your password ([Getting started](docs/guide/01-getting-started.md), [Settings](docs/guide/09-settings.md)) |
-| **Library** | Upload videos, import a link or every link in a document, follow each clip's status, delete many clips at once, find what was published and free the space its MP4s take ([Library](docs/guide/02-library.md)) |
+| **Library** | Upload videos, import a link or every link in a document, follow each clip's status, render or delete many clips at once, find what was published and free the space its MP4s take ([Library](docs/guide/02-library.md)) |
 | **Editor** | Place the logo, crop, pick a filter, a song, a cover and a caption, render, and schedule the finished renders ([Editor](docs/guide/03-editor.md)) |
 | **Customizations** | Brands (logo, link, caption template, auto-approve), saved captions, saved covers and songs, each with a default ([Customizations](docs/guide/04-customizations.md)) |
 | **Calendar** | Each account's week of posting slots: **Auto-schedule**, drag, approve drafts, edit a post ([Calendar](docs/guide/05-calendar.md)) |
@@ -211,7 +211,7 @@ One Docker Compose stack ([compose.yml](compose.yml)):
 | `caddy` | The only public entry point, on the VM only ([compose.prod.yml](compose.prod.yml)): HTTPS for production and `dev.<host>`; strips the bot service's headers and hides `/api/internal/*` ([Caddyfile](Caddyfile)) |
 | `api` | FastAPI: sign-in, every route, and in production the built React app. Connects as `clipper_app`, which row-level security binds |
 | `worker` | Queue `media`: probe, download (yt-dlp) and render (ffmpeg), one job per user at a time. Holds no secret |
-| `publisher` | Queue `default`: publishes due posts every minute with each user's Zernio key, syncs accounts every 6 hours, sends alerts, re-queues stalled jobs |
+| `publisher` | Queue `default`: publishes due posts every minute with each user's Zernio key, syncs accounts every 6 hours, sends alerts and the evening digest, re-queues stalled jobs |
 | `bot` | Runs every user's Telegram bots by long polling; calls the api as each bot's owner. No database access |
 | `postgres` | PostgreSQL 16: the data and the job queue |
 | `migrate` | Runs once at every start: Alembic migrations, the queue's schema, the api's database role, user 1 |
