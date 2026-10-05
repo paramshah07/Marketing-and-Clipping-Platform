@@ -284,7 +284,7 @@ again).
 Open your chat with the bot and send `/help`, or tap `/` for the command menu. In short:
 
 - **Import**: send a video (up to 20 MB), a link, several links, or a document full of links.
-- **Render**: `/clips`, then a clip's **Render…**: brand, logo position and size, crop, caption.
+- **Render**: `/clips`, then a clip's **Render…**: brand, logo position and size, crop, filter, music, caption.
 - **Schedule**: `/ready` to auto-schedule renders, or a render's **Schedule…** and **Post now**.
 - **Approve and check**: `/drafts`, `/calendar`, `/published`, `/status`.
 - **Fix**: `/failed`, and each alert's **Open post**, with the same one remedy as the Recover page.
@@ -310,10 +310,12 @@ The last card, on **Settings** only.
 Your clips and renders count against your storage limit: 5 GB for a new account, unless the operator changed it.
 The operator's own account has none, so its line reads "used · no limit". The bar turns amber past 80% and red when full. When it is full,
 uploads, imports and renders stop with "your storage is full (… of … GB): delete clips or renders to make room" until
-you delete some. Delete renders in the [Editor](03-editor.md#good-to-know), then clips in the
-[Library](02-library.md#find-and-remove-clips). To get more room, ask the operator.
+you delete some. Delete renders in the [Editor](03-editor.md#good-to-know), clips in the
+[Library](02-library.md#find-and-remove-clips) (tick many to delete them at once), and the MP4s of Reels already on
+Instagram with **Free up space** on the Library's [Published](02-library.md#free-up-space) tab
+([Cleaning up your library](../workflows.md#cleaning-up-your-library)). To get more room, ask the operator.
 
-Logos and covers don't count.
+Logos, covers and songs don't count, though a full storage refuses a new song too.
 
 ### Change your password
 

@@ -16,8 +16,6 @@ says "ask the operator", that is whoever runs your Clipper and gave you its addr
 - **Wrong username or password.** Usernames are lower case (capitals are ignored when you type them). Check you are on
   the right site: an account made on the dev site doesn't exist on the live app, and a live-app account reaches the
   dev site only with its next reset ([Which site to use](01-getting-started.md#which-site-to-use)).
-- **The browser asks for a username and password in a pop-up, before any Clipper page.** That is the live app before
-  the multi-user release: a shared password for the operator only. Use the dev site until the release.
 - **Too many failed sign-ins: try again in 15 minutes.** 10 wrong passwords for that username from your network within
   15 minutes. Wait, then try once more carefully.
 - **This account is disabled.** The operator disabled it. Ask them.
@@ -137,10 +135,19 @@ bot for Clipper with @BotFather `/newbot`.
 ### My storage is full
 
 "your storage is full (… of … GB): delete clips or renders to make room": uploads, imports and renders stop until you
-make room. Delete renders you no longer need in the [Editor](03-editor.md) (a render that a post still uses can't go, unless
-the post is cancelled), then the clips in the [Library](02-library.md#find-and-remove-clips).
+make room. The quickest wins: **Free up space** on **Library** › **Published** deletes the MP4s of Reels already on
+Instagram, and ticking clips in the [Library](02-library.md#find-and-remove-clips) deletes many at once with their
+renders. Renders you no longer need go from the [Editor](03-editor.md) (a render that a post still uses can't go, unless
+the post is cancelled). Step by step: [Cleaning up your library](../workflows.md#cleaning-up-your-library).
 **Settings** › **Account** shows how much you use ([Storage](09-settings.md#storage)). For a bigger limit, ask the
 operator.
+
+### A clip I deleted is still there
+
+A clip stays while one of its renders has a post that isn't cancelled: a draft, scheduled or failed post keeps it until
+you cancel or dismiss that post, and a published one keeps it for good (it is how Clipper knows never to post the video
+twice). A clip still uploading, downloading or probing, or with a render still rendering, stays too. After a bulk
+delete, the clips that stayed remain ticked, and a note says why.
 
 "the server is almost out of disk space: try again later" (`DISK_FULL`) is the server, not you: tell the operator.
 
@@ -151,14 +158,45 @@ operator.
   Open the video itself and copy its address. Only the operator's account imports from other sites.
 - **Failed** with **Needs login cookies** (`LOGIN_REQUIRED`): the site wants a logged-in visitor, or is rate-limiting
   the server. **Retry** later, or download the video yourself and **Upload** it.
+- **Already in your Library**: you have that video already, perhaps from another link to it (a tracking query, or
+  `youtu.be` against `youtube.com`). The message names the clip: open it instead.
 - Other causes, and whether a retry helps: [Clip statuses](02-library.md#clip-statuses).
+
+### Clipper asks "Post it there again?"
+
+That video already went to the account, or is queued there: as another render of the same clip, or as another clip of
+the same link. Clipper never posts a video to an account twice unless you say so, so **Auto-schedule** leaves such a
+render unplaced (with the reason), and placing it by hand asks first. Click **Cancel** to place nothing, or **OK** to
+post it again. The Telegram bot asks the same way ([Calendar](05-calendar.md#place-one-render-on-a-slot)).
+
+### A render card says MP4 deleted
+
+**Free up space** deleted that render's video file, because every post of it is on Instagram already. It can't be
+posted again; **Re-render for…** (Library › **Published**) or a new render in the Editor makes a fresh one.
+
+### A render failed with "Its song was deleted"
+
+The song was deleted from **Customizations** › **Music** before the render ran (`MUSIC_MISSING`), or before a
+**Re-render for…** or **Re-render and retry** of a render that had it. Renders already finished keep the song. Pick
+another song (or **None**) in the Editor and render again.
+
+### Where is Instagram's music library?
+
+Switched off. Picking a track from Instagram's own library (its music and trending sounds) only works for accounts
+connected to Zernio with Facebook Login, so Clipper doesn't offer it. Upload your own songs to **Customizations** ›
+**Music** and pick one in the Editor instead: it is mixed into the render ([Add music](03-editor.md#add-music)).
+
+### Instagram muted my Reel's sound
+
+The song mixed into the render is part of your video, so Instagram checks it like any other: it may mute or block a Reel
+with copyrighted music. Use songs you have the rights to ([Add music](03-editor.md#add-music)).
 
 ### Renders are slow on long clips
 
 A render re-encodes every frame at 1080x1920, so it takes longer the longer the clip is: a clip of several minutes takes
-minutes. Your renders and downloads also run one at a time, and take turns with other users' (after the multi-user
-release the live app runs two at once in all; the dev site one, at a lower priority than the live app's). Until its turn, a render reads **Queued**; while it runs,
-**Rendering** with the time it has taken so far.
+minutes. Your renders and downloads also run one at a time, and take turns with other users' (the live app runs two at
+once in all; the dev site one, at a lower priority than the live app's). Until its turn, a render reads **Queued**;
+while it runs, **Rendering** with the time it has taken so far.
 
 You don't need to wait on the page: move on to the next clip, and the card updates by itself. If a render sits at
 **Queued** for a long time while the footer shows **Worker offline**, tell the operator.
@@ -173,10 +211,10 @@ is live, delete the Reel in Instagram: it can't be deleted through Clipper or Ze
 ### My clips, brands or posts on the dev site are gone
 
 The dev site is reset to a fresh copy of the live app's data about every 5 days. Everything you made there goes:
-clips, renders, posts, files, brands, saved captions and covers, and your Instagram accounts' settings. Your dev-site
+clips, renders, posts, files, brands, saved captions, covers and songs, and your Instagram accounts' settings. Your dev-site
 account stays, with its password, Zernio key and bots ([The dev site](01-getting-started.md#the-dev-site)). Click
 **Re-check** on **Settings** to bring your Instagram accounts back, then set their posting slots and add your brands
-again. Do real work on the live app (once the multi-user release is out).
+again. Do real work on the live app.
 
 ### My dev-site username changed
 

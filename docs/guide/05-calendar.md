@@ -62,6 +62,10 @@ Auto-schedule is the fast way to fill a week: pick renders and Clipper puts each
 3. Check the dashed **Fill** previews on the board. Each says **lands scheduled** or **lands as a draft**.
 4. Click **Auto-schedule**. A message confirms how many were placed.
 
+![A recording of the Calendar: ticking renders in Ready to schedule shows a dashed Fill preview where each will land, then Auto-schedule places them in the next free slots](../images/calendar-auto-schedule.gif)
+
+*The same steps in motion: each tick adds a dashed **Fill** preview on the board, and **Auto-schedule** places them.*
+
 Anything that could not be placed stays selected, with its reason under the button: `no free slot within 30 days`, `account has no posting slots`, `render longer than 900 s`, `render shorter than 3 s`, or `this video already went to @account on Fri 2 Oct (post 234)` (or `is already queued on…`). Auto-schedule never puts a video on an account twice: not another render of the same clip, and not another clip of the same link.
 
 > [!NOTE]

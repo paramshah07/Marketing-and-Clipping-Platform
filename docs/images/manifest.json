@@ -3,7 +3,7 @@
     "file": "overview.png",
     "page": "docs/guide/01-getting-started.md",
     "title": "The Clipper layout",
-    "alt": "Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, and the status footer",
+    "alt": "Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, the status footer and the username",
     "callouts": [
       {
         "n": 1,
@@ -27,6 +27,11 @@
       },
       {
         "n": 5,
+        "selector": "aside a[title=Settings]",
+        "label": "Your username: opens Settings"
+      },
+      {
+        "n": 6,
         "selector": "main header",
         "label": "Page header: title, tabs and the page's main actions"
       }
@@ -70,12 +75,12 @@
       },
       {
         "n": 7,
-        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(5) span",
+        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(6) span",
         "label": "Status: Uploading, Downloading, Probing, Ready, or Failed with the reason"
       },
       {
         "n": 8,
-        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(6)",
+        "selector": "tr[data-clip] >> nth=0 >> td:nth-child(7)",
         "label": "Renders made from this clip"
       },
       {
@@ -114,10 +119,38 @@
     ]
   },
   {
+    "file": "library-select.png",
+    "page": "docs/guide/02-library.md",
+    "title": "Library: select clips",
+    "alt": "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "input[aria-label='Select every clip shown']",
+        "label": "Tick every clip the search shows (again: none)"
+      },
+      {
+        "n": 2,
+        "selector": "tr[data-clip] >> nth=1 >> input[type=checkbox]",
+        "label": "A ticked clip"
+      },
+      {
+        "n": 3,
+        "selector": "[data-selection] span.tabular-nums + [data-selection] button:text-is('Clear')",
+        "label": "How many are ticked; Clear unticks them"
+      },
+      {
+        "n": 4,
+        "selector": "[data-selection] button:has-text('Delete')",
+        "label": "Delete them with their renders and files (it asks first; a clip with a post stays)"
+      }
+    ]
+  },
+  {
     "file": "library-published.png",
     "page": "docs/guide/02-library.md",
     "title": "Published",
-    "alt": "The Library's Published tab: filters for account, brand and date range, and a table of published posts with Instagram links and a Re-render for… menu",
+    "alt": "The Library's Published tab: filters for account, brand and date range, Free up space, and a table of published posts with Instagram links and a Re-render for… menu",
     "callouts": [
       {
         "n": 1,
@@ -131,18 +164,23 @@
       },
       {
         "n": 3,
+        "selector": "main button:has-text('Free up space')",
+        "label": "Free up space: delete the MP4s of Reels already on Instagram"
+      },
+      {
+        "n": 4,
         "selector": "tr[data-post] >> nth=0 >> td:nth-child(2) div.font-medium",
         "label": "When it went out (and in the account's zone, if different)"
       },
       {
-        "n": 4,
+        "n": 5,
         "selector": "tr[data-post] >> nth=0 >> a:has-text('View on Instagram')",
         "label": "Open the Reel on Instagram"
       },
       {
-        "n": 5,
+        "n": 6,
         "selector": "tr[data-post] >> nth=0 >> td:last-child label",
-        "label": "Re-render for… a brand: same clip and crop, that brand's default logo and caption; opens the editor"
+        "label": "Re-render for… a brand: same clip, crop and filter, that brand's default logo and caption; opens the editor"
       }
     ]
   },
@@ -150,7 +188,7 @@
     "file": "editor.png",
     "page": "docs/guide/03-editor.md",
     "title": "Editor",
-    "alt": "The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, cover, caption, Render) and the renders for this clip",
+    "alt": "The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, filter, music, Render) and the renders for this clip",
     "callouts": [
       {
         "n": 1,
@@ -184,16 +222,21 @@
       },
       {
         "n": 7,
-        "selector": "aside div.space-y-2:has(> textarea[aria-label=Caption])",
-        "label": "Caption: saved captions, reset to the brand template, limits"
+        "selector": "aside div.space-y-2:has(> div > span:text-is('Filter'))",
+        "label": "Filter: Instagram-style looks, baked into the render"
       },
       {
         "n": 8,
+        "selector": "aside div.space-y-2:has(> div > span:text-is('Music'))",
+        "label": "Music: a song mixed into the render, its volume and the clip's (Cover and Caption follow below)"
+      },
+      {
+        "n": 9,
         "selector": "aside button:has-text('Render')",
         "label": "Render (⌘↵): queues the 1080x1920 MP4"
       },
       {
-        "n": 9,
+        "n": 10,
         "selector": "aside:has(span:text-is('Renders for this clip'))",
         "label": "Renders for this clip, newest first"
       }
@@ -229,6 +272,44 @@
         "n": 5,
         "selector": "[data-testid=crop-readout]",
         "label": "Position and size as fractions, and the scaling applied"
+      }
+    ]
+  },
+  {
+    "file": "editor-filter.png",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor: filter and music",
+    "alt": "The Editor with the Moon filter picked: the stage shows the clip with that look under the logo; the controls are scrolled to the Filter tiles and the Music section with the default song and its volumes; a render card names its filter and song",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "[data-fracbox=logo] >> xpath=..",
+        "label": "The stage shows the filter; the logo sits on top, untouched"
+      },
+      {
+        "n": 2,
+        "selector": "aside div.space-y-2:has(> div > span:text-is('Filter'))",
+        "label": "Filter: one tile per look, on this clip's own frame; Normal is none"
+      },
+      {
+        "n": 3,
+        "selector": "aside button[aria-label='Moon']",
+        "label": "The chosen filter, also named beside Filter"
+      },
+      {
+        "n": 4,
+        "selector": "aside label:has(select[aria-label=Song])",
+        "label": "The song (the default one is preselected), or None; Upload… adds one"
+      },
+      {
+        "n": 5,
+        "selector": "aside div.space-y-1\\.5:has(> div > span:text-is('Song')) + aside div.space-y-1\\.5:has(> div > span:text-is(\"Clip's sound\"))",
+        "label": "Song and Clip's sound volumes; play the stage to hear the mix"
+      },
+      {
+        "n": 6,
+        "selector": "li[data-render=\"199\"]",
+        "label": "A render names its filter and its song (♫)"
       }
     ]
   },
@@ -312,7 +393,7 @@
       {
         "n": 1,
         "selector": "header nav",
-        "label": "Brands, Captions and Covers tabs"
+        "label": "Brands, Captions, Covers and Music tabs"
       },
       {
         "n": 2,
@@ -365,7 +446,7 @@
       {
         "n": 1,
         "selector": "header nav",
-        "label": "Brands, Captions and Covers tabs"
+        "label": "Brands, Captions, Covers and Music tabs"
       },
       {
         "n": 2,
@@ -429,6 +510,44 @@
         "n": 5,
         "selector": "li[data-cover] >> nth=1 >> button[title=Rename]",
         "label": "Rename or delete (renders keep their own copy)"
+      }
+    ]
+  },
+  {
+    "file": "customizations-music.png",
+    "page": "docs/guide/04-customizations.md",
+    "title": "Customizations: music",
+    "alt": "The Music tab: three songs, one marked Default, each with a player, the day it was added, Make default, rename and delete",
+    "callouts": [
+      {
+        "n": 1,
+        "selector": "header button:has-text('Upload song')",
+        "label": "Upload song: MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB, several at once"
+      },
+      {
+        "n": 2,
+        "selector": "li[data-track] >> nth=0 >> span[title]",
+        "label": "A song; its name is also the Reel's audio on Instagram"
+      },
+      {
+        "n": 3,
+        "selector": "li[data-track] >> nth=0 >> span:text-is('Default')",
+        "label": "The default song: preselected in the Editor"
+      },
+      {
+        "n": 4,
+        "selector": "li[data-track] >> nth=0 >> audio",
+        "label": "Play it"
+      },
+      {
+        "n": 5,
+        "selector": "li[data-track] >> nth=1 >> button:has-text('Make default')",
+        "label": "Make default (or Clear default)"
+      },
+      {
+        "n": 6,
+        "selector": "li[data-track] >> nth=1 >> button[title=Rename]",
+        "label": "Rename or delete (a finished render keeps the song mixed in)"
       }
     ]
   },
@@ -498,7 +617,7 @@
       },
       {
         "n": 3,
-        "selector": "aside[data-queue] label[data-render=\"196\"]",
+        "selector": "aside[data-queue] label[data-render=\"117\"]",
         "label": "A selected render (or drag it onto a slot)"
       },
       {
@@ -677,6 +796,20 @@
     "page": "README.md",
     "title": "Clipper",
     "alt": "Clipper's calendar: a week of Instagram Reels scheduled across three daily slots, with finished renders waiting in the Ready to schedule tray",
+    "callouts": []
+  },
+  {
+    "file": "editor-filters.gif",
+    "page": "docs/guide/03-editor.md",
+    "title": "Editor: trying filters",
+    "alt": "A recording of the Editor: clicking Filter tiles one after another changes the clip's look on the stage, while the logo keeps its own colours",
+    "callouts": []
+  },
+  {
+    "file": "calendar-auto-schedule.gif",
+    "page": "docs/guide/05-calendar.md",
+    "title": "Calendar: Auto-schedule",
+    "alt": "A recording of the Calendar: ticking renders in Ready to schedule shows a dashed Fill preview where each will land, then Auto-schedule places them in the next free slots",
     "callouts": []
   },
   {

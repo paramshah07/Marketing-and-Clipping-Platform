@@ -4,13 +4,8 @@ Where Clipper runs, how a change reaches production, and how to back it up and r
 in [PLAN.md](PLAN.md); users, tenancy and secrets in [multi-user.md](multi-user.md)). Part of the
 [documentation](README.md); the step-by-step versions with diagrams are in [workflows.md](workflows.md).
 
-> [!IMPORTANT]
-> **Production differs until the release.** Production runs the `prod` branch, which is still the single-operator
-> version: one shared browser password (Caddy's basic auth) in front of it, no sign-in page, signup, **Setup** or
-> **Settings**, one `worker` for every queue (no `publisher`), and the operator's Zernio key and three bots read
-> straight from `.env` (services `bot`, `bot2` and `bot3`). This runbook describes the multi-user version: what `dev`
-> and the dev site run now, and what production runs once the release pull request #20 (`dev` -> `prod`) is merged
-> ([its checklist](#releasing-multi-user-the-cutover-checklist)).
+Since [the multi-user release](#the-multi-user-release-2026-10-05) of 2026-10-05, production signs users in itself,
+like the dev site; before it, production was the single-operator version behind one shared browser password.
 
 > [!WARNING]
 > Every push to `prod` deploys production, and every push to `dev` that passes CI deploys the dev site, where posts
@@ -27,8 +22,8 @@ in [PLAN.md](PLAN.md); users, tenancy and secrets in [multi-user.md](multi-user.
 | Compose | Project `clipper`, `COMPOSE_FILE=compose.yml:compose.prod.yml`. The api on 127.0.0.1:8000; Caddy on 80 and 443 serves both sites | Project `clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`. The api on 127.0.0.1:8001; no Caddy of its own |
 | Deploys | Every push to `prod`: **Deploy** (`.github/workflows/deploy.yml`) runs `deploy.sh` in `~/clipper` | Every push to `dev`, once CI passes on it: **Deploy staging** (`.github/workflows/deploy-dev.yml`) runs `deploy.sh` in `~/clipper-dev` |
 | Publishing | On. Each user's posts go out with their own Zernio key | On. The operator's posts go out with the operator's Zernio key (re-imported at every refresh), anyone else's with a key they paste on the dev site. Same Instagram accounts as production |
-| Telegram bots | Each user's own; the operator's three are imported from `.env` at the release | None from production: a user adds a separate @BotFather bot there, never one production runs |
-| Data | The real data; a database dump every night, the last 7 kept ([section 5](#5-backups-and-restore)) | A copy of production's, replaced about every 5 days. Everything anyone makes there (clips, renders, posts, files, brands, captions, covers, Instagram account settings) is gone at the next refresh; accounts made there are kept, and nothing else of theirs ([section 7](#7-staging-dev-on-the-vm)) |
+| Telegram bots | Each user's own; the operator's three were imported from `.env` at the multi-user release | None from production: a user adds a separate @BotFather bot there, never one production runs |
+| Data | The real data; a database dump every night, the last 7 kept ([section 5](#5-backups-and-restore)) | A copy of production's, replaced about every 5 days. Everything anyone makes there (clips, renders, posts, files, brands, captions, covers, songs, Instagram account settings) is gone at the next refresh; accounts made there are kept, and nothing else of theirs ([section 7](#7-staging-dev-on-the-vm)) |
 | Who signs in | Every user, through the app's own sign-in; signup while fewer than `MAX_USERS` (15) users are enabled | Production's users with their production password as of the last refresh, and accounts made on the dev site; signup the same way, copied users counted |
 
 The two sites look the same (both footers read **Publishing live**): check the address bar before you schedule
@@ -46,7 +41,7 @@ Both sites run on one VM:
 |---|---|
 | Host | One Oracle Cloud Always Free Arm VM: `VM.Standard.A1.Flex`, 2 OCPU / 12 GB (11 GB visible), Ubuntu 24.04, 46.6 GB boot volume (not grown yet; capacity: [multi-user.md](multi-user.md#10-capacity)) |
 | Open ports | Security list: 22 (SSH), 80, 443. Production's Caddy publishes 80 and 443, the only ports Docker publishes beyond 127.0.0.1 |
-| Caddy | Production's (`Caddyfile`) serves both sites. A `Caddyfile` change on `dev` reaches it only at the release: the dev site's deploy never restarts it |
+| Caddy | Production's (`Caddyfile`) serves both sites. A `Caddyfile` change on `dev` reaches it only at the next release: the dev site's deploy never restarts it |
 | Renders | Both workers share the 2 cores; the dev site's renders one at a time, at a quarter of production's CPU weight |
 | CI | Every pull request to `dev` or `prod`, every push to `dev`: backend tests and frontend checks (`.github/workflows/ci.yml`) |
 | Trying a branch before merging | `./review.sh` on the Mac: the branch on a copy of production, publishing off, no bots ([section 6](#6-trying-a-pr-before-merging-on-the-mac)) |
@@ -302,11 +297,12 @@ Production: **Actions** › **Deploy** › **Run workflow** on GitHub, or on the
 The dev site: **Actions** › **Deploy staging** › **Run workflow**, or on the VM
 `cd ~/clipper-dev && git pull --ff-only && sh deploy.sh`.
 
-### Releasing multi-user: the cutover checklist
+### The multi-user release (2026-10-05)
 
-The release pull request #20 (`dev` -> `prod`) brings users ([multi-user.md](multi-user.md)) to production and
-changes how everyone signs in, so it has its own checklist. The sign-in pages, the row-level security and Caddy
-without its password ship in the same release: never promote a `dev` that has only part of it.
+Done on 2026-10-05 at 07:09 UTC: the release pull request #20 (`dev` -> `prod`, merge commit `695f074`) brought users
+([multi-user.md](multi-user.md)) to production and changed how everyone signs in. The checklist it followed is kept
+below as the record of what changed, and for a rebuild or a [rollback](#rolling-back-the-multi-user-release). The dump
+from step 5 is `~/clipper/backups/pre-multi-user.dump` on the VM.
 
 **Before merging**:
 
@@ -375,10 +371,9 @@ without its password ship in the same release: never promote a `dev` that has on
 
 **After the release:**
 
-- The dev site's next refresh copies every user's rows and files, not only the operator's: each production user can
-  sign in there with their production password and sees their own copy (no Zernio key, no bots).
-- Delete the "until the release" notes: the box at the top of this runbook, CLAUDE.md's line on production, and
-  the ones in README.md and the guide.
+- The dev site's refreshes copy every user's rows and files, not only the operator's: each production user can sign
+  in there with their production password and sees their own copy (no Zernio key, no bots).
+- Still the operator's to do, if not done yet: copy the `SECRETS_KEY` line into the password manager (step 10).
 - **Later**, once there is no going back ([rollback](#rolling-back-the-multi-user-release)), remove `ZERNIO_API_KEY`,
   the six `TELEGRAM_*` lines, `CLIPPER_USER` and `CLIPPER_PASSWORD_HASH` from production's `.env`: nothing reads them
   after the import. The dev site's `.env` keeps its own `ZERNIO_API_KEY`, which every refresh imports again.
@@ -386,8 +381,9 @@ without its password ship in the same release: never promote a `dev` that has on
 ### Rolling back the multi-user release
 
 Reverting the multi-user release (migrations 0007 to 0009) is not enough on its own: the old code's migrate
-doesn't know the database's newer revision and fails, so its api never starts. Plan to fix forward. To go back
-anyway, while the operator is still the only user (the downgrade drops `user_id`, so every other user's clips,
+doesn't know the database's newer revision and fails, so its api never starts, and every release since added
+migrations of its own (0010 to 0012 so far). Plan to fix forward. To go back anyway, only while the operator is still
+the only user (`list-users` shows who signed up since: the downgrade drops `user_id`, so every other user's clips,
 accounts and posts would become the operator's), first on the VM, with the release still checked out:
 
 ```sh
@@ -477,7 +473,7 @@ refresh) or signs up at `/signup`.
 | | |
 |---|---|
 | Checkout | `~/clipper-dev`, tracking `origin/dev` |
-| `.env` | `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=true`, and production's `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` and `ZERNIO_API_KEY` (its own copy: it stays when production's `.env` drops the key after the release; to rebuild without it, create another key in the operator's Zernio account). Never `TELEGRAM_*` (`compose.staging.yml` blanks them for its migrate anyway). `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
+| `.env` | `COMPOSE_PROJECT_NAME=clipper-dev`, `COMPOSE_FILE=compose.yml:compose.prod.yml:compose.staging.yml`, `CLIPPER_HOST=dev.145-241-239-46.sslip.io`, `PUBLISHING_ENABLED=true`, and production's `CLIPPER_ACME_EMAIL`, `CLIPPER_USER`, `CLIPPER_PASSWORD_HASH` and `ZERNIO_API_KEY` (its own copy: it stays when production's `.env` drops the key; to rebuild without it, create another key in the operator's Zernio account). Never `TELEGRAM_*` (`compose.staging.yml` blanks them for its migrate anyway). `deploy.sh` adds its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` |
 | Stack | `compose.staging.yml`: its own Postgres (no host port); the api on 127.0.0.1:8001 and on the `clipper-edge` network (production's Caddy reaches it as `clipper-dev-api-1`), with `IDEMPOTENCY_SALT=staging:`; the render worker one job at a time with `cpu_shares: 256`; no Caddy |
 | Deploys | `.github/workflows/deploy-dev.yml` (**Deploy staging**), after CI passes on a push to `dev`, or by hand ([section 4](#deploying-by-hand)) |
 | Refresh | `staging-refresh.sh`, by cron at 05:00 UTC (after the 04:00 backup) on the 1st, 6th, 11th, 16th, 21st, 26th and 31st of each month (`*/5` in the day-of-month field: 1 to 6 days apart), log in `~/staging-refresh.log` |

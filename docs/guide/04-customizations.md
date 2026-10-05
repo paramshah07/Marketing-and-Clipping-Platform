@@ -1,6 +1,6 @@
 # Customizations
 
-Customizations holds the brands, saved captions, saved covers and songs the Editor offers, and which one of each it preselects. Your [Telegram bot](08-telegram-bot.md) shows them too (`/brands`, `/captions`, `/covers`) and starts its renders from the same defaults.
+Customizations holds the brands, saved captions, saved covers and songs the Editor offers, and which one of each it preselects. Your [Telegram bot](08-telegram-bot.md) shows them too (`/brands`, `/captions`, `/covers`, `/music`), starts its renders from the same defaults, and saves a song you send it as an audio file.
 
 ![The Brands tab with the Flux Energy drawer open: logo, name and link, caption template, Auto-approve, Default brand and the default logo placement](../images/customizations-brands.png)
 
@@ -99,6 +99,17 @@ Instagram's profile grid shows only the middle 3:4 of a cover. Check it in the E
 ## Music
 
 Songs you mix into renders. The Editor lists them under its **Music** section and preselects the default.
+
+![The Music tab: three songs, one marked Default, each with a player, the day it was added, Make default, rename and delete](../images/customizations-music.png)
+
+| # | What it is |
+|---|---|
+| 1 | **Upload song**: MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB each, several at once. |
+| 2 | A song. Its name is also what Instagram shows as the Reel's audio. |
+| 3 | The default song: preselected in the Editor. |
+| 4 | Play it. |
+| 5 | **Make default** (or **Clear default**). |
+| 6 | Rename (pencil) or delete (bin). A finished render keeps the song mixed in. |
 
 - **Upload song**: MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB each, several at once, named after their files.
 - Play one in its row; **Make default** (or **Clear default**); rename (pencil) or delete (bin).

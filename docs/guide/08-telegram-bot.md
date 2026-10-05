@@ -37,11 +37,12 @@ site.
 | `/brands` | Brands, their logos and caption templates, your default brand marked |
 | `/captions` | Your saved captions from [Customizations](04-customizations.md#captions), the default first |
 | `/covers` | Your saved covers from [Customizations](04-customizations.md#covers), the default first |
+| `/music` | Your songs from [Customizations](04-customizations.md#music), the default first (also `/songs`) |
 | `/accounts` | Instagram accounts and their posting slots |
 | `/help` | What the bot does (also `/start`) |
 | `/cancel` | Drops a question the bot is waiting on |
 
-Lists end each line with a tappable id: `/c12` opens clip 12, `/r34` render 34, `/p56` post 56, `/b4` brand 4, `/t3` saved caption 3, `/i5` saved cover 5, `/a1` account 1.
+Lists end each line with a tappable id: `/c12` opens clip 12, `/r34` render 34, `/p56` post 56, `/b4` brand 4, `/t3` saved caption 3, `/i5` saved cover 5, `/m7` song 7, `/a1` account 1.
 
 ## Import videos
 
@@ -57,6 +58,7 @@ Bot:  Import this TikTok by @creator?
 - A video file can be up to 20 MB. An `@name` in its caption, or next to a link, sets the creator. Upload bigger files in the web app, or send their link.
 - A link already in the library gets its clip card instead.
 - For many links the bot sums up first (`Found 14 videos (TikTok 6 · Instagram 8): 3 already in the library, 2 repeats. Import 11?`), then sends one message when every clip has finished.
+- An audio file is a song, not a clip: the bot offers to save it to your songs ([Accounts, brands and songs](#accounts-brands-and-songs)).
 
 ## Render a clip
 
@@ -69,6 +71,8 @@ Render · clip 12 · tiktok.com/@creator/video/7684…
 Brand: Kite VPN
 Logo: Top right · 22% of the width · opacity 100% (brand default)
 Crop: centre, the source fills the 9:16 frame
+Filter: none
+Music: ♫ Late night drive · song 100% · clip's sound 100%
 Cover: Neon (default)
 Caption: 79/2200 characters · 2/30 hashtags
 [Brand: Kite VPN]
@@ -77,6 +81,8 @@ Caption: 79/2200 characters · 2/30 hashtags
 [↙] [↓] [↘]
 [−] [22%] [+] [Opacity 100%]
 [Crop: centre] [Caption]
+[Filter: none] [Music: Late night drive]
+[Song 100%] [Clip's sound 100%]
 [Saved captions] [Cover: Neon]
 [Render] [Close]
 ```
@@ -86,8 +92,12 @@ The editor starts from your [Customizations](04-customizations.md), as the web E
 - **Brand**: the one this clip was last rendered with; otherwise your default brand; otherwise you pick one.
 - **Caption**: the brand's template, or your default saved caption when the brand has no template, with `{link}` and `{creator}` filled in. **Saved captions** swaps in one of your saved captions instead, and **Template** puts the starting caption back after you edit it.
 - **Cover**: your default saved cover. Tap **Cover** to pick another saved cover, or **None** to let Instagram pick a frame. These buttons only appear once you have saved captions or covers.
+- **Music**: your default song, if you have one. Tap **Music** to pick another of your songs, or **None: the clip's own sound**. **Song** and **Clip's sound** step each volume down (100, 75, 50, 25%, and 0% for the clip's sound) and back round to 100%; the clip's sound only shows when the clip has sound.
+- **Filter**: none at first. Tap **Filter** for the 14 looks of the web [Editor](03-editor.md#pick-a-filter), three to a row, or **Normal** to take it off. The bot can't preview a look: the render's card shows the result.
 
-The arrows snap the logo to a corner, edge or centre; − and + change its size by 2%, and **Opacity** steps through 100, 75, 50 and 25%. Once you move the logo, **Save as default** makes that placement the brand's default. **Render** queues it, and the render's card arrives when it is done (its first line ends in `· cover` when it has one). The editor stays open for another variant.
+The arrows snap the logo to a corner, edge or centre; − and + change its size by 2%, and **Opacity** steps through 100, 75, 50 and 25%. Once you move the logo, **Save as default** makes that placement the brand's default. **Render** queues it, and the render's card arrives when it is done (its first line names the filter and the song, if the render has them, and ends in `· cover` when it has a cover). The editor stays open for another variant.
+
+**Re-render for…** keeps a render's filter and song, and a render card names them (`· Moon · ♫ Late night drive`).
 
 ## Schedule a render
 
@@ -107,6 +117,8 @@ Caption: …
 
 A draft result offers **Approve** straight away. **Post now** asks once, then reports **Live on Instagram** with the link when the Reel is up.
 
+If that video already went to the account, or is queued there (another render of the same clip, or another clip of the same link), the form says so, for example **This video already went to @afro.yahu on Fri 2 Oct (post 234).**, and asks before it does anything: **Schedule it again** (or **Post it again now**), or **Back**.
+
 ## Post cards
 
 Every post opens as a card: its status, account, time, brand, clip and caption. The buttons depend on the status:
@@ -119,7 +131,7 @@ Every post opens as a card: its status, account, time, brand, clip and caption. 
 | Published | **View on Instagram** · **Re-render for…** |
 | Failed or dead letter | The remedy · **Details** · **Dismiss** |
 
-**Move…** works like **Other time…** above. **Re-render for…** renders the same clip and crop again for the brand you pick, with that brand's default logo placement and caption (your default saved caption if the brand has no template) and your default cover.
+**Move…** works like **Other time…** above. **Re-render for…** renders the same clip, crop, filter and music again for the brand you pick, with that brand's default logo placement and caption (your default saved caption if the brand has no template) and your default cover.
 
 ## Your week
 
@@ -168,11 +180,12 @@ Zernio said: Media processing failed: …
 
 For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, then **I've reconnected: check now**. After a remedy, and after **Post now**, the bot follows the post for an hour and tells you when it is live, fails again, or moves to another slot. An account-disconnected alert (from any account sync) has **Reconnect in Zernio** and **Sync accounts** buttons.
 
-## Accounts and brands
+## Accounts, brands and songs
 
 - **Account card** (`/accounts`, then `/a1`): **Slots** (the same presets as the web app, or **Type times…** like `09:00 13:00 19:00`), **Timezone**, **Daily cap**, **Min gap**, **Calendar**, **Disable** or **Enable**, and **Sync accounts**. A disconnected account adds **Reconnect in Zernio**.
 - **Brand card** (`/brands`, then `/b4`): **Name**, **Template**, **Link**, **Logo**, **Placement** (the default logo placement), **Auto-approve on/off**, **View logo** (sends the logo PNG as a file) and **Archive**. The card says when it is your default brand. `/brands` also has **New brand** and **Show archived**.
 - **Saved captions and covers** (`/captions`, then `/t3`; `/covers`, then `/i5`): a caption's card shows its whole text, a cover's card shows the image. Save, edit and choose the defaults in [Customizations](04-customizations.md) in the web app; the bot uses them.
+- **Songs** (`/music`, then `/m7`): a song's card has **Play** (the bot sends the file), **Make default** (or **Clear default**), **Rename** and **Delete**. To save a song, send the bot an audio file: an audio message, or an MP3, M4A, AAC, WAV, Ogg or FLAC file up to 20 MB. It asks **Save _name_ (_size_) as a song for your renders?** with **Save** and **Cancel**, naming it after the file's own title tag. Its name is what Instagram shows as the Reel's audio, so rename it if it reads badly.
 
 > [!TIP]
 > Send a logo as a **file** (paperclip, then File), not as a photo. Telegram turns photos into JPEGs, which loses the transparency.
@@ -182,6 +195,7 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 | Limit | Value |
 |---|---|
 | Videos the bot can receive | 20 MB each |
+| Songs the bot can save | 20 MB each |
 | Videos the bot can send (**Watch**) | 50 MB each |
 | Time to answer a question the bot asked | 10 minutes |
 
@@ -190,6 +204,6 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 - Anything you send while the bot is down is ignored, so an old **Post now** tap never publishes hours later. The bot says so when it is back: send it again.
 - A confirm button acts once; a second tap only answers **Already done.** Open forms and lists expire when the bot restarts (**This has expired: run the command again**); buttons on cards keep working.
 - While publishing is off, **Post now** answers **Publishing is off … nothing can post now**.
-- The web app alone has free drag for the logo and crop, a live preview before rendering, a cover from an image of your own, and saving, editing and choosing the defaults in [Customizations](04-customizations.md).
+- The web app alone has free drag for the logo and crop, a live preview before rendering (filters and songs included), a cover from an image of your own, saving and editing captions and covers and choosing their defaults in [Customizations](04-customizations.md), and deleting many clips at once or **Free up space** in the [Library](02-library.md). A clip card's **Remove** deletes a clip that has no renders yet.
 
 ← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Settings and your account](09-settings.md) →

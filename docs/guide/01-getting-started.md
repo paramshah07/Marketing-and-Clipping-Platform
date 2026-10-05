@@ -12,11 +12,8 @@ Clipper runs in two places. They look the same: only the address tells them apar
 | Live app | [https://145-241-239-46.sslip.io](https://145-241-239-46.sslip.io) | Your real work. It runs the released version (the `prod` branch). |
 | Dev site | [https://dev.145-241-239-46.sslip.io](https://dev.145-241-239-46.sslip.io) | Trying changes before they are released. It runs the newest version (the `dev` branch), on a copy of the live app's data. |
 
-> [!IMPORTANT]
-> Until the multi-user release (pull request #20, `dev` → `prod`) is merged, the live app still runs the older
-> Clipper made for the operator alone: the browser asks for a shared password, and there is no sign-up, no
-> **Settings** page, and no Zernio key or Telegram bot of your own. Everything in this guide is on the dev site
-> today, and comes to the live app with that release.
+Since 5 October 2026 the live app has accounts too: sign up there for your real work. Before that day it was the
+operator's alone, behind a shared password.
 
 ### The dev site
 
@@ -25,7 +22,7 @@ Clipper runs in two places. They look the same: only the address tells them apar
   should really go out.
 - **Its data is reset about every 5 days**: at 05:00 UTC on the 1st, 6th, 11th, 16th, 21st, 26th and 31st of each
   month. A fresh copy of the live app's data replaces it, and everything you made on the dev site is gone: clips,
-  renders, posts, files, brands, saved captions and covers, and your Instagram accounts' settings. An account you
+  renders, posts, files, brands, saved captions, covers and songs, and your Instagram accounts' settings. An account you
   created on the dev site is kept, with its password, Zernio key, storage limit and bots, and nothing else. Everyone is
   signed out. After a reset, click **Re-check** on **Settings** to bring your Instagram accounts back (they return
   with the default time zone and posting slots), then set their slots and add your brands again.
@@ -39,9 +36,9 @@ Clipper runs in two places. They look the same: only the address tells them apar
 - A change reaches the dev site once it is merged into `dev` and its checks pass, so the dev site may restart for a
   minute or two while you use it.
 
-### When the release lands
+### Moving from the dev site to the live app
 
-If you set Clipper up on the dev site before the release, move to the live app like this:
+If you set Clipper up on the dev site before the live app had accounts, move to the live app like this:
 
 1. **Remove your bot on the dev site** (**Settings** › **Telegram bots** › **Remove**), or make a new bot with
    @BotFather for the live app. A bot running on both sites stops working properly on both until the next reset drops
@@ -122,8 +119,8 @@ you out everywhere, and tell you what it is. Sign in with it, then pick your own
 
 > [!NOTE]
 > The operator signs in as `clipper`. Everything from before Clipper had accounts (clips, brands, accounts, posts)
-> belongs to that account, and works as it did. At the release, the Zernio key and the three Telegram bots the live app
-> uses today become that account's too.
+> belongs to that account, and works as it did. Since 5 October 2026 the Zernio key and the three Telegram bots the
+> live app used before are that account's too.
 
 Clipper works on a phone too. The Recover page is made for one, because Telegram alerts link straight to it.
 
@@ -162,7 +159,7 @@ A step's number turns into a green check when it is done.
 
 Every page shares a sidebar on the left and a header along the top.
 
-![Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, and the status footer](../images/overview.png)
+![Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, the status footer and the username](../images/overview.png)
 
 | # | What it is |
 |---|---|
@@ -170,11 +167,8 @@ Every page shares a sidebar on the left and a header along the top.
 | 2 | Failed posts badge. The red number counts posts that failed; click it to open the oldest one's Recover page. It only shows when something failed. |
 | 3 | Status. The first thing standing between a post and Instagram: the api, the database, the workers, then publishing (the server's switch, or your Zernio key). |
 | 4 | Renders queued or running, and posts scheduled to go out (drafts don't count). |
-| 5 | The page header: the page title, its tabs, and its main actions on the right. |
-
-Under the status, the footer's last row is your username, which opens **Settings**, with a **Setup _n_/3** badge that
-opens **Set up Clipper** until your Zernio key and an Instagram account are in place. (The screenshot above predates
-that row.)
+| 5 | Your username: opens **Settings**. Until your Zernio key and an Instagram account are in place, a **Setup _n_/3** badge beside it opens **Set up Clipper**. |
+| 6 | The page header: the page title, its tabs, and its main actions on the right. |
 
 ![The sidebar footer of a new user: No Zernio key in amber, 0 rendering and 0 scheduled, and the username docs-shots with a Setup 0/3 badge](../images/footer-no-key.png)
 
@@ -229,11 +223,11 @@ A brand is an advertiser: its logo, link and caption.
 Leave **Auto-approve** off while you get used to Clipper: every post then waits as a draft until you approve
 it. More in [Customizations](04-customizations.md).
 
-### 3. Optional: saved captions and covers
+### 3. Optional: saved captions, covers and songs
 
-Under **Customizations**, **Captions** holds reusable caption text and **Covers** holds cover images
-(**Upload cover**). The default cover is preselected in the Editor; the default caption fills in when the
-brand has no caption template.
+Under **Customizations**, **Captions** holds reusable caption text, **Covers** holds cover images
+(**Upload cover**) and **Music** holds songs to mix into renders (**Upload song**). The default cover and the default
+song are preselected in the Editor; the default caption fills in when the brand has no caption template.
 
 ### 4. Check the footer
 
@@ -249,8 +243,9 @@ The usual routine, in the evening, to fill tomorrow's slots.
    **Upload** or drop them on the **Drop videos here** bar. A clip is ready to edit when its status reads
    **Ready**. See [Library](02-library.md).
 2. **Brand and render.** Hover a clip and click **Open editor**. The brand is already picked (the one this
-   clip was last rendered with, else the default brand). Check the logo, crop, cover and caption, then click
-   **Render** (⌘↵). You can move on to the next clip while it renders. See [Editor](03-editor.md).
+   clip was last rendered with, else the default brand). Check the logo, crop, cover and caption, pick a **Filter** if
+   the clip needs a look and a song under **Music** if it needs one, then click **Render** (⌘↵). You can move on to the
+   next clip while it renders. See [Editor](03-editor.md).
 3. **Schedule.** Open the **Calendar**. Finished renders wait in **Ready to schedule** on the right. Select
    them and click **Auto-schedule** to fill the next free slots, or drag one onto a slot.
    See [Calendar](05-calendar.md).

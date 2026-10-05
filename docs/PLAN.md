@@ -15,15 +15,15 @@ local files, not in the repo.) Sections 2 and 6 describe rev 2's localhost setup
 - Rev 3 (2026-09-28): **production = one Oracle Cloud Always Free Arm VM** (2 OCPU / 12 GB, Pay As You Go
   account so it is never reclaimed as idle), same compose + `compose.prod.yml` (images carry the code and the
   built frontend, the api serves it at `/`), public at `<ip>.sslip.io` behind Caddy: HTTPS plus one shared
-  password (basic auth), since there is no login. Runbook: `docs/deploy.md`. (The shared password goes with rev 5's
-  release; production keeps it until then.)
+  password (basic auth), since there is no login. Runbook: `docs/deploy.md`. (The shared password went with rev 5's
+  release on 2026-10-05.)
 - Rev 4 (2026-09-28): no content-ownership tag anywhere; a **Customizations** tab holds brands, saved captions
   and saved covers, one of each marked default (what the Editor preselects).
 - Rev 5 (2026-09-28): **multi-user** (section 9). Open signup (username + password) up to `MAX_USERS` = 15;
   each user brings their own Zernio key and any number of Telegram bots; Postgres row-level security keeps each
   user to their own rows; the operator is user 1. Caddy's basic auth goes (the app signs users in). Design,
-  threat model, capacity and runbook: `docs/multi-user.md`. On `dev` and the dev site now; production gets it when
-  the release pull request #20 (`dev` -> `prod`) is merged (checklist: `docs/deploy.md` section 4).
+  threat model, capacity and runbook: `docs/multi-user.md`. In production since 2026-10-05 (release pull request #20;
+  its checklist: `docs/deploy.md` section 4).
 - Rev 6 (2026-09-29): **branches and a dev site**. `dev` is the default branch and takes every change by pull
   request; `prod` is production (a `dev` -> `prod` pull request is a release, every push to `prod` deploys);
   `master` is legacy. CI (`.github/workflows/ci.yml`) on every pull request to `dev` or `prod` and every push to
@@ -36,6 +36,18 @@ local files, not in the repo.) Sections 2 and 6 describe rev 2's localhost setup
   keys and bots are never copied; accounts made there survive refreshes. Renders there run one at a time at a
   quarter of production's CPU weight. Runbook: `docs/deploy.md` section 7; users and keys: `docs/multi-user.md`
   section 12.
+- Rev 7 (2026-10-05): **cleanup, duplicates, filters, music**. The Library deletes ticked clips with their renders and
+  frees the MP4s of renders that are on Instagram already (**Free up space**: rows, thumbnails and links stay); a
+  video is imported once and posted once per account unless the user says "post it again" (409 `ALREADY_IN_LIBRARY`,
+  `ALREADY_POSTED`). The Telegram bot starts its renders from the user's Customizations (default brand, caption, cover
+  and song), lists saved captions, covers and songs, picks filters and songs, and saves a song sent to it.
+  Instagram-style filters (Instagram's API applies none): 14 recipes in `render.py` `FILTERS`, previewed in the Editor
+  with the same CSS maths and baked into the render under the logo (`renders.filter`, migration 0010). Music: each
+  user's songs (`saved_tracks`, migration 0012; **Customizations** › **Music**), one mixed into the render with its
+  volume and the clip's (`renders.music`; Zernio's `audioName` names the Reel's audio after it). Instagram's own music
+  library (`posts.music`, Zernio `audioConfiguration`, migration 0011) needs accounts connected with Facebook Login,
+  so it stays behind `INSTAGRAM_CATALOG_MUSIC`, off. User guide: `docs/guide/02-library.md`, `03-editor.md`,
+  `04-customizations.md`, `08-telegram-bot.md`.
 - Rev 2: **publish via Zernio** (operator can't create a Meta developer account) · **localhost-first,
   not production-grade**: no Cloudflare Access/Tunnel, no VPS, no R2 for now.
 
