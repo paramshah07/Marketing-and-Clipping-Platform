@@ -73,7 +73,8 @@ first: never with the Mac's `.env`)
     /bot          Telegram bot service: a client of the api (python -m app.bot)
     cli.py        operator commands (render, users, quotas, db-grants, bootstrap)
   /alembic        0007 users + row-level security, 0008 media queue, 0009 bot supervisor functions, 0010 renders.filter,
-                  0011 posts.music (Instagram's catalog), 0012 saved_tracks + renders.music (the user's songs)
+                  0011 posts.music (Instagram's catalog), 0012 saved_tracks + renders.music (the user's songs),
+                  0013 users.timezone (the browser's zone: the evening digest's 20:00)
   /scripts        spike_zernio.py (Phase 0), dump_openapi.py
   /tests          fixtures/zernio/ holds real recorded Zernio responses and copies from Zernio's docs;
                   test_tenancy.py runs the api as clipper_app with two users

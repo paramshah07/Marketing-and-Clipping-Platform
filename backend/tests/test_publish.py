@@ -1373,7 +1373,7 @@ def test_periodic_sync_runs_per_user_with_their_key(db, env, monkeypatch):
 
 
 def test_digest_at_20_in_the_users_zone(db, env, monkeypatch):
-    """Hourly; a user hears at 20:00 in their first account's zone: per enabled account, tomorrow's posts out of those
+    """Hourly; a user with no zone stored yet hears at 20:00 in their first account's: per enabled account, tomorrow's posts out of those
     plus what auto-schedule could still place (the min gap and the daily cap), its drafts; then the Ready tray, the
     failed posts and a paused key. Other users' rows never count (the publisher's session ignores row-level security)."""
     uid, other = new_user(db), new_user(db)
@@ -1430,3 +1430,34 @@ def test_digest_at_20_in_the_users_zone(db, env, monkeypatch):
     sent.clear()
     run(digest.digest(timestamp=int(eight.timestamp())))
     assert [m[1] for m in sent if m[0] == uid][0].endswith("<b>Publishing is paused</b>: you have no Zernio key. Fix it in Settings.")
+
+
+def test_digest_in_the_users_own_zone(db, env, monkeypatch):
+    """users.timezone (the web app's browser zone) decides when, and whose tomorrow: at 20:00 New York a London
+    account's Tuesday has begun, but its slots haven't, and it is the Tuesday a New Yorker queues for that night."""
+    uid = new_user(db, timezone="America/New_York")
+    zernio_key(uid, "sk_ny")
+    ny, london = ZoneInfo("America/New_York"), ZoneInfo("Europe/London")
+    eight = datetime.now(ny).replace(hour=20, minute=0, second=0, microsecond=0)
+    tomorrow = (eight + timedelta(days=1)).date()  # New York's
+    with Session(db) as s:
+        a = Account(user_id=uid, zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username="uk.page",
+                    timezone="Europe/London", posting_slots={"times": ["09:00", "13:00", "19:00"]})  # fmt: skip
+        s.add(a)
+        s.commit()
+        acc = a.id
+    make_post(db, env, at=datetime.combine(tomorrow, hm(9), london), account_id=acc, user_id=uid)
+    make_post(db, env, at=datetime.combine(tomorrow + timedelta(days=1), hm(9), london), account_id=acc, user_id=uid)
+    sent = []
+
+    async def record(to, text_, link=None, buttons=None, silent=False):
+        sent.append((to, text_))
+        return True
+
+    monkeypatch.setattr(digest, "notify", record)
+    run(digest.digest(timestamp=int(datetime.now(london).replace(hour=20, minute=0, second=0, microsecond=0).timestamp())))
+    assert [m for m in sent if m[0] == uid] == []  # 20:00 in London is the afternoon in New York
+    run(digest.digest(timestamp=int(eight.timestamp())))
+    [(_, text_)] = [m for m in sent if m[0] == uid]
+    assert text_.splitlines()[:2] == [f"<b>Evening digest</b> · {eight:%a} {eight.day} {eight:%b}",
+                                      "<b>@uk.page</b>: 1 of 3 slots filled tomorrow"]  # fmt: skip

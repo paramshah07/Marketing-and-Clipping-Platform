@@ -153,7 +153,8 @@ only sealed values; `compose.review.yml` blanks both secrets, so a review copy c
 A user creates a key in Zernio (**API keys** › **Create API key**, scope **Full**, permission **Read-write**, no
 expiry) and pastes it in **Settings**. `users` holds `zernio_key_enc`, `zernio_key_last4`, `zernio_user_id` (unique),
 `zernio_email`, `zernio_name`, `zernio_key_status` (`none` / `valid` / `invalid`), `zernio_checked_at`, `zernio_error`
-and `zernio_key_gen`.
+and `zernio_key_gen`. (`users.timezone`, migration 0013, is the user's browser zone, sent by the web app with
+`PATCH /api/me`: the evening digest's 20:00.)
 
 **Verify** (`PUT /api/me/zernio-key`):
 

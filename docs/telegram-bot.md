@@ -274,12 +274,16 @@ written; a cover card is the image itself. They are saved, edited and made the d
 | "Publishing is paused: *reason*. Update your Zernio key in Settings, then retry the failed posts." | Zernio refuses the user's key while publishing or in the 6-hourly account sync | Once per valid → invalid flip | **Open in Clipper** (`/settings`) |
 | "Instagram account **@account** is disconnected in Zernio. Reconnect it there, then Sync accounts in Clipper." | An account sync finds it disconnected | Once per account per 6 h | **Reconnect in Zernio**, **Sync accounts**, **Open in Clipper** (`/accounts`) |
 | "**@account** post 235 is live on Instagram." (silent: `disable_notification`) | A publish job marks a post PUBLISHED (`_resolve`); not Recover's "check now", which the user is watching | Once per post (the CAS) | **View on Instagram** (the permalink, when Zernio has one), **Open post** |
-| "**Evening digest** · Mon 5 Oct", then per enabled account "**@a**: 9 of 12 slots filled tomorrow, 2 drafts to approve /drafts" (" · disconnected in Zernio"), then the Ready tray, the failed posts and "Publishing is paused" when they apply | `digest`, hourly (`app/tasks/digest.py`): a user whose first enabled account's zone reads 20:00 | Once a day | **Open in Clipper** (`/calendar`) |
+| "**Evening digest** · Mon 5 Oct", then per enabled account "**@a**: 9 of 12 slots filled tomorrow, 2 drafts to approve /drafts" (" · disconnected in Zernio"), then the Ready tray, the failed posts and "Publishing is paused" when they apply | `digest`, hourly (`app/tasks/digest.py`): a user whose zone reads 20:00 | Once a day | **Open in Clipper** (`/calendar`) |
 
-The digest's numbers: tomorrow is each account's own local day; its posts are counted as the daily cap counts them
-(every status but CANCELLED), out of those plus the slots `slots.first_free` could still fill (cap and min gap, the
-same rules as auto-schedule). The Ready tray is `GET /api/renders?status=READY&unscheduled=true`; failed means FAILED
-or DEAD_LETTER. A user without enabled accounts gets none.
+The user's zone is `users.timezone` (migration 0013): the web app sends its browser's zone (`PATCH /api/me`, from
+`App.tsx` whenever it differs), so someone who has never opened the web app since falls back to their first enabled
+account's zone. Tomorrow is the user's tomorrow, read on each account's own calendar: at 20:00 New York a London
+account's Tuesday has begun, but its slots haven't, and it is the Tuesday a New Yorker queues for that night. Its posts
+are counted as the daily cap counts them (every status but CANCELLED), out of those plus the slots `slots.first_free`
+could still fill (cap and min gap, the same rules as auto-schedule). The Ready tray is
+`GET /api/renders?status=READY&unscheduled=true`; failed means FAILED or DEAD_LETTER. A user without enabled accounts
+gets none.
 
 **Open in Clipper** is a button only when `APP_BASE_URL` is https (Telegram refuses other button URLs); otherwise the
 link is added to the text. Both sites are https; so on the dev site, alerts link to the dev site.
@@ -335,4 +339,4 @@ so Telegram's own HTML and keyboard validation passed. There are no live publish
 ## 10. Later (not now)
 
 A preview frame (worker job) before rendering · a local Bot API server (2 GB files) · webhook mode · the digest's hour
-and the posted message as per-user settings (now 20:00 in the first account's zone, and both follow **Alerts**).
+and the posted message as per-user settings (now 20:00 in the user's zone, and both follow **Alerts**).
