@@ -62,6 +62,21 @@ Instagram's own filters can't be applied when a Reel is posted through its API, 
 
 Click a tile and the stage shows the result; the render matches it. The filter goes under the logo, so the advertiser's colours stay true. The render card names the filter, and **Re-render for…** and **Re-render and retry** keep it.
 
+## Add music
+
+Under **Music**, pick a song from your [Customizations](04-customizations.md#music) (the default one is preselected), or
+click **Upload…** to add one from your computer. **None** keeps the clip's own sound.
+
+- **Song** and **Clip's sound** set the two volumes (the clip's only when it has sound; 0% leaves the song alone).
+- Play the stage to hear the mix with the video.
+- The render mixes the song into the MP4: looped if it is shorter than the clip, cut at its end, and faded out over the
+  last 2 seconds. Instagram shows the song's name as the Reel's audio instead of "Original audio".
+- The render card names the song, and **Re-render for…** and **Re-render and retry** keep it.
+
+The song is part of your video, not Instagram's music library, so use songs you have the rights to: Instagram may mute
+or block a Reel with copyrighted music. Instagram's own library (its tracks and trending sounds) only works for accounts
+connected to Zernio with Facebook Login, so it is switched off.
+
 ## Choose a cover
 
 The cover is the still Instagram shows before the Reel plays and in your profile grid.
@@ -126,26 +141,10 @@ Each card shows the brand, the render number, how long ago it was made and a sum
 1. Click **Schedule…** on a **Ready** card.
 2. Pick the account (only connected, enabled accounts are listed). The date and time start at its next free posting slot; change them if you like.
 3. Check the caption.
-4. Optional: **Add Instagram music…** puts a track from Instagram's own catalog on the Reel (see below).
-5. Click **Schedule**. The post is **Scheduled** if the brand has **Auto-approve** on, otherwise it is a draft you approve on the [Calendar](05-calendar.md). A render with no logo always starts as a draft.
-6. Or click **Post now** and confirm: the post skips the schedule and goes live within about a minute.
+4. Click **Schedule**. The post is **Scheduled** if the brand has **Auto-approve** on, otherwise it is a draft you approve on the [Calendar](05-calendar.md). A render with no logo always starts as a draft.
+5. Or click **Post now** and confirm: the post skips the schedule and goes live within about a minute.
 
 The popover then links to **Open calendar**. You can also drag renders onto the Calendar from its **Ready to schedule** tray.
-
-### Add Instagram music
-
-The music is Instagram's real catalog, the same tracks and original sounds as in the app, and Instagram attaches it
-when the Reel publishes (through Zernio), credited like any Reel made in the app.
-
-1. Click **Add Instagram music…**. The list starts with what is trending; type and press Enter to search, and switch
-   between **Music** and **Original sounds**.
-2. Click ▶ to hear a preview, then click a track to pick it.
-3. Set the **Track** and **Clip's sound** volumes (0% mutes the clip's own sound). **Change** or **Remove** it any time
-   before the post goes out, here or in the post's drawer on the Calendar.
-
-It only works for an Instagram account connected to Zernio with **Facebook Login**: for one connected with Instagram
-Login, the list says so. Reconnect it in Zernio choosing Facebook, then **Sync** on Accounts. Music is for Reels only, and if
-Instagram withdraws the track before the post goes out, the post fails rather than going out without it.
 
 ## Good to know
 

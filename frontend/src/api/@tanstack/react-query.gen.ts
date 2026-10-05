@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { addBot, approvePost, autoSchedule, cancelPost, changePassword, checkZernioKey, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteBot, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, deleteZernioKey, findLinks, freePublishedRenders, getClip, getPost, getRender, health, listAccounts, listBots, listBrands, listCaptions, listClips, listCovers, listFilters, listPosts, listRenders, login, logout, me, nextSlot, type Options, pairBot, patchBot, putZernioKey, remedyPost, retryClip, retryRender, searchMusic, setRenderCover, signup, signupStatus, status, syncAccounts, testBot, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
-import type { AddBotData, AddBotError, AddBotResponse, ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CheckZernioKeyData, CheckZernioKeyResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteBotData, DeleteBotError, DeleteBotResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, DeleteZernioKeyData, DeleteZernioKeyResponse, FindLinksData, FindLinksError, FindLinksResponse, FreePublishedRendersData, FreePublishedRendersError, FreePublishedRendersResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBotsData, ListBotsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListFiltersData, ListFiltersResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse, NextSlotData, NextSlotError, NextSlotResponse, PairBotData, PairBotError, PairBotResponse, PatchBotData, PatchBotError, PatchBotResponse, PutZernioKeyData, PutZernioKeyError, PutZernioKeyResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SearchMusicData, SearchMusicError, SearchMusicResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, SignupData, SignupError, SignupResponse, SignupStatusData, SignupStatusResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, TestBotData, TestBotError, TestBotResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
+import { addBot, approvePost, autoSchedule, cancelPost, changePassword, checkZernioKey, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteBot, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, deleteTrack, deleteZernioKey, findLinks, freePublishedRenders, getClip, getPost, getRender, health, listAccounts, listBots, listBrands, listCaptions, listClips, listCovers, listFilters, listPosts, listRenders, listTracks, login, logout, me, nextSlot, type Options, pairBot, patchBot, putZernioKey, remedyPost, retryClip, retryRender, searchMusic, setRenderCover, signup, signupStatus, status, syncAccounts, testBot, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, updateTrack, uploadBrandLogo, uploadClip, uploadCover, uploadTrack } from '../sdk.gen';
+import type { AddBotData, AddBotError, AddBotResponse, ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CheckZernioKeyData, CheckZernioKeyResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteBotData, DeleteBotError, DeleteBotResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, DeleteTrackData, DeleteTrackError, DeleteTrackResponse, DeleteZernioKeyData, DeleteZernioKeyResponse, FindLinksData, FindLinksError, FindLinksResponse, FreePublishedRendersData, FreePublishedRendersError, FreePublishedRendersResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBotsData, ListBotsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListFiltersData, ListFiltersResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, ListTracksData, ListTracksResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse, NextSlotData, NextSlotError, NextSlotResponse, PairBotData, PairBotError, PairBotResponse, PatchBotData, PatchBotError, PatchBotResponse, PutZernioKeyData, PutZernioKeyError, PutZernioKeyResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SearchMusicData, SearchMusicError, SearchMusicResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, SignupData, SignupError, SignupResponse, SignupStatusData, SignupStatusResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, TestBotData, TestBotError, TestBotResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UpdateTrackData, UpdateTrackError, UpdateTrackResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse, UploadTrackData, UploadTrackError, UploadTrackResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -883,6 +883,82 @@ export const updateCoverMutation = (options?: Partial<Options<UpdateCoverData>>)
     return mutationOptions;
 };
 
+export const listTracksQueryKey = (options?: Options<ListTracksData>) => createQueryKey('listTracks', options);
+
+/**
+ * List Tracks
+ *
+ * The default first, then the newest.
+ */
+export const listTracksOptions = (options?: Options<ListTracksData>) => queryOptions<ListTracksResponse, DefaultError, ListTracksResponse, ReturnType<typeof listTracksQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listTracks({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listTracksQueryKey(options)
+});
+
+/**
+ * Upload Track
+ *
+ * A song up to 20 MB (MP3, M4A, AAC, WAV, Ogg or FLAC), kept as uploaded. Its name is also the Reel's audio
+ * label on Instagram.
+ */
+export const uploadTrackMutation = (options?: Partial<Options<UploadTrackData>>): UseMutationOptions<UploadTrackResponse, UploadTrackError, Options<UploadTrackData>> => {
+    const mutationOptions: UseMutationOptions<UploadTrackResponse, UploadTrackError, Options<UploadTrackData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await uploadTrack({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Track
+ *
+ * The file goes too (after the commit). Finished renders keep the song in their MP4; re-rendering one fails.
+ */
+export const deleteTrackMutation = (options?: Partial<Options<DeleteTrackData>>): UseMutationOptions<DeleteTrackResponse, DeleteTrackError, Options<DeleteTrackData>> => {
+    const mutationOptions: UseMutationOptions<DeleteTrackResponse, DeleteTrackError, Options<DeleteTrackData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteTrack({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Track
+ */
+export const updateTrackMutation = (options?: Partial<Options<UpdateTrackData>>): UseMutationOptions<UpdateTrackResponse, UpdateTrackError, Options<UpdateTrackData>> => {
+    const mutationOptions: UseMutationOptions<UpdateTrackResponse, UpdateTrackError, Options<UpdateTrackData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateTrack({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const listAccountsQueryKey = (options?: Options<ListAccountsData>) => createQueryKey('listAccounts', options);
 
 /**
@@ -961,7 +1037,8 @@ export const searchMusicQueryKey = (options: Options<SearchMusicData>) => create
  * Search Music
  *
  * Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,
- * the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login.
+ * the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login,
+ * 409 INSTAGRAM_MUSIC_OFF while the server's INSTAGRAM_CATALOG_MUSIC switch is off.
  */
 export const searchMusicOptions = (options: Options<SearchMusicData>) => queryOptions<SearchMusicResponse, SearchMusicError, SearchMusicResponse, ReturnType<typeof searchMusicQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

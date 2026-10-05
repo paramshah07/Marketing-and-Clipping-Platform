@@ -18,7 +18,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.api.auth import Db, current_user
 from app.core.config import settings
-from app.models import Brand, Post, Render, SavedCaption, SavedCover, SourceClip, cas
+from app.models import Brand, Post, Render, SavedCaption, SavedCover, SavedTrack, SourceClip, cas
 from app.schemas import (
     BrandCreate,
     BrandOut,
@@ -41,6 +41,8 @@ from app.schemas import (
     RenderCreate,
     RenderDetail,
     RenderOut,
+    TrackOut,
+    TrackPatch,
 )
 from app.services import links, storage
 from app.services.render import FILTERS
@@ -52,6 +54,8 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".webm"}
 MAX_LOGO_BYTES = 10 * 1024**2
 MAX_DOCUMENT_BYTES = 20 * 1024**2
 MAX_COVER_BYTES = 8 * 1024**2  # Instagram's image limit (Zernio: Instagram media requirements)
+MAX_TRACK_BYTES = 20 * 1024**2  # a song: minutes of MP3 or M4A
+AUDIO_EXTENSIONS = {".mp3", ".m4a", ".aac", ".wav", ".ogg", ".flac"}
 # A list import must not starve the rest: its downloads queue behind every render and single import (priority)
 BULK_PRIORITY = -100_000
 _WAITING = text(
@@ -480,12 +484,18 @@ async def create_render(body: RenderCreate, s: Db) -> RenderOut:
         if brand is None or brand.archived_at or not brand.logo_key:
             raise HTTPException(409, f"brand {body.brand_id} is missing, archived or has no logo")
         overlay = body.overlay_config.model_dump() if body.overlay_config else brand.default_overlay_config
+    music = None
+    if body.music:
+        if (track := await s.get(SavedTrack, body.music.track_id)) is None:
+            raise HTTPException(409, f"song {body.music.track_id} is missing: pick another in Music")
+        music = body.music.model_dump() | {"name": track.name}  # the label Instagram shows, as named now
     r = Render(
         source_clip_id=clip.id,
         brand_id=body.brand_id,
         overlay_config=overlay,
         crop_config=body.crop_config and body.crop_config.model_dump(),
         filter=body.filter,
+        music=music,
         caption=body.caption,
     )
     s.add(r)
@@ -719,4 +729,76 @@ async def delete_cover(cover_id: int, s: Db) -> Response:
     await s.delete(cover)
     await s.commit()
     await run_in_threadpool(storage.delete, cover.image_key)
+    return Response(status_code=204)
+
+
+# ---------------------------------------------------------------- saved tracks (Customizations: music)
+
+def audio_file(data: bytes) -> bool:
+    """Whether data starts like an audio file: MP3 (ID3, or an MPEG frame sync, as ADTS AAC), MP4/M4A, WAV, Ogg, FLAC.
+    ffmpeg decides the rest when it renders (a bad file fails that render with its log)."""
+    sync = len(data) > 1 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0
+    wav = data[:4] == b"RIFF" and data[8:12] == b"WAVE"
+    return data[:3] == b"ID3" or sync or data[4:8] == b"ftyp" or wav or data[:4] in (b"OggS", b"fLaC")
+
+
+@router.get("/tracks")
+async def list_tracks(s: Db) -> list[TrackOut]:
+    """The default first, then the newest."""
+    q = select(SavedTrack).order_by(SavedTrack.is_default.desc(), SavedTrack.created_at.desc(), SavedTrack.id.desc())
+    return (await s.scalars(q)).all()
+
+
+@router.post("/tracks", status_code=201)
+async def upload_track(
+    file: UploadFile,
+    name: Annotated[str, Form(min_length=1, max_length=100)],
+    s: Db,
+    is_default: Annotated[bool, Form()] = False,
+) -> TrackOut:
+    """A song up to 20 MB (MP3, M4A, AAC, WAV, Ogg or FLAC), kept as uploaded. Its name is also the Reel's audio
+    label on Instagram."""
+    data = await file.read(MAX_TRACK_BYTES + 1)
+    if len(data) > MAX_TRACK_BYTES:
+        raise HTTPException(413, f"song is larger than {MAX_TRACK_BYTES // 1024**2} MB")
+    ext = PurePath(file.filename or "").suffix.lower()
+    if ext not in AUDIO_EXTENSIONS or not audio_file(data):
+        raise HTTPException(415, "song must be an MP3, M4A, AAC, WAV, Ogg or FLAC file")
+    await _room(s, len(data))
+    track = SavedTrack(name=name, audio_key="")
+    s.add(track)
+    await s.flush()  # the key carries the id
+    key = track.audio_key = storage.key(s.info["uid"], f"music/{track.id}-{secrets.token_hex(4)}{ext}")
+    if is_default:
+        await _clear_default(s, SavedTrack, track.id)
+        track.is_default = True
+    await run_in_threadpool(storage.save, key, io.BytesIO(data))
+    try:
+        await _commit(s)
+    except Exception:  # no row, no file
+        await run_in_threadpool(storage.delete, key)
+        raise
+    await s.refresh(track)
+    return track
+
+
+@router.patch("/tracks/{track_id}")
+async def update_track(track_id: int, body: TrackPatch, s: Db) -> TrackOut:
+    track = await _get(s, SavedTrack, track_id)
+    values = body.model_dump(exclude_unset=True)
+    if values.get("is_default"):
+        await _clear_default(s, SavedTrack, track.id)
+    for k, v in values.items():
+        setattr(track, k, v)
+    await _commit(s)
+    return track
+
+
+@router.delete("/tracks/{track_id}", status_code=204)
+async def delete_track(track_id: int, s: Db) -> Response:
+    """The file goes too (after the commit). Finished renders keep the song in their MP4; re-rendering one fails."""
+    track = await _get(s, SavedTrack, track_id)
+    await s.delete(track)
+    await s.commit()
+    await run_in_threadpool(storage.delete, track.audio_key)
     return Response(status_code=204)

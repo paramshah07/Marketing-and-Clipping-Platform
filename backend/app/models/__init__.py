@@ -199,6 +199,17 @@ class SavedCover(Owned, Base):  # Customizations: a Reel cover the Editor copies
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
 
+class SavedTrack(Owned, Base):  # Customizations: a song the Editor mixes into a render (renders.music)
+    __tablename__ = "saved_tracks"
+    __table_args__ = (default_index("saved_tracks"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str]  # also the Reel's audio label on Instagram (Zernio audioName)
+    audio_key: Mapped[str]  # music/{id}-{hex8}.{ext}, the file as uploaded
+    is_default: Mapped[bool] = mapped_column(server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
 class Render(Owned, Base):
     __tablename__ = "renders"
     __table_args__ = (
@@ -214,6 +225,7 @@ class Render(Owned, Base):
     overlay_config: Mapped[dict[str, Any] | None]  # fractions of the 1080x1920 output
     crop_config: Mapped[dict[str, Any] | None]  # fractions of the source frame
     filter: Mapped[str | None]  # a FILTERS name (services.render), baked in under the logo; null = none
+    music: Mapped[dict[str, Any] | None]  # a saved track mixed in (schemas.RenderMusic); null = the clip's own sound
     caption: Mapped[str | None]
     status: Mapped[str] = mapped_column(server_default="PENDING")
     output_key: Mapped[str | None]

@@ -141,7 +141,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           </span>
           <textarea rows={4} maxLength={CAPTION_MAX} className={cn(field, "h-auto w-full resize-none py-1.5")} value={caption} onChange={(e) => setCaption(e.target.value)} />
         </label>
-        <MusicPicker accountId={a?.id} value={music} onChange={setMusic} />
+        {st.data?.instagram_music && <MusicPicker accountId={a?.id} value={music} onChange={setMusic} />}
         {error && <p className="text-sm text-bad">{error}</p>}
         <div className="flex gap-1.5">
           <button className={cn(btn.primary, "flex-1")} disabled={!date || !time} onClick={() => submit()}>

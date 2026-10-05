@@ -72,6 +72,24 @@ def test_filter_goes_under_the_logo_in_rgb():
     assert "format=gbrp" not in graph(build_ffmpeg_args(CLIP, TOP_RIGHT, None, "logo.png", "in", "out", 2))
 
 
+SONG = {"path": "song.m4a", "volume": 80, "clip_volume": 50}
+STEREO = "aresample=48000,aformat=channel_layouts=stereo"
+
+
+def test_music_is_looped_mixed_faded_and_bounded():
+    args = build_ffmpeg_args({**CLIP, "duration_s": 12.0}, TOP_RIGHT, None, "logo.png", "in", "out", 2, None, SONG)
+    i = args.index("song.m4a")
+    assert args[i - 3 : i] == ["-stream_loop", "-1", "-i"] and args[args.index("[v]") + 2] == "[a]"
+    g = graph(args)  # input 2: the logo is input 1
+    assert f"[2:a:0]{STEREO},volume=0.8,afade=t=out:st=10.000:d=2[song]" in g
+    assert f"[0:a:0]{STEREO},volume=0.5,apad[own]" in g
+    assert g.endswith("[own][song]amix=inputs=2:normalize=0,alimiter=limit=0.95:level=0,atrim=end=13.000[a]")
+    assert "anullsrc" not in " ".join(args)
+    for clip, song in [({**CLIP, "has_audio": False}, SONG), (CLIP, SONG | {"clip_volume": 0})]:  # the song alone
+        g = graph(build_ffmpeg_args({**clip, "duration_s": 12.0}, None, None, None, "in", "out", 2, None, song))
+        assert g.endswith(f"[v];[1:a:0]{STEREO},volume=0.8,afade=t=out:st=10.000:d=2,atrim=end=13.000[a]")
+
+
 def test_encode_settings():
     a = " ".join(build_ffmpeg_args(CLIP, None, None, None, "in.mp4", "out.mp4", 3))
     for part in [
@@ -163,9 +181,9 @@ def test_source_fields():
 # ---------------------------------------------------------------- real ffmpeg (worker container)
 
 
-def run_render(clip_path, out, overlay=None, crop=None, logo=None, filter_name=None):
+def run_render(clip_path, out, overlay=None, crop=None, logo=None, filter_name=None, music=None):
     clip = parse_probe(ffprobe(clip_path))
-    args = build_ffmpeg_args(clip, overlay, crop, logo, clip_path, out, 2, filter_name)
+    args = build_ffmpeg_args(clip, overlay, crop, logo, clip_path, out, 2, filter_name, music)
     p = subprocess.run(args, capture_output=True, text=True)
     assert p.returncode == 0, p.stderr
     return clip
@@ -328,6 +346,28 @@ def test_filtered_render_keeps_the_colour_tags(media, tmp_path):
         v = ffprobe(tmp_path / "out.mp4")["streams"][0]
         tags.append((v.get("color_space"), v.get("color_primaries"), v.get("color_transfer")))
     assert tags == [("bt709", "bt709", "bt709")] * 2
+
+
+def mean_volume(path, start: float, length: float) -> float:
+    err = subprocess.run(
+        ["ffmpeg", "-nostdin", "-hide_banner", "-ss", str(start), "-t", str(length), "-i", str(path), "-vn",
+         "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=True,
+    ).stderr  # fmt: skip
+    return float(err.rsplit("mean_volume: ", 1)[1].split(" dB")[0])
+
+
+@needs_ffmpeg
+def test_music_render(media, tmp_path):
+    """A silent 4 s clip and a 1 s song: the song loops to the end of the video, then fades out with it."""
+    song = tmp_path / "song.m4a"
+    ffmpeg("-f", "lavfi", "-i", "sine=frequency=880:duration=1", "-c:a", "aac", str(song))
+    out = tmp_path / "out.mp4"
+    src = run_render(media["odd"], out, music={"path": song, "volume": 100, "clip_volume": 100})
+    info = ffprobe(out)
+    [a] = [s for s in info["streams"] if s["codec_type"] == "audio"]
+    assert (a["codec_name"], a["sample_rate"], a["channels"]) == ("aac", "48000", 2)
+    assert abs(float(info["format"]["duration"]) - src["duration_s"]) < 0.1  # still the video's length
+    assert mean_volume(out, 2.2, 0.5) > -30 > mean_volume(out, src["duration_s"] - 0.3, 0.3)  # looped; faded at the end
 
 
 @needs_ffmpeg

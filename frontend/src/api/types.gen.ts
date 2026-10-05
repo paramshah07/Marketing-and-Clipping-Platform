@@ -168,6 +168,24 @@ export type BodyUploadCover = {
 };
 
 /**
+ * Body_upload_track
+ */
+export type BodyUploadTrack = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
+};
+
+/**
  * BotIn
  */
 export type BotIn = {
@@ -1150,6 +1168,7 @@ export type RenderCreate = {
      * Filter
      */
     filter?: 'Clarendon' | 'Gingham' | 'Moon' | 'Lark' | 'Reyes' | 'Juno' | 'Slumber' | 'Crema' | 'Ludwig' | 'Aden' | 'Valencia' | 'Nashville' | 'Inkwell' | '1977' | null;
+    music?: RenderMusic | null;
     /**
      * Caption
      */
@@ -1178,6 +1197,7 @@ export type RenderDetail = {
      * Filter
      */
     filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1229,6 +1249,30 @@ export type RenderDetail = {
 };
 
 /**
+ * RenderMusic
+ *
+ * A saved track mixed into a render (renders.music): looped to the clip's length, faded out at its end.
+ */
+export type RenderMusic = {
+    /**
+     * Track Id
+     */
+    track_id: number;
+    /**
+     * Volume
+     */
+    volume?: number;
+    /**
+     * Clip Volume
+     */
+    clip_volume?: number;
+    /**
+     * Name
+     */
+    name?: string | null;
+};
+
+/**
  * RenderOut
  */
 export type RenderOut = {
@@ -1250,6 +1294,7 @@ export type RenderOut = {
      * Filter
      */
     filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1386,6 +1431,50 @@ export type SystemStatus = {
      * Publishing Off
      */
     publishing_off?: 'switch' | 'no_key' | 'key_invalid' | null;
+    /**
+     * Instagram Music
+     */
+    instagram_music?: boolean;
+};
+
+/**
+ * TrackOut
+ */
+export type TrackOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Audio Url
+     */
+    readonly audio_url: string;
+};
+
+/**
+ * TrackPatch
+ */
+export type TrackPatch = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
 };
 
 /**
@@ -1657,6 +1746,7 @@ export type RenderDetailWritable = {
      * Filter
      */
     filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1717,6 +1807,7 @@ export type RenderOutWritable = {
      * Filter
      */
     filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1749,6 +1840,28 @@ export type RenderOutWritable = {
      * Completed At
      */
     completed_at: string | null;
+};
+
+/**
+ * TrackOut
+ */
+export type TrackOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 export type SignupStatusData = {
@@ -2919,6 +3032,109 @@ export type UpdateCoverResponses = {
 };
 
 export type UpdateCoverResponse = UpdateCoverResponses[keyof UpdateCoverResponses];
+
+export type ListTracksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/tracks';
+};
+
+export type ListTracksResponses = {
+    /**
+     * Response List Tracks
+     *
+     * Successful Response
+     */
+    200: Array<TrackOut>;
+};
+
+export type ListTracksResponse = ListTracksResponses[keyof ListTracksResponses];
+
+export type UploadTrackData = {
+    body: BodyUploadTrack;
+    path?: never;
+    query?: never;
+    url: '/api/tracks';
+};
+
+export type UploadTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadTrackError = UploadTrackErrors[keyof UploadTrackErrors];
+
+export type UploadTrackResponses = {
+    /**
+     * Successful Response
+     */
+    201: TrackOut;
+};
+
+export type UploadTrackResponse = UploadTrackResponses[keyof UploadTrackResponses];
+
+export type DeleteTrackData = {
+    body?: never;
+    path: {
+        /**
+         * Track Id
+         */
+        track_id: number;
+    };
+    query?: never;
+    url: '/api/tracks/{track_id}';
+};
+
+export type DeleteTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTrackError = DeleteTrackErrors[keyof DeleteTrackErrors];
+
+export type DeleteTrackResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTrackResponse = DeleteTrackResponses[keyof DeleteTrackResponses];
+
+export type UpdateTrackData = {
+    body: TrackPatch;
+    path: {
+        /**
+         * Track Id
+         */
+        track_id: number;
+    };
+    query?: never;
+    url: '/api/tracks/{track_id}';
+};
+
+export type UpdateTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTrackError = UpdateTrackErrors[keyof UpdateTrackErrors];
+
+export type UpdateTrackResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackOut;
+};
+
+export type UpdateTrackResponse = UpdateTrackResponses[keyof UpdateTrackResponses];
 
 export type ListAccountsData = {
     body?: never;

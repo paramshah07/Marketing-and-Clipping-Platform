@@ -199,12 +199,22 @@ class CoverOut(BaseModel):
         return storage.url_for(self.image_key)
 
 
+class RenderMusic(BaseModel):
+    """A saved track mixed into a render (renders.music): looped to the clip's length, faded out at its end."""
+
+    track_id: int
+    volume: int = Field(100, ge=0, le=100)  # the song
+    clip_volume: int = Field(100, ge=0, le=100)  # the clip's own sound; 0 leaves the song alone
+    name: str | None = None  # the track's name when rendered (set by the api): the Reel's audio label on Instagram
+
+
 class RenderCreate(BaseModel):
     clip_id: int
     brand_id: int | None = None  # None: no logo
     overlay_config: OverlayConfig | None = None  # None: the brand's default
     crop_config: CropConfig | None = None  # None: fill + centre crop of the whole frame
     filter: FilterName | None = None  # GET /api/filters; None: no filter
+    music: RenderMusic | None = None  # a saved track (GET /api/tracks); None: the clip's own sound
     caption: str | None = Field(None, max_length=2200)  # Instagram's caption limit; a render's caption is fixed
 
 
@@ -217,6 +227,7 @@ class RenderOut(BaseModel):
     overlay_config: OverlayConfig | None
     crop_config: CropConfig | None
     filter: str | None
+    music: RenderMusic | None
     caption: str | None
     status: str
     error_code: str | None
@@ -256,6 +267,25 @@ class FilterOut(BaseModel):  # an Instagram-style filter (services.render.FILTER
     name: FilterName
     layers: list[FilterLayer]  # solid colours blended over the frame, bottom first
     css: str  # CSS filter functions, over the frame and its layers
+
+
+class TrackOut(BaseModel):  # Customizations: a song for the Editor to mix into renders
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_default: bool
+    created_at: datetime
+    audio_key: str = Field(exclude=True)
+
+    @computed_field
+    def audio_url(self) -> str:
+        return storage.url_for(self.audio_key)
+
+
+class TrackPatch(BaseModel):  # omit a field to leave it unchanged
+    name: str = Field(None, min_length=1, max_length=100)
+    is_default: bool = None
 
 
 class FreedSpace(BaseModel):  # POST /api/renders/free-published

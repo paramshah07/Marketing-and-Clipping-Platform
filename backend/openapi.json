@@ -1625,6 +1625,146 @@
         }
       }
     },
+    "/api/tracks": {
+      "get": {
+        "summary": "List Tracks",
+        "description": "The default first, then the newest.",
+        "operationId": "list_tracks",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrackOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Tracks"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload Track",
+        "description": "A song up to 20 MB (MP3, M4A, AAC, WAV, Ogg or FLAC), kept as uploaded. Its name is also the Reel's audio\nlabel on Instagram.",
+        "operationId": "upload_track",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_track"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tracks/{track_id}": {
+      "patch": {
+        "summary": "Update Track",
+        "operationId": "update_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Track Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Track",
+        "description": "The file goes too (after the commit). Finished renders keep the song in their MP4; re-rendering one fails.",
+        "operationId": "delete_track",
+        "parameters": [
+          {
+            "name": "track_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Track Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/accounts": {
       "get": {
         "summary": "List Accounts",
@@ -1761,7 +1901,7 @@
     "/api/accounts/{account_id}/music": {
       "get": {
         "summary": "Search Music",
-        "description": "Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,\nthe trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login.",
+        "description": "Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,\nthe trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login,\n409 INSTAGRAM_MUSIC_OFF while the server's INSTAGRAM_CATALOG_MUSIC switch is off.",
         "operationId": "search_music",
         "parameters": [
           {
@@ -2559,6 +2699,32 @@
           "name"
         ],
         "title": "Body_upload_cover"
+      },
+      "Body_upload_track": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "name"
+        ],
+        "title": "Body_upload_track"
       },
       "BotIn": {
         "properties": {
@@ -4439,6 +4605,16 @@
             ],
             "title": "Filter"
           },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "caption": {
             "anyOf": [
               {
@@ -4509,6 +4685,16 @@
               }
             ],
             "title": "Filter"
+          },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "caption": {
             "anyOf": [
@@ -4636,6 +4822,7 @@
           "overlay_config",
           "crop_config",
           "filter",
+          "music",
           "caption",
           "status",
           "error_code",
@@ -4650,6 +4837,45 @@
           "cover_url"
         ],
         "title": "RenderDetail"
+      },
+      "RenderMusic": {
+        "properties": {
+          "track_id": {
+            "type": "integer",
+            "title": "Track Id"
+          },
+          "volume": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Volume",
+            "default": 100
+          },
+          "clip_volume": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Clip Volume",
+            "default": 100
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "track_id"
+        ],
+        "title": "RenderMusic",
+        "description": "A saved track mixed into a render (renders.music): looped to the clip's length, faded out at its end."
       },
       "RenderOut": {
         "properties": {
@@ -4702,6 +4928,16 @@
               }
             ],
             "title": "Filter"
+          },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RenderMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "caption": {
             "anyOf": [
@@ -4818,6 +5054,7 @@
           "overlay_config",
           "crop_config",
           "filter",
+          "music",
           "caption",
           "status",
           "error_code",
@@ -4963,6 +5200,11 @@
               }
             ],
             "title": "Publishing Off"
+          },
+          "instagram_music": {
+            "type": "boolean",
+            "title": "Instagram Music",
+            "default": false
           }
         },
         "type": "object",
@@ -4974,6 +5216,57 @@
           "publishing_enabled"
         ],
         "title": "SystemStatus"
+      },
+      "TrackOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "audio_url": {
+            "type": "string",
+            "title": "Audio Url",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_default",
+          "created_at",
+          "audio_url"
+        ],
+        "title": "TrackOut"
+      },
+      "TrackPatch": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "is_default": {
+            "type": "boolean",
+            "title": "Is Default"
+          }
+        },
+        "type": "object",
+        "title": "TrackPatch"
       },
       "Unplaced": {
         "properties": {

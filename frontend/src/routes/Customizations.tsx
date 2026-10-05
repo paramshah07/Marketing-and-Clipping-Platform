@@ -9,6 +9,7 @@ import {
   createCaptionMutation,
   deleteCaptionMutation,
   deleteCoverMutation,
+  deleteTrackMutation,
   listBrandsOptions,
   listBrandsQueryKey,
   listCaptionsOptions,
@@ -16,37 +17,47 @@ import {
   listClipsOptions,
   listCoversOptions,
   listCoversQueryKey,
+  listTracksOptions,
+  listTracksQueryKey,
   updateBrandMutation,
   updateCaptionMutation,
   updateCoverMutation,
+  updateTrackMutation,
   uploadBrandLogoMutation,
   uploadCoverMutation,
+  uploadTrackMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { Chip, Drawer, Empty, Header } from "@/components/bits"
 import { Switch } from "@/components/ui/switch"
 import { coverJpeg } from "@/lib/cover"
 import { BROWSER_TZ, dayLabel, localParts, today } from "@/lib/schedule"
-import { CAPTION_MAX, HASHTAG_MAX, cn, errorText, hashtagCount, btn, label } from "@/lib/utils"
+import { CAPTION_MAX, HASHTAG_MAX, SONG_TYPES, cn, errorText, hashtagCount, btn, label, songName } from "@/lib/utils"
 
-/** /customizations/:tab: the brands, saved captions and saved covers the Editor offers; each has at most one
+/** /customizations/:tab: the brands, saved captions, saved covers and songs the Editor offers; each has at most one
  * default, which the Editor preselects. */
 export function Customizations() {
   const { tab } = useParams()
   if (tab === "brands") return <Brands />
   if (tab === "captions") return <Captions />
   if (tab === "covers") return <Covers />
+  if (tab === "music") return <Music />
   return <Navigate to="/customizations/brands" replace />
 }
 
 /** The page header: title and tabs with their counts, then the open tab's own actions. */
 function Tabs({ children }: { children: ReactNode }) {
-  const counts = { brands: useQuery(listBrandsOptions()).data?.length, captions: useQuery(listCaptionsOptions()).data?.length, covers: useQuery(listCoversOptions()).data?.length }
+  const counts = {
+    brands: useQuery(listBrandsOptions()).data?.length,
+    captions: useQuery(listCaptionsOptions()).data?.length,
+    covers: useQuery(listCoversOptions()).data?.length,
+    music: useQuery(listTracksOptions()).data?.length,
+  }
   return (
     <Header>
       <div className="flex items-center gap-4">
         <h1 className="text-lg font-semibold">Customizations</h1>
         <nav className="flex h-7 items-center rounded border border-line bg-panel p-0.5">
-          {(["brands", "captions", "covers"] as const).map((t) => (
+          {(["brands", "captions", "covers", "music"] as const).map((t) => (
             <NavLink
               key={t}
               to={`/customizations/${t}`}
@@ -734,6 +745,80 @@ function Covers() {
                       <Trash2 className="size-4" />
                     </button>
                   </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  )
+}
+
+/** Songs the Editor mixes into renders (looped to the clip, faded out at its end). A song's name is also the Reel's
+ * audio label on Instagram. */
+function Music() {
+  const qc = useQueryClient()
+  const list = useQuery(listTracksOptions())
+  const pick = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState("")
+  const refresh = () => qc.invalidateQueries({ queryKey: listTracksQueryKey() })
+  const onError = (e: unknown) => setError(errorText(e))
+  const upload = useMutation(uploadTrackMutation())
+  const patch = useMutation({ ...updateTrackMutation(), onSuccess: refresh, onError })
+  const remove = useMutation({ ...deleteTrackMutation(), onSuccess: refresh, onError })
+
+  async function add(files: File[]) {
+    setError("")
+    for (const f of files)
+      try {
+        await upload.mutateAsync({ body: { file: f, name: songName(f) } })
+      } catch (e) {
+        setError(`${f.name}: ${errorText(e)}`)
+      }
+    await refresh()
+  }
+  const rename = (id: number, name: string) => {
+    const next = prompt("Rename song (Instagram shows this name as the Reel's audio)", name)?.trim()
+    if (next && next !== name) patch.mutate({ path: { track_id: id }, body: { name: next.slice(0, 100) } })
+  }
+
+  return (
+    <>
+      <Tabs>
+        <input ref={pick} type="file" accept={SONG_TYPES} multiple hidden onChange={(e) => (add([...(e.target.files ?? [])]), (e.target.value = ""))} />
+        <button className={cn(btn.primary, "pl-2")} disabled={upload.isPending} onClick={() => pick.current?.click()}>
+          <Upload className="size-3.5" />
+          {upload.isPending ? "Uploading…" : "Upload song"}
+        </button>
+      </Tabs>
+      {error && <p className="border-b border-line px-4 py-2 text-sm text-bad">{error}</p>}
+      {list.isError && <p className="p-8 text-center text-bad">Couldn't load songs: {errorText(list.error)}</p>}
+      {list.data?.length === 0 ? (
+        <Empty>
+          No songs yet. Upload an MP3, M4A, AAC, WAV, Ogg or FLAC (up to 20 MB) that you have the rights to: the Editor mixes it into a render, and Instagram may mute a copyrighted song.
+        </Empty>
+      ) : (
+        <section className="min-h-0 flex-1 overflow-auto">
+          <ul className="divide-y divide-line">
+            {list.data?.map((t) => (
+              <li key={t.id} data-track={t.id} className="flex h-14 items-center gap-3 px-4">
+                <span className="min-w-0 flex-1 truncate font-medium" title={t.name}>
+                  {t.name}
+                </span>
+                {t.is_default && <Chip tone="neutral">Default</Chip>}
+                <audio controls preload="none" src={t.audio_url} className="h-8 w-[280px] shrink-0" />
+                <span className="w-24 shrink-0 text-sm tabular-nums text-muted">Added {shortDay(t.created_at)}</span>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button className={btn.ghost} onClick={() => patch.mutate({ path: { track_id: t.id }, body: { is_default: !t.is_default } })}>
+                    {t.is_default ? "Clear default" : "Make default"}
+                  </button>
+                  <button className={btn.icon} title="Rename" onClick={() => rename(t.id, t.name)}>
+                    <Pencil className="size-3.5" />
+                  </button>
+                  <button className={btn.icon} title="Delete" onClick={() => confirm(`Delete the song ${t.name}? Finished renders keep it; re-rendering one of them fails.`) && remove.mutate({ path: { track_id: t.id } })}>
+                    <Trash2 className="size-4" />
+                  </button>
                 </div>
               </li>
             ))}

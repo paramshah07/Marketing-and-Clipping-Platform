@@ -25,7 +25,7 @@ from sqlalchemy.exc import OperationalError
 
 from app.core.config import settings
 from app.core.db import SyncSession
-from app.models import Brand, Render, SourceClip, cas
+from app.models import Brand, Render, SavedTrack, SourceClip, cas
 from app.services import storage
 from app.services.render import (
     HDR_TRANSFERS,
@@ -163,6 +163,10 @@ def _render(render_id: int) -> dict:
         r = s.get(Render, render_id)
         clip = s.get(SourceClip, r.source_clip_id)
         brand = s.get(Brand, r.brand_id) if r.brand_id else None
+        track = s.get(SavedTrack, r.music["track_id"]) if r.music else None
+    if r.music and (track is None or track.user_id != r.user_id):
+        raise Failed("MUSIC_MISSING", f"the song {r.music.get('name')!r} was deleted: pick another, then render again")
+    music = track and {"path": storage.path_for(track.audio_key)} | {k: r.music[k] for k in ("volume", "clip_volume")}
     _check_room(r.user_id)
     logo = storage.path_for(brand.logo_key) if brand and brand.logo_key else None
     out_key = storage.key(r.user_id, f"renders/{render_id}.mp4")
@@ -170,9 +174,11 @@ def _render(render_id: int) -> dict:
     out = storage.path_for(out_key)
     part = out.with_name(out.name + ".part")
     out.parent.mkdir(parents=True, exist_ok=True)
-    meta = {"width": clip.width, "height": clip.height, "has_audio": clip.has_audio, "color_transfer": clip.color_transfer}
+    meta = {"width": clip.width, "height": clip.height, "duration_s": clip.duration_s, "has_audio": clip.has_audio,
+            "color_transfer": clip.color_transfer}  # fmt: skip
     args = build_ffmpeg_args(
-        meta, r.overlay_config, r.crop_config, logo, storage.path_for(clip.raw_key), part, settings.FFMPEG_THREADS, r.filter
+        meta, r.overlay_config, r.crop_config, logo, storage.path_for(clip.raw_key), part, settings.FFMPEG_THREADS, r.filter,
+        music,
     )
     try:
         p = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=RENDER_TIMEOUT_S)

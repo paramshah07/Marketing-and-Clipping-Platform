@@ -25,7 +25,7 @@ from app.api.pipeline import BULK_PRIORITY, png_alpha
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import SPA, app
-from app.models import Account, Brand, Post, Render, SavedCaption, SourceClip, User, cas
+from app.models import Account, Brand, Post, Render, SavedCaption, SavedTrack, SourceClip, User, cas
 from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
@@ -68,6 +68,45 @@ def job(db, task: str, **kwargs) -> bool:
 def upload(client, path, name=None, **fields):
     with open(path, "rb") as f:
         return client.post("/api/clips", files={"file": (name or path.name, f)}, data=fields)
+
+
+ID3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(200)  # an MP3's tag header: the start is all the api checks
+
+
+def test_tracks_and_music_on_a_render(client, data_dir):
+    def add(name, data=ID3, filename="song.mp3", **form):
+        return client.post("/api/tracks", files={"file": (filename, data)}, data={"name": name, **form})
+
+    assert add("x", PNG + bytes(100)).status_code == 415  # not audio
+    assert add("x", filename="song.exe").status_code == 415
+    assert add("x", ID3 + bytes(20 * 1024**2)).status_code == 413
+    a, b = add("Morning Coffee").json(), add("Neon Drive", is_default="true").json()
+    assert a["audio_url"].startswith(f"/media/u/1/music/{a['id']}-") and a["audio_url"].endswith(".mp3")
+    file = data_dir / a["audio_url"].removeprefix("/media/")
+    assert file.read_bytes() == ID3
+    assert [t["id"] for t in client.get("/api/tracks").json()][:2] == [b["id"], a["id"]]  # the default first
+    assert client.patch(f"/api/tracks/{a['id']}", json={"name": "Coffee", "is_default": True}).json()["is_default"]
+    assert [t["id"] for t in client.get("/api/tracks").json() if t["is_default"]] == [a["id"]]
+
+    with SyncSession() as s:
+        clip = SourceClip(origin="upload", status="READY", original_filename="c.mp4", width=1080, height=1920,
+                          duration_s=4.0, has_audio=True)  # fmt: skip
+        s.add(clip)
+        s.commit()
+        clip_id = clip.id
+    music = {"track_id": a["id"], "volume": 70}
+    r = client.post("/api/renders", json={"clip_id": clip_id, "music": music})
+    assert r.status_code == 201, r.text
+    assert r.json()["music"] == music | {"clip_volume": 100, "name": "Coffee"}  # named as the song is now
+    assert client.post("/api/renders", json={"clip_id": clip_id, "music": music | {"volume": 101}}).status_code == 422
+    assert client.post("/api/renders", json={"clip_id": clip_id, "music": {"track_id": 10**6}}).status_code == 409
+
+    assert client.delete(f"/api/tracks/{a['id']}").status_code == 204 and not file.exists()
+    render(r.json()["id"])  # its song is gone: a clear failure, before ffmpeg
+    done = client.get(f"/api/renders/{r.json()['id']}").json()
+    assert (done["status"], done["error_code"]) == ("FAILED", "MUSIC_MISSING") and "Coffee" in done["ffmpeg_log"]
+    with SyncSession() as s:
+        assert s.get(SavedTrack, b["id"]).user_id == 1
 
 
 def test_png_alpha():
