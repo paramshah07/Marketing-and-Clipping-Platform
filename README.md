@@ -72,7 +72,7 @@ flowchart LR
 | Part | What you do there |
 |---|---|
 | Sign up, **Set up Clipper**, **Settings** | Make your account, paste your Zernio API key, see your Instagram accounts, add Telegram bots, change your password ([Getting started](docs/guide/01-getting-started.md), [Settings](docs/guide/09-settings.md)) |
-| **Library** | Upload videos, import a link or every link in a document, follow each clip's status, delete many clips at once, find what was published and free the space its MP4s take ([Library](docs/guide/02-library.md)) |
+| **Library** | Upload videos, import a link or every link in a document, follow each clip's status, render or delete many clips at once, find what was published and free the space its MP4s take ([Library](docs/guide/02-library.md)) |
 | **Editor** | Place the logo, crop, pick a filter, a song, a cover and a caption, render, and schedule the finished renders ([Editor](docs/guide/03-editor.md)) |
 | **Customizations** | Brands (logo, link, caption template, auto-approve), saved captions, saved covers and songs, each with a default ([Customizations](docs/guide/04-customizations.md)) |
 | **Calendar** | Each account's week of posting slots: **Auto-schedule**, drag, approve drafts, edit a post ([Calendar](docs/guide/05-calendar.md)) |
