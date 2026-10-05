@@ -422,3 +422,22 @@ def test_link_imports_are_known_video_sites_only(client):
         r = client.post(path, json=body)
         assert r.status_code == 422 and "only a link to one video on YouTube" in r.json()["detail"], r.text
     assert client.post("/api/clips/from-url", json={"url": ok}).status_code == 201
+
+
+def test_library_guards_and_free_up_space_are_per_user(db, client, a):
+    """A video A has doesn't stop B importing it (B's second import does), and B's Free up space never sees A's
+    published renders: the duplicate check and the freeing read only the signed-in user's rows."""
+    url = "https://www.tiktok.com/@a/video/7000000000000000003"
+    assert client.post("/api/clips/from-url", json={"url": url}, headers=A).status_code == 201
+    assert client.post("/api/clips/from-url", json={"url": url}).status_code == 201  # B's own clip of it
+    r = client.post("/api/clips/from-url", json={"url": url + "?_t=again"})
+    assert (r.status_code, r.json()["detail"]["code"]) == (409, "ALREADY_IN_LIBRARY")
+    with Session(db) as s:  # an A render that went out, MP4 still there
+        r = Render(source_clip_id=a["clip"], status="READY", output_key="renders/a-out.mp4", size_bytes=10)
+        s.add(r)
+        s.flush()
+        s.add(Post(render_id=r.id, account_id=a["account"], caption="", status="PUBLISHED", scheduled_for=datetime.now(UTC),
+                   idempotency_key=uuid.uuid4().hex))  # fmt: skip
+        s.commit()
+    assert client.post("/api/renders/free-published?dry_run=true").json() == {"renders": 0, "bytes": 0}
+    assert client.post("/api/renders/free-published?dry_run=true", headers=A).json()["renders"] >= 1

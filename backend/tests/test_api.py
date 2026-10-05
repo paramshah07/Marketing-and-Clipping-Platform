@@ -641,9 +641,16 @@ def test_delete_clip_with_its_renders(client, data_dir):
 
 def test_free_published_renders(client, data_dir):
     """Only the MP4s of renders whose posts all went out: the rows, thumbnails and Published history stay, the
-    user's usage drops. dry_run only counts. (Posting such a render again: test_scheduling_api, FILE_DELETED.)"""
+    user's usage drops. dry_run only counts. (Posting such a render again: test_scheduling_api, FILE_DELETED. Each
+    user's own: test_tenancy, as this api is the superuser and sees every user's renders.)"""
     uid = new_user()
     me = as_user(uid)
+
+    def dry() -> tuple[int, int]:
+        out = client.post("/api/renders/free-published?dry_run=true", headers=me).json()
+        return out["renders"], out["bytes"]
+
+    before = dry()  # other tests' renders
     _, [gone] = owned(uid, data_dir, renders=(("READY", "PUBLISHED"),))
     for post in ("SCHEDULED", "FAILED", "CANCELLED", None):  # not out yet, or never posted: kept
         owned(uid, data_dir, renders=(("READY", post),))
@@ -651,18 +658,19 @@ def test_free_published_renders(client, data_dir):
         s.execute(update(Render).where(Render.user_id == uid).values(size_bytes=1000))
         s.commit()
     used = client.get("/api/me", headers=me).json()["storage"]["used_bytes"]
-    assert client.post("/api/renders/free-published?dry_run=true", headers=me).json() == {"renders": 1, "bytes": 1000}
+    assert (dry()[0] - before[0], dry()[1] - before[1]) == (1, 1000)
     assert (data_dir / f"u/{uid}/renders/{gone}.mp4").exists()
-    assert client.post("/api/renders/free-published", headers=me).json() == {"renders": 1, "bytes": 1000}
+    assert client.post("/api/renders/free-published", headers=me).json()["renders"] >= 1
     assert not (data_dir / f"u/{uid}/renders/{gone}.mp4").exists() and (data_dir / f"u/{uid}/thumbs/render-{gone}.jpg").exists()
     r = client.get(f"/api/renders/{gone}", headers=me).json()
     assert (r["status"], r["output_url"], r["size_bytes"]) == ("READY", None, None) and r["thumbnail_url"]
     assert client.get("/api/me", headers=me).json()["storage"]["used_bytes"] == used - 1000
-    assert client.post("/api/renders/free-published", headers=me).json() == {"renders": 0, "bytes": 0}
+    assert dry() == (0, 0)  # every one's gone, and the rest were never freeable
 
 
 def test_from_url_refuses_a_video_already_in_the_library(client):
-    """However it is linked (tracking query, www or not), a video is one clip per user: 409 naming it."""
+    """However it is linked (tracking query, www or not), a video is one clip: 409 naming it. (Per user: test_tenancy,
+    as this api is the superuser and sees every user's clips.)"""
     uid = new_user()
     url = "https://www.tiktok.com/@x/video/7000000000000000077"
     first = client.post("/api/clips/from-url", json={"url": url + "?_r=1&_t=a"}, headers=as_user(uid)).json()
@@ -670,4 +678,3 @@ def test_from_url_refuses_a_video_already_in_the_library(client):
     assert (r.status_code, r.json()["detail"]) == (409, {
         "code": "ALREADY_IN_LIBRARY", "clip_id": first["id"],
         "message": "Already in your Library: tiktok.com/@x/video/7000000000000000077 (still importing)"})  # fmt: skip
-    assert client.post("/api/clips/from-url", json={"url": url}, headers=as_user(new_user())).status_code == 201  # theirs
