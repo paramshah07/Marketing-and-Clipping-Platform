@@ -19,6 +19,7 @@ SNAPS = ["Top left", "Top centre", "Top right", "Middle left", "Centre", "Middle
          "Bottom right"]  # fmt: skip
 ARROWS = ["↖", "↑", "↗", "←", "·", "→", "↙", "↓", "↘"]
 OPACITIES = [1, 0.75, 0.5, 0.25]
+VOLUMES = [100, 75, 50, 25, 0]  # the render editor's song and clip's-sound steps (a song never goes to 0)
 CAPTION_MAX, HASHTAG_MAX = 2200, 30
 # Clip and render error codes in plain words (utils.ts CAUSES)
 CAUSES = {
