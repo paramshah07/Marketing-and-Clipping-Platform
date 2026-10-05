@@ -3,6 +3,7 @@ compare-and-set (0 rows -> 409) and each job is deferred in the same transaction
 
 import io
 import mimetypes
+import re
 import secrets
 import struct
 from pathlib import Path, PurePath
@@ -33,6 +34,7 @@ from app.schemas import (
     CoverOut,
     CoverPatch,
     FoundLink,
+    FreedSpace,
     LinksOut,
     RenderCreate,
     RenderDetail,
@@ -238,10 +240,25 @@ async def upload_clip(request: Request, s: Db) -> ClipOut:
     return clip
 
 
+async def _in_library(s: AsyncSession, url: str) -> SourceClip | None:
+    """The user's newest clip of the video a link points at (links.key: another tracking query or way of linking
+    it is the same video), whatever its status."""
+    k = links.key(url)
+    clips = await s.scalars(select(SourceClip).where(SourceClip.source_url.is_not(None)).order_by(SourceClip.id.desc()))
+    return next((c for c in clips if links.key(c.source_url) == k), None)
+
+
 @router.post("/clips/from-url", status_code=201)
 async def create_clip_from_url(body: ClipFromUrl, s: Db) -> ClipOut:
+    """409 {"code": "ALREADY_IN_LIBRARY", "clip_id"} for a video the library has (Import links skips those too)."""
+    # ponytail: check-then-insert, so two imports in the same instant both land; a unique video key column if it bites
     _importable(s, [str(body.url)])
     await _room(s)
+    if (have := await _in_library(s, str(body.url))) is not None:
+        state = {"READY": "", "FAILED": " (its import failed: Retry it there)"}.get(have.status, " (still importing)")
+        short = re.sub(r"^https?://(?:www\.)?", "", links.clean(have.source_url))
+        raise HTTPException(409, {"code": "ALREADY_IN_LIBRARY", "message": f"Already in your Library: {short}{state}",
+                                  "clip_id": have.id})  # fmt: skip
     clip = SourceClip(
         origin="url",
         status="DOWNLOADING",
@@ -334,21 +351,30 @@ async def retry_clip(clip_id: int, s: Db) -> ClipOut:
 
 
 @router.delete("/clips/{clip_id}", status_code=204)
-async def delete_clip(clip_id: int, s: Db) -> Response:
-    """Only READY/FAILED clips with no renders (delete the renders first). Files go too."""
-    clip = await _get(s, SourceClip, clip_id)
-    deleted = await s.execute(
-        delete(SourceClip).where(
-            SourceClip.id == clip_id,
-            SourceClip.status.in_(["READY", "FAILED"]),
-            ~exists().where(Render.source_clip_id == clip_id),
-        )
-    )
-    if deleted.rowcount != 1:
-        raise HTTPException(409, "clip is still processing or has renders")
+async def delete_clip(clip_id: int, s: Db, renders: bool = False) -> Response:
+    """Only READY/FAILED clips. Its renders go too with renders=true (else it must have none), on DELETE
+    /api/renders/{id}'s terms: none RENDERING and no post but CANCELLED ones, which go with them. A post that went
+    out (or may) keeps its clip, as the history the duplicate checks read. 409 {"code": "PROCESSING" | "HAS_RENDERS"
+    | "RENDERING" | "HAS_POSTS"} otherwise. Files go after the commit. FOR UPDATE: no render or post joins mid-way."""
+    if (clip := await s.get(SourceClip, clip_id, with_for_update=True)) is None:
+        raise HTTPException(404, f"source_clips {clip_id} not found")
+    rs = (await s.scalars(select(Render).where(Render.source_clip_id == clip_id).with_for_update())).all()
+    ids = [r.id for r in rs]
+    if clip.status not in ("READY", "FAILED"):
+        raise HTTPException(409, {"code": "PROCESSING", "message": "it is still uploading or importing"})
+    if rs and not renders:
+        raise HTTPException(409, {"code": "HAS_RENDERS", "message": "it has renders: delete them first"})
+    if any(r.status == "RENDERING" for r in rs):
+        raise HTTPException(409, {"code": "RENDERING", "message": "one of its renders is still rendering"})
+    if await s.scalar(select(exists().where(Post.render_id.in_(ids), Post.status != "CANCELLED"))):
+        raise HTTPException(409, {"code": "HAS_POSTS", "message": "it has posts: published ones keep it, cancel or "
+                                  "dismiss the others first"})  # fmt: skip
+    await s.execute(delete(Post).where(Post.render_id.in_(ids)))  # only CANCELLED ones are left (FK RESTRICT)
+    await s.execute(delete(Render).where(Render.id.in_(ids)))
+    await s.execute(delete(SourceClip).where(SourceClip.id == clip_id))
     await s.commit()
     part = storage.key(s.info["uid"], f"raw/{clip_id}.part")  # an upload that never finished
-    for key in (clip.raw_key, clip.thumbnail_key, part):
+    for key in (clip.raw_key, clip.thumbnail_key, part, *(k for r in rs for k in (r.output_key, r.thumbnail_key, r.cover_key))):
         if key:
             await run_in_threadpool(storage.delete, key)
     return Response(status_code=204)
@@ -516,6 +542,29 @@ async def delete_render(render_id: int, s: Db) -> Response:
         if key:
             await run_in_threadpool(storage.delete, key)
     return Response(status_code=204)
+
+
+@router.post("/renders/free-published")
+async def free_published_renders(s: Db, dry_run: bool = False) -> FreedSpace:
+    """Delete the MP4s of renders whose posts have all gone out (one PUBLISHED at least, any others CANCELLED): they
+    are on Instagram. The rows, thumbnails and covers stay, so Published keeps them; such a render can't be posted
+    again (scheduling says so), a new render of its clip can. dry_run: only count."""
+    mine = Post.render_id == Render.id
+    q = select(Render).where(
+        Render.output_key.is_not(None),
+        exists().where(mine, Post.status == "PUBLISHED"),
+        ~exists().where(mine, Post.status.not_in(["PUBLISHED", "CANCELLED"])),
+    )
+    rs = (await s.scalars(q if dry_run else q.with_for_update(of=Render))).all()
+    freed = FreedSpace(renders=len(rs), bytes=sum(r.size_bytes or 0 for r in rs))
+    if dry_run or not rs:
+        return freed
+    keys = [r.output_key for r in rs]  # before the UPDATE: it syncs the loaded rows too
+    await s.execute(update(Render).where(Render.id.in_([r.id for r in rs])).values(output_key=None, size_bytes=None))
+    await s.commit()
+    for key in keys:
+        await run_in_threadpool(storage.delete, key)
+    return freed
 
 
 async def _cover_jpeg(file: UploadFile) -> bytes:

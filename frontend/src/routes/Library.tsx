@@ -3,7 +3,7 @@ import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 
-import { createRender, type AccountOut, type BrandOut, type ClipOut, type PostOut } from "@/api"
+import { createRender, deleteClip, freePublishedRenders, type AccountOut, type BrandOut, type ClipOut, type PostOut } from "@/api"
 import {
   createClipFromUrlMutation,
   deleteClipMutation,
@@ -16,12 +16,13 @@ import {
   listPostsOptions,
   listRendersOptions,
   listRendersQueryKey,
+  meQueryKey,
   retryClipMutation,
 } from "@/api/@tanstack/react-query.gen"
-import { Chip, Header } from "@/components/bits"
+import { Box, Chip, Header } from "@/components/bits"
 import { ImportLinks } from "@/components/ImportLinks"
-import { BROWSER_TZ as TZ, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
-import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, mb, mmss, btn, signedOut } from "@/lib/utils"
+import { BROWSER_TZ as TZ, apiError, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
+import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, gb, mb, mmss, btn, plural, signedOut } from "@/lib/utils"
 
 const EXTENSIONS = ["mp4", "mov", "webm"]
 const TERMINAL = new Set(["READY", "FAILED"])
@@ -29,6 +30,8 @@ const TERMINAL = new Set(["READY", "FAILED"])
 // uploads refresh the list when their POST returns, so it is not polled for.
 const polled = (c: ClipOut) => !TERMINAL.has(c.status) && (c.status !== "UPLOADING" || Date.now() - Date.parse(c.created_at) < 600_000)
 const FINAL = new Set(["PRIVATE", "REMOVED", "GEO_BLOCKED", "DURATION_OUT_OF_RANGE", "PROBE_FAILED", "UPLOAD_ABANDONED"])
+// Why DELETE /api/clips/{id}?renders=true kept a clip (its 409 code): "Kept 3: 2 with posts, 1 still rendering"
+const KEPT: Record<string, string> = { HAS_POSTS: "with posts", RENDERING: "still rendering", PROCESSING: "still importing" }
 
 /** A file on its way up; the server row replaces it when the POST returns. */
 type Upload = { key: string; file: File; handle: string; loaded: number; rate: number; error?: string; fatal?: boolean; xhr?: XMLHttpRequest }
@@ -167,11 +170,14 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const [url, setUrl] = useState("")
   const [over, setOver] = useState(false)
   const [notice, setNotice] = useState("")
+  const [sel, setSel] = useState<Set<number>>(new Set())
+  const [deleting, setDeleting] = useState(false)
   const renders = useQuery(listRendersOptions())
   const refresh = () => qc.invalidateQueries({ queryKey: listClipsQueryKey() })
+  const gone = () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: listRendersQueryKey() })]) // the counts too
   const onError = (e: unknown) => setNotice(errorText(e))
   const fromUrl = useMutation({ ...createClipFromUrlMutation(), onSuccess: () => (setUrl(""), setHandle(""), refresh()), onError })
-  const remove = useMutation({ ...deleteClipMutation(), onSuccess: refresh, onError })
+  const remove = useMutation({ ...deleteClipMutation(), onSuccess: gone, onError })
   const retry = useMutation({ ...retryClipMutation(), onSuccess: refresh, onError })
 
   // a document is a list of links to import, not a video
@@ -197,11 +203,64 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
     .filter((c) => !q || [clipName(c), c.source_creator_handle, c.source_url].some((s) => s?.toLowerCase().includes(q)))
   const counts = new Map<number, number>()
   renders.data?.forEach((r) => counts.set(r.source_clip_id, (counts.get(r.source_clip_id) ?? 0) + 1))
+  const chosen = rows.filter((c) => sel.has(c.id)) // selected and listed: a search hides the rest, and they stay put
+  const all = chosen.length && chosen.length === rows.length ? true : chosen.length ? "mixed" : false
+  const pick = (ids: number[], on: boolean) =>
+    setSel((s) => {
+      const n = new Set(s)
+      for (const id of ids) {
+        if (on) n.add(id)
+        else n.delete(id)
+      }
+      return n
+    })
+  const withRenders = (c: ClipOut) => (counts.get(c.id) ? ` and its ${plural(counts.get(c.id)!, "render")}` : "")
+
+  // Each clip with its renders (DELETE ?renders=true), one at a time; the api keeps a clip with posts and says why
+  async function removeChosen() {
+    const list = chosen
+    const n = list.reduce((sum, c) => sum + (counts.get(c.id) ?? 0), 0)
+    const text = `Delete ${plural(list.length, "clip")}${n ? ` and ${plural(n, "render")}` : ""}? Their files are deleted too.`
+    if (!confirm(`${text}\n\nA clip with a published, scheduled or failed post stays.`)) return
+    setDeleting(true)
+    setNotice("")
+    const kept = new Map<string, number[]>() // why (the api's code) -> clips
+    for (const c of list) {
+      try {
+        await deleteClip({ path: { clip_id: c.id }, query: { renders: true }, throwOnError: true })
+      } catch (e) {
+        const { code, message } = apiError(e)
+        kept.set(code ?? message, [...(kept.get(code ?? message) ?? []), c.id])
+      }
+    }
+    const left = [...kept.values()].flat()
+    setSel(new Set(left)) // what stayed stays selected, to see which
+    if (left.length) {
+      const why = [...kept].map(([k, ids]) => `${ids.length} ${KEPT[k] ?? k}`).join(", ")
+      setNotice(`Deleted ${plural(list.length - left.length, "clip")}. Kept ${left.length}: ${why}${kept.has("HAS_POSTS") ? ". A post keeps its clip until you cancel or dismiss it; a published one, for good" : ""}.`)
+    }
+    await gone()
+    setDeleting(false)
+  }
 
   return (
     <>
       <div className="relative shrink-0 border-b border-line px-4 py-2">
+        {chosen.length > 0 && (
+          <div data-selection className="flex h-10 items-center gap-2 rounded border border-line-strong bg-raised pr-1 pl-3">
+            <span className="tabular-nums">{chosen.length} selected</span>
+            <button className={btn.ghost} onClick={() => setSel(new Set())}>
+              Clear
+            </button>
+            <button className={cn(btn.secondary, "ml-auto")} disabled={deleting} onClick={removeChosen}>
+              <Trash2 className="size-3.5" />
+              {deleting ? "Deleting…" : `Delete ${chosen.length}`}
+            </button>
+          </div>
+        )}
+        {/* hidden, not gone, while clips are selected: the header's Upload uses its file input */}
         <div
+          hidden={chosen.length > 0}
           data-testid="dropzone"
           onDragOver={(e) => (e.preventDefault(), setOver(true))}
           onDragLeave={() => setOver(false)}
@@ -252,7 +311,8 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
       <section className="min-h-0 flex-1 overflow-auto">
         <table className="w-full table-fixed border-collapse">
           <colgroup>
-            <col className="w-[44px]" />
+            <col className="w-[36px]" />
+            <col className="w-[28px]" />
             <col />
             <col className="w-[84px]" />
             <col className="w-[156px]" />
@@ -263,7 +323,8 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
           </colgroup>
           <thead className="sticky top-0 z-10 bg-bg">
             <tr className="h-8 text-left text-xs uppercase tracking-wider text-subtle shadow-[inset_0_-1px_0_var(--color-line)] [&>th]:px-3 [&>th]:font-medium">
-              <th className="!pl-4 !pr-0" />
+              <th className="!pl-4 !pr-0">{rows.length > 0 && <Box state={all} label="Select every clip shown" onChange={() => pick(rows.map((c) => c.id), all !== true)} />}</th>
+              <th className="!px-0" />
               <th>Name</th>
               <th className="text-right">Duration</th>
               <th className="!pl-6">Size</th>
@@ -278,7 +339,8 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
           <tbody className="[&_td]:px-3 [&_td]:align-middle [&>tr]:h-14 [&>tr]:border-b [&>tr]:border-line [&>tr:hover]:bg-raised">
             {uploads.map((u) => (
               <tr key={u.key} data-upload={u.file.name}>
-                <td className="!pl-4 !pr-0">
+                <td className="!pl-4 !pr-0" />
+                <td className="!px-0">
                   <Placeholder />
                 </td>
                 <td>
@@ -345,8 +407,12 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
                 key={c.id}
                 c={c}
                 renders={counts.get(c.id) ?? 0}
+                selected={sel.has(c.id)}
+                onSelect={() => pick([c.id], !sel.has(c.id))}
                 onRetry={() => retry.mutate({ path: { clip_id: c.id } })}
-                onRemove={() => confirm(`Remove ${clipName(c)}? Its file is deleted too.`) && remove.mutate({ path: { clip_id: c.id } })}
+                onRemove={() =>
+                  confirm(`Remove ${clipName(c)}${withRenders(c)}? Their files are deleted too.`) && remove.mutate({ path: { clip_id: c.id }, query: { renders: true } })
+                }
               />
             ))}
           </tbody>
@@ -363,7 +429,8 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   )
 }
 
-function ClipRow({ c, renders, onRetry, onRemove }: { c: ClipOut; renders: number; onRetry: () => void; onRemove: () => void }) {
+function ClipRow(props: { c: ClipOut; renders: number; selected: boolean; onSelect: () => void; onRetry: () => void; onRemove: () => void }) {
+  const { c, renders, onRetry, onRemove } = props
   const ready = c.status === "READY"
   // a retry can't fix these: Remove instead (as in the mockup)
   const retryable = c.status === "FAILED" && !FINAL.has(c.error_code ?? "") && (c.origin === "url" || !!c.raw_url)
@@ -372,8 +439,11 @@ function ClipRow({ c, renders, onRetry, onRemove }: { c: ClipOut; renders: numbe
   // fades once when it turns READY while the page is open (not for rows that load READY)
   const [first] = useState(c.status)
   return (
-    <tr data-clip={c.id} data-status={c.status} className={cn("group/row", ready && first !== "READY" && "settle")}>
+    <tr data-clip={c.id} data-status={c.status} className={cn("group/row", props.selected && "bg-raised", ready && first !== "READY" && "settle")}>
       <td className="!pl-4 !pr-0">
+        <Box state={props.selected} label={`Select ${clipName(c)}`} onChange={props.onSelect} />
+      </td>
+      <td className="!px-0">
         {c.thumbnail_url ? (
           <div className="group relative w-7">
             <img src={c.thumbnail_url} alt="" className="h-[50px] w-7 rounded-sm bg-raised object-cover" />
@@ -436,13 +506,9 @@ function ClipRow({ c, renders, onRetry, onRemove }: { c: ClipOut; renders: numbe
           ) : (
             <span className={cn(btn.ghost, "text-subtle hover:bg-transparent hover:text-subtle")}>Open editor</span>
           )}
-          {/* the api only deletes READY/FAILED clips without renders */}
-          {(ready && !renders) || retryable ? (
-            <button className={btn.icon} title="Remove" onClick={onRemove}>
-              <Trash2 className="size-4" />
-            </button>
-          ) : ready ? (
-            <button className={btn.icon} title="Delete its renders in the editor first" aria-label="Remove" disabled>
+          {/* the api deletes READY/FAILED clips, their renders with them; a clip with posts stays (it says why) */}
+          {ready || retryable ? (
+            <button className={btn.icon} title={renders ? "Remove, with its renders" : "Remove"} aria-label="Remove" onClick={onRemove}>
               <Trash2 className="size-4" />
             </button>
           ) : (
@@ -533,6 +599,32 @@ function Published({ search }: { search: string }) {
   const q = search.trim().toLowerCase()
   const at = (p: PostOut) => Date.parse(p.published_at ?? p.scheduled_for)
   const rows = (posts.data ?? []).filter((p) => !q || [p.caption, p.render.clip_name].some((s) => s?.toLowerCase().includes(q))).sort((a, b) => at(b) - at(a))
+  const qc = useQueryClient()
+  const [freeing, setFreeing] = useState(false)
+  const [freed, setFreed] = useState("")
+
+  // The MP4s of renders that are on Instagram already (every post of theirs went out). Rows, thumbnails and links
+  // stay, so this list doesn't change; those renders can't be posted again, Re-render for… makes new ones.
+  async function freeUp() {
+    setNotice("")
+    setFreeing(true)
+    try {
+      const { data: can } = await freePublishedRenders({ query: { dry_run: true }, throwOnError: true })
+      if (!can.renders) {
+        setFreed("Nothing to free")
+        return
+      }
+      const text = `Delete the MP4s of ${plural(can.renders, "published render")} (${gb(can.bytes)})?`
+      if (!confirm(`${text}\n\nThey are on Instagram already. Their thumbnails, captions and links stay here, and Re-render for… still works; the renders themselves can't be posted again.`)) return
+      const { data: done } = await freePublishedRenders({ throwOnError: true })
+      setFreed(`Freed ${gb(done.bytes)}`)
+      await Promise.all([qc.invalidateQueries({ queryKey: listRendersQueryKey() }), qc.invalidateQueries({ queryKey: meQueryKey() })])
+    } catch (e) {
+      setNotice(`Couldn't free space: ${errorText(e)}`)
+    } finally {
+      setFreeing(false)
+    }
+  }
 
   return (
     <>
@@ -583,6 +675,9 @@ function Published({ search }: { search: string }) {
             <Globe className="size-3.5 text-subtle" />
             Times in {TZ}
           </span>
+          <button className={cn(btn.ghost, "-mx-2")} disabled={freeing} onClick={freeUp} title="Delete the MP4s of renders that are on Instagram already, to free disk space">
+            {freeing ? "Freeing…" : freed || "Free up space"}
+          </button>
         </div>
       </div>
       {notice && (

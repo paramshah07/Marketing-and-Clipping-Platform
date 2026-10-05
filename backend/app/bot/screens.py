@@ -823,9 +823,10 @@ async def render_delete(bot, msg, rid):
     await bot.edit(msg, f"Render #{rid} deleted.")
 
 
-async def post_now(bot, rid: int, aid: int, caption: str | None) -> dict:
-    """The post at this second, approved (Post now is the approval), watched until it goes out."""
-    body = {"render_id": rid, "account_id": aid, "scheduled_for": now().replace(microsecond=0).isoformat()}
+async def post_now(bot, rid: int, aid: int, caption: str | None, repost: bool = False) -> dict:
+    """The post at this second, approved (Post now is the approval), watched until it goes out. repost: even if the
+    video already went to the account (else ApiError ALREADY_POSTED)."""
+    body = {"render_id": rid, "account_id": aid, "scheduled_for": now().replace(microsecond=0).isoformat(), "repost": repost}
     p = await bot.api.post("/api/posts", json=body | ({"caption": caption} if caption is not None else {}))
     if p["status"] == "DRAFT":
         p = await bot.api.post(f"/api/posts/{p['id']}/approve")
@@ -845,9 +846,24 @@ async def render_now_ask(bot, msg, rid):
 
 @button("rn!")
 async def render_now(bot, msg, rid, aid, *_):  # *_: the rights flag older confirm buttons still carry
+    return await render_now_as(bot, msg, int(rid), int(aid), repost=False)
+
+
+@button("rr!")
+async def render_repost_now(bot, msg, rid, aid):
+    return await render_now_as(bot, msg, int(rid), int(aid), repost=True)
+
+
+async def render_now_as(bot, msg, rid: int, aid: int, repost: bool) -> str:
     await publishing_on(bot)
-    p = await post_now(bot, int(rid), int(aid), None)
-    await refresh(bot, msg, "r", int(rid))
+    try:
+        p = await post_now(bot, rid, aid, None, repost)
+    except ApiError as e:
+        if e.code != "ALREADY_POSTED":
+            raise
+        await bot.buttons(msg, [[("Post it again now", f"rr!:{rid}:{aid}"), ("Back", f"re:r:{rid}")]])
+        return f"{e.message} Post it again?"
+    await refresh(bot, msg, "r", rid)
     await bot.send(f"Posting render #{rid} on @{h(p['account_username'])} now: live within about a minute. /p{p['id']}")
     return "Posting now"
 
@@ -1616,6 +1632,9 @@ async def schedule_view(bot, v: dict) -> tuple[str, list]:
     elif step == "now":
         lines.append(f"<b>Post to @{h(a['username'])} now?</b> It goes live on Instagram within about a minute and can't be deleted from here.")
         rows = [[("Post now", "s:now!"), ("Back", "s:bk")]]
+    elif step == "repost":  # the api's ALREADY_POSTED: the same video went (or is queued) there
+        lines.append(f"<b>{h(v['twice'])}</b> {'Post' if v['again_now'] else 'Schedule'} it again?")
+        rows = [[("Post it again now" if v["again_now"] else "Schedule it again", "s:rp"), ("Back", "s:bk")]]
     else:
         rows = [[(f"Account: @{a['username']}", "s:a")]] if len(v["accs"]) > 1 else []
         rows += [[(f"Schedule for {fmt.when(v['at'], tz, zone=False)}", "s:go")]] if v["at"] else []
@@ -1657,19 +1676,29 @@ async def schedule_op(bot, msg, op, arg=""):
         v["step"] = "now"
     elif op == "now!":
         return await schedule_submit(bot, msg, v, now_=True)
+    elif op == "rp":
+        return await schedule_submit(bot, msg, v, now_=v["again_now"], repost=True)
     await bot.edit(msg, *await schedule_view(bot, v))
 
 
-async def schedule_submit(bot, msg: dict, v: dict, now_: bool) -> str:
+async def schedule_submit(bot, msg: dict, v: dict, now_: bool, repost: bool = False) -> str | None:
     a, r = v["acc"], v["render"]
-    if now_:
-        await publishing_on(bot)
-        p = await post_now(bot, r["id"], a["id"], v["caption"])
-    elif not v["at"]:
-        raise Alert("Pick a time first.")
-    else:
-        body = {"render_id": r["id"], "account_id": a["id"], "scheduled_for": v["at"].isoformat(), "caption": v["caption"]}
-        p = await bot.api.post("/api/posts", json=body)
+    try:
+        if now_:
+            await publishing_on(bot)
+            p = await post_now(bot, r["id"], a["id"], v["caption"], repost)
+        elif not v["at"]:
+            raise Alert("Pick a time first.")
+        else:
+            body = {"render_id": r["id"], "account_id": a["id"], "scheduled_for": v["at"].isoformat(), "caption": v["caption"],
+                    "repost": repost}  # fmt: skip
+            p = await bot.api.post("/api/posts", json=body)
+    except ApiError as e:
+        if e.code != "ALREADY_POSTED":
+            raise
+        v["step"], v["twice"], v["again_now"] = "repost", e.message, now_
+        await bot.edit(msg, *await schedule_view(bot, v))
+        return None
     bot.views.pop(msg["message_id"], None)
     who, when = f"@{h(a['username'])}", fmt.when(p["scheduled_for"], a["timezone"])
     if now_:

@@ -1,7 +1,27 @@
-import { LoaderCircle } from "lucide-react"
+import { Check, LoaderCircle } from "lucide-react"
 import { useEffect, useRef, type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+
+/** A real checkbox (tri-state via .indeterminate, which screen readers announce as mixed), drawn to match. */
+export function Box({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: () => void }) {
+  return (
+    <span className="relative grid size-3.5 shrink-0 place-items-center">
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={state === true}
+        ref={(el) => {
+          if (el) el.indeterminate = state === "mixed"
+        }}
+        onChange={onChange}
+        className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[3px] border border-subtle checked:border-fg checked:bg-fg indeterminate:border-fg indeterminate:bg-fg"
+      />
+      <Check className="pointer-events-none relative size-2.5 text-bg opacity-0 peer-checked:opacity-100" strokeWidth={3} />
+      <span className="pointer-events-none absolute h-[1.5px] w-[7px] rounded-full bg-bg opacity-0 peer-indeterminate:opacity-100" />
+    </span>
+  )
+}
 
 export function Header({ children }: { children: ReactNode }) {
   return <header className="flex h-12 shrink-0 items-center justify-between gap-4 border-b border-line px-4">{children}</header>

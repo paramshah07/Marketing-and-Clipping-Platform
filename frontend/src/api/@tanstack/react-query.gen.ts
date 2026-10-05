@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { addBot, approvePost, autoSchedule, cancelPost, changePassword, checkZernioKey, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteBot, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, deleteZernioKey, findLinks, getClip, getPost, getRender, health, listAccounts, listBots, listBrands, listCaptions, listClips, listCovers, listPosts, listRenders, login, logout, me, nextSlot, type Options, pairBot, patchBot, putZernioKey, remedyPost, retryClip, retryRender, setRenderCover, signup, signupStatus, status, syncAccounts, testBot, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
-import type { AddBotData, AddBotError, AddBotResponse, ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CheckZernioKeyData, CheckZernioKeyResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteBotData, DeleteBotError, DeleteBotResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, DeleteZernioKeyData, DeleteZernioKeyResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBotsData, ListBotsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse, NextSlotData, NextSlotError, NextSlotResponse, PairBotData, PairBotError, PairBotResponse, PatchBotData, PatchBotError, PatchBotResponse, PutZernioKeyData, PutZernioKeyError, PutZernioKeyResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, SignupData, SignupError, SignupResponse, SignupStatusData, SignupStatusResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, TestBotData, TestBotError, TestBotResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
+import { addBot, approvePost, autoSchedule, cancelPost, changePassword, checkZernioKey, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteBot, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, deleteZernioKey, findLinks, freePublishedRenders, getClip, getPost, getRender, health, listAccounts, listBots, listBrands, listCaptions, listClips, listCovers, listPosts, listRenders, login, logout, me, nextSlot, type Options, pairBot, patchBot, putZernioKey, remedyPost, retryClip, retryRender, setRenderCover, signup, signupStatus, status, syncAccounts, testBot, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
+import type { AddBotData, AddBotError, AddBotResponse, ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CheckZernioKeyData, CheckZernioKeyResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteBotData, DeleteBotError, DeleteBotResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, DeleteZernioKeyData, DeleteZernioKeyResponse, FindLinksData, FindLinksError, FindLinksResponse, FreePublishedRendersData, FreePublishedRendersError, FreePublishedRendersResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBotsData, ListBotsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse, NextSlotData, NextSlotError, NextSlotResponse, PairBotData, PairBotError, PairBotResponse, PatchBotData, PatchBotError, PatchBotResponse, PutZernioKeyData, PutZernioKeyError, PutZernioKeyResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, SignupData, SignupError, SignupResponse, SignupStatusData, SignupStatusResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, TestBotData, TestBotError, TestBotResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -362,6 +362,8 @@ export const uploadClipMutation = (options?: Partial<Options<UploadClipData>>): 
 
 /**
  * Create Clip From Url
+ *
+ * 409 {"code": "ALREADY_IN_LIBRARY", "clip_id"} for a video the library has (Import links skips those too).
  */
 export const createClipFromUrlMutation = (options?: Partial<Options<CreateClipFromUrlData>>): UseMutationOptions<CreateClipFromUrlResponse, CreateClipFromUrlError, Options<CreateClipFromUrlData>> => {
     const mutationOptions: UseMutationOptions<CreateClipFromUrlResponse, CreateClipFromUrlError, Options<CreateClipFromUrlData>> = {
@@ -418,7 +420,10 @@ export const createClipsFromUrlsMutation = (options?: Partial<Options<CreateClip
 /**
  * Delete Clip
  *
- * Only READY/FAILED clips with no renders (delete the renders first). Files go too.
+ * Only READY/FAILED clips. Its renders go too with renders=true (else it must have none), on DELETE
+ * /api/renders/{id}'s terms: none RENDERING and no post but CANCELLED ones, which go with them. A post that went
+ * out (or may) keeps its clip, as the history the duplicate checks read. 409 {"code": "PROCESSING" | "HAS_RENDERS"
+ * | "RENDERING" | "HAS_POSTS"} otherwise. Files go after the commit. FOR UPDATE: no render or post joins mid-way.
  */
 export const deleteClipMutation = (options?: Partial<Options<DeleteClipData>>): UseMutationOptions<DeleteClipResponse, DeleteClipError, Options<DeleteClipData>> => {
     const mutationOptions: UseMutationOptions<DeleteClipResponse, DeleteClipError, Options<DeleteClipData>> = {
@@ -641,6 +646,27 @@ export const retryRenderMutation = (options?: Partial<Options<RetryRenderData>>)
     const mutationOptions: UseMutationOptions<RetryRenderResponse, RetryRenderError, Options<RetryRenderData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await retryRender({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Free Published Renders
+ *
+ * Delete the MP4s of renders whose posts have all gone out (one PUBLISHED at least, any others CANCELLED): they
+ * are on Instagram. The rows, thumbnails and covers stay, so Published keeps them; such a render can't be posted
+ * again (scheduling says so), a new render of its clip can. dry_run: only count.
+ */
+export const freePublishedRendersMutation = (options?: Partial<Options<FreePublishedRendersData>>): UseMutationOptions<FreePublishedRendersResponse, FreePublishedRendersError, Options<FreePublishedRendersData>> => {
+    const mutationOptions: UseMutationOptions<FreePublishedRendersResponse, FreePublishedRendersError, Options<FreePublishedRendersData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await freePublishedRenders({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

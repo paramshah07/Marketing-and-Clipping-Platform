@@ -6,7 +6,6 @@ import { Link } from "react-router"
 import type { PostOut, RenderOut } from "@/api"
 import {
   approvePostMutation,
-  createPostMutation,
   listAccountsOptions,
   listAccountsQueryKey,
   listPostsQueryKey,
@@ -15,7 +14,7 @@ import {
   nextSlotQueryKey,
   statusOptions,
 } from "@/api/@tanstack/react-query.gen"
-import { apiError, localParts, nowIso, postNowConfirm, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
+import { apiError, createPostAsking, localParts, nowIso, postNowConfirm, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, MAX_REEL_SECONDS, PUBLISHING_OFF, btn, cn, field, label } from "@/lib/utils"
 
 /** Render queue "Schedule…": pick an account, take the suggested slot (or edit it), POST /api/posts. */
@@ -46,7 +45,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   const [error, setError] = useState("")
   const [done, setDone] = useState<PostOut | null>(null)
   const [now, setNow] = useState(false) // done came from Post now
-  const create = useMutation(createPostMutation())
+  const create = useMutation({ mutationFn: createPostAsking })
   const approve = useMutation(approvePostMutation())
   const busy = create.isPending || approve.isPending
   const st = useQuery(statusOptions()) // the sidebar's query; shares its cache
@@ -57,7 +56,8 @@ function ScheduleForm({ r }: { r: RenderOut }) {
     setError("")
     try {
       const scheduled_for = now ? nowIso() : zonedToUtc(date, time, a.timezone).toISOString()
-      let post = await create.mutateAsync({ body: { render_id: r.id, account_id: a.id, scheduled_for, caption } })
+      let post = await create.mutateAsync({ render_id: r.id, account_id: a.id, scheduled_for, caption })
+      if (!post) return // the video is on the account already, and the answer was: don't post it again
       if (now && post.status === "DRAFT") post = await approve.mutateAsync({ path: { post_id: post.id } }) // Post now is the approval
       setNow(now)
       setDone(post)

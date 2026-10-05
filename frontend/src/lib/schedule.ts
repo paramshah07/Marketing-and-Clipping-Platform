@@ -2,7 +2,7 @@
 // slot times are "HH:MM" wall clock in the account's IANA zone; a DST gap shifts forward and an
 // overlap takes the earlier instant (Python fold=0). Days are "YYYY-MM-DD" calendar dates.
 
-import type { AccountOut, PostOut } from "@/api"
+import { createPost, type AccountOut, type PostCreate, type PostOut } from "@/api"
 import { MAX_REEL_SECONDS, MIN_REEL_SECONDS, errorText } from "@/lib/utils"
 
 const MIN = 60_000
@@ -217,6 +217,19 @@ export function apiError(e: unknown): { code?: string; message: string } {
   if (typeof d === "string") return { message: d }
   if (Array.isArray(d)) return { message: d.map((x) => `${x.loc?.slice(1).join(".")}: ${x.msg}`).join("; ") }
   return { message: errorText(e) }
+}
+
+/** POST /api/posts. The api's 409 ALREADY_POSTED (this video already went to the account, or is queued there) is a
+ * question: ask, and post it again only on yes. null when the answer was no. */
+export async function createPostAsking(body: PostCreate): Promise<PostOut | null> {
+  try {
+    return (await createPost({ body, throwOnError: true })).data
+  } catch (e) {
+    const { code, message } = apiError(e)
+    if (code !== "ALREADY_POSTED") throw e
+    if (!confirm(`${message}\n\nPost it there again?`)) return null
+    return (await createPost({ body: { ...body, repost: true }, throwOnError: true })).data
+  }
 }
 
 // The few codes whose api message speaks to whoever runs the server, not to you

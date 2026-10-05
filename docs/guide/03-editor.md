@@ -131,7 +131,7 @@ The popover then links to **Open calendar**. You can also drag renders onto the 
 > A Reel can't be deleted from Instagram through Clipper. **Post now** asks before it publishes.
 
 - A render can't be deleted while it is rendering, or while a post that isn't cancelled uses it. Cancel a draft or scheduled post on the [Calendar](05-calendar.md) first; a published render stays for good.
-- Deleting a render deletes its MP4. A clip can be removed from the Library only after all its renders are gone.
+- Deleting a render deletes its MP4. Removing a clip in the Library takes its renders with it, unless one of them has a post that isn't cancelled.
 - The date and time fields follow your computer's region format.
 
 ← Previous: [Library](02-library.md) · [Guide](README.md) · Next: [Customizations](04-customizations.md) →
