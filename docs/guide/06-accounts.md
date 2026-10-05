@@ -1,13 +1,13 @@
 # Accounts
 
-The Accounts page lists the Instagram accounts Clipper can post to and sets when each one posts: its time zone, posting slots, daily cap and minimum gap.
+The Accounts page lists your Instagram accounts (the ones your Zernio key can post to) and sets when each one posts: its time zone, posting slots, daily cap and minimum gap. Other users' accounts never show here.
 
 ![The Accounts page: one Instagram account card with its connection, quota, today's count, time zone, posting slot times, daily cap, minimum gap and Disable](../images/accounts.png)
 
 | # | What it is |
 |---|---|
 | 1 | **Connect account**: the steps to connect an account (it happens in Zernio, not here). |
-| 2 | **Sync accounts**: pulls the connected accounts from Zernio. |
+| 2 | **Sync accounts**: pulls your connected accounts from Zernio, with your key. |
 | 3 | Connection state: **Connected**, **Disconnected** or **Disabled**. |
 | 4 | Meta's publishing quota, and today's posts against the daily cap. |
 | 5 | When it last published, and its next post. |
@@ -20,11 +20,14 @@ Under the handle is the account's Zernio id, useful when you look it up in Zerni
 
 ## Connect an account
 
-Clipper publishes through [Zernio](https://zernio.com), so accounts are connected there. Click **Connect account** for these steps:
+Clipper publishes through [Zernio](https://zernio.com), with your own Zernio account, so accounts are connected there. Click **Connect account** for these steps:
 
-1. **Create a Zernio profile.** Use one profile per Instagram account, so each account keeps its own queue and limits.
-2. **Connect Instagram in that profile.** It must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login.
-3. **Sync accounts** in Clipper. The new account appears as a card.
+1. **Add your Zernio API key** in **Settings** (see [Settings › Zernio API key](09-settings.md#zernio-api-key)). Clipper reads your accounts through it, and publishes with it.
+2. **Create a Zernio profile.** Use one profile per Instagram account, so each account keeps its own queue and limits.
+3. **Connect Instagram in that profile.** It must be an Instagram Business or Creator account. Zernio's approved Meta app handles the login. Step by step: [Connect an account in Zernio](09-settings.md#connect-an-account-in-zernio).
+4. **Sync accounts** in Clipper (or **Re-check** on the Settings page's **Instagram accounts** card). The new account appears as a card.
+
+With no key yet, the page says so and links to Settings, and **Sync accounts** fails with **add your Zernio API key in Settings first**.
 
 A new account starts with these settings. Change them before you schedule anything:
 
@@ -42,7 +45,11 @@ A new account starts with these settings. Change them before you schedule anythi
 
 **Sync accounts** reads the account list from Zernio. It only reads; nothing changes in Zernio. It updates each account's handle, avatar and connection state, and adds accounts it has not seen before. Your slots, cap, gap and time zone are never overwritten.
 
-Clipper also syncs by itself every 6 hours. Whenever a sync finds that Zernio no longer lists an account, or marks it inactive or needing a reconnect, the account becomes **Disconnected** and Clipper sends a Telegram alert (at most one per account every 6 hours).
+Clipper also syncs by itself every 6 hours, for every user whose key works. Whenever a sync finds that Zernio no longer lists an account, or marks it inactive or needing a reconnect, the account becomes **Disconnected** and Clipper sends an alert to your Telegram bots (at most one per account every 6 hours).
+
+An Instagram account belongs to one Clipper user. If another Clipper user already has it (someone else in your Zernio team, say), a sync skips it, and the Settings page's **Re-check** says so. Accounts beyond your Zernio plan's limit are listed there too: Zernio won't post to them until you upgrade the plan or remove an account.
+
+If Zernio refuses your key during a sync, the sync fails with **Zernio refused your key: update it in Settings**, and your publishing pauses until you fix it ([Publishing and recovery](07-publishing-and-recovery.md#when-your-zernio-key-stops-working)).
 
 ## Set the posting slots
 
@@ -96,6 +103,7 @@ When the sync sees the account connected again, the posts that failed because it
 
 - Zernio and Instagram have their own limits (25 posts per hour per account, and Meta's quota). Slots a sensible distance apart stay well inside them. See [Zernio and Instagram limits](07-publishing-and-recovery.md#zernio-and-instagram-limits).
 - Accounts cannot be removed from Clipper. Disable the ones you no longer use.
+- Your accounts stay tied to the Zernio account you connected first: a key from another Zernio account is refused (`ZERNIO_ACCOUNT_CHANGED`).
 
 > [!NOTE]
 > The screenshot comes from a review copy with no Zernio key, so the quota reads **Meta: unavailable**. On the live app it shows the real count.

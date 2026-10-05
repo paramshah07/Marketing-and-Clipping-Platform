@@ -1,0 +1,10 @@
+{
+  "status": 403,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "code": "insufficient_permissions",
+    "required_group": "publishing"
+  }
+}

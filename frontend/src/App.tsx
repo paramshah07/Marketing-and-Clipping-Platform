@@ -1,17 +1,19 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
-import { AtSign, CalendarDays, Film, SlidersHorizontal } from "lucide-react"
+import { AtSign, CalendarDays, Film, Settings as Gear, SlidersHorizontal } from "lucide-react"
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
-import { listPostsOptions, statusOptions } from "@/api/@tanstack/react-query.gen"
+import { listPostsOptions, meOptions, statusOptions } from "@/api/@tanstack/react-query.gen"
 import { Empty, Header } from "@/components/bits"
-import { cn } from "@/lib/utils"
+import { PUBLISHING_OFF, cn } from "@/lib/utils"
 import { Accounts } from "@/routes/Accounts"
 import { Calendar } from "@/routes/Calendar"
 import { Customizations } from "@/routes/Customizations"
 import { Editor } from "@/routes/Editor"
 import { Library } from "@/routes/Library"
+import { Login, Signup } from "@/routes/Login"
 import { Recover } from "@/routes/Recover"
+import { Settings, Setup } from "@/routes/Settings"
 
 export function App() {
   return (
@@ -25,9 +27,13 @@ export function App() {
         <Route path="brands" element={<Navigate to="/customizations/brands" replace />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="accounts" element={<Accounts />} />
+        <Route path="setup" element={<Setup />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Soon title="Not found" note="Nothing lives at this address." />} />
       </Route>
       <Route path="recover/:postId" element={<Recover />} /> {/* mobile-first, no sidebar */}
+      <Route path="login" element={<Login />} />
+      <Route path="signup" element={<Signup />} />
     </Routes>
   )
 }
@@ -55,19 +61,29 @@ function Shell() {
       qc.refetchQueries({ predicate: (q) => q.state.status === "error" })
     }
   }, [healthy, isError, st, qc])
-  // One status, the first thing in the way of a post going out: api, database, worker, then the publishing switch
+  // One status, the first thing in the way of a post going out: api, database, the workers (the publisher sends
+  // posts and alerts, the worker renders), then publishing (the server's switch, or your Zernio key: that one links
+  // to Settings). A 401 never gets here (main.tsx: to /login).
   const bad = { dot: "bg-bad", text: "text-bad" }
-  const status = isError
+  const off = st && (st.publishing_off ?? (st.publishing_enabled ? null : "switch"))
+  const status: { dot: string; text: string; label: string; hint: string; to?: string } = isError
     ? { ...bad, label: "API offline", hint: "The api isn't answering: nothing on this page is current." }
     : !st
       ? { dot: "bg-subtle", text: "", label: "Checking…", hint: "Checking…" }
       : !st.db
         ? { ...bad, label: "Database offline", hint: "Nothing renders or publishes until the database is back." }
-        : !st.worker_alive
-          ? { ...bad, label: "Worker offline", hint: "Nothing renders or publishes until the worker is back." }
-          : !st.publishing_enabled
-            ? { dot: "bg-warn", text: "text-warn", label: "Publishing off", hint: "Worker online, renders run. PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay Scheduled and nothing reaches Instagram." }
-            : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Worker online. Scheduled posts go out to Instagram at their time." }
+        : !st.worker_alive && !st.publisher_alive
+          ? { ...bad, label: "Worker offline", hint: "Nothing renders or publishes until the workers are back." }
+          : !st.publisher_alive
+            ? { ...bad, label: "Publisher offline", hint: "Nothing publishes and no alerts go out until the publisher is back. Renders run." }
+            : !st.worker_alive
+              ? { ...bad, label: "Worker offline", hint: "Nothing renders or downloads until the worker is back. Ready posts still publish." }
+              : off
+                ? { ...(off === "key_invalid" ? bad : { dot: "bg-warn", text: "text-warn" }), label: PUBLISHING_OFF[off].label, hint: `Workers online, renders run. ${PUBLISHING_OFF[off].why}`, to: off === "switch" ? undefined : "/settings" }
+                : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Workers online. Scheduled posts go out to Instagram at their time." }
+  const me = useQuery(meOptions())
+  const steps = me.data ? Object.values(me.data.setup).filter(Boolean).length : 3
+  const setUp = !me.data || (me.data.setup.zernio && me.data.setup.instagram) // Telegram is optional (Setup's rule)
   const { pathname } = useLocation()
   // The badge opens the oldest failure, which may sit in a week the calendar isn't showing.
   const failed = useQuery({ ...listPostsOptions({ query: { status: ["FAILED", "DEAD_LETTER"] } }), enabled: !!st?.failed_posts })
@@ -114,15 +130,48 @@ function Shell() {
           ))}
         </nav>
         {/* min-h: two rows reserved, so the footer doesn't grow once status loads */}
-        <div className={cn("mt-auto min-h-[63px] space-y-1.5 border-t border-line p-3 text-sm text-muted", rail && "max-[1400px]:[&>div]:justify-center")}>
-          <div className={cn("flex items-center gap-2", status.text)} title={status.hint}>
-            <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
-            <span className={word}>{status.label}</span>
-          </div>
+        <div className={cn("mt-auto min-h-[63px] space-y-1.5 border-t border-line p-3 text-sm text-muted", rail && "max-[1400px]:[&>*]:justify-center")}>
+          {status.to ? (
+            <Link to={status.to} className={cn("flex items-center gap-2 hover:underline", status.text)} title={status.hint}>
+              <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
+              <span className={word}>{status.label}</span>
+            </Link>
+          ) : (
+            <div className={cn("flex items-center gap-2", status.text)} title={status.hint}>
+              <span className={cn("size-1.5 shrink-0 rounded-full", status.dot)} />
+              <span className={word}>{status.label}</span>
+            </div>
+          )}
           {st && (
             <div className={cn("tabular-nums", word)}>
               {st.rendering_renders ?? 0} rendering · {st.scheduled_posts ?? 0} scheduled
             </div>
+          )}
+        </div>
+        <div className={cn("relative border-t border-line p-2", rail && "max-[1400px]:px-1")}>
+          <NavLink
+            to="/settings"
+            title="Settings"
+            className={({ isActive }) =>
+              cn(
+                "flex h-8 items-center gap-2.5 rounded px-2.5",
+                !setUp && "pr-[76px]", // room for the Setup badge
+                rail && "max-[1400px]:justify-center max-[1400px]:px-0",
+                isActive ? "bg-raised text-fg" : "text-muted hover:bg-hover"
+              )
+            }
+          >
+            <Gear className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
+            <span className={cn("truncate", word)}>{me.data?.username ?? "Settings"}</span>
+          </NavLink>
+          {!setUp && (
+            <Link
+              to="/setup"
+              title="Finish setting up: Zernio key, Instagram, Telegram"
+              className={cn("absolute top-3.5 right-4 rounded bg-accent/15 px-1.5 text-xs leading-5 font-medium tabular-nums text-accent hover:bg-accent/25", rail && "max-[1400px]:hidden")}
+            >
+              Setup {steps}/3
+            </Link>
           )}
         </div>
       </aside>

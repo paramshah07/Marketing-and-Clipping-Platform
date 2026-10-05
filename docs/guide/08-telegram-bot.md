@@ -1,21 +1,32 @@
 # Telegram bot
 
-The Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends the failure alerts.
+A Clipper bot lets you do from a Telegram chat what you do in the web app: import, render, schedule, approve and recover posts, and it sends your failure alerts.
 
-The bot works through the same API as the web app, so every rule and confirmation is the same. This page shows how to use it; [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots here: the examples are chat transcripts, with buttons in `[brackets]`.
+It is your own bot, made with Telegram's @BotFather, and it works through the same API as the web app, as you: every rule and confirmation is the same, and it only ever sees your clips, renders, accounts and posts. This page shows how to use it (adding one is in [Settings](09-settings.md#telegram-bots)); [docs/telegram-bot.md](../telegram-bot.md) is the design reference. There are no screenshots of the chat: the examples are chat transcripts, with buttons in `[brackets]`.
+
+## Add a bot
+
+Make a bot with @BotFather, paste its token in **Settings** › **Telegram bots**, and pair it with your chat: the full
+walkthrough, what each bot status means (**Running**, **Waiting for Start**, **Token rejected**, **Not responding**),
+the **Alerts** switch, **Test**, **Re-pair**, a revoked token and **Remove** are in
+[Settings › Telegram bots](09-settings.md#telegram-bots).
+
+In short: send @BotFather `/newbot`, paste the token and click **Verify**, click **Open @yourbot and tap Start**, tap
+**Start** in Telegram, and the bot answers **Paired. This chat runs your Clipper now.** Each bot answers only its chat
+and ignores everyone else without a reply, including group chats. Use a different bot on the live app and on the dev
+site.
 
 ## Before you start
 
-- Open your private chat with the Clipper bot and send `/help`. Tap `/` in the chat for the command menu.
-- Each bot answers one chat only, and ignores everyone else without a reply. Production can run up to three bots, each with its own chat, all working on the same Clipper.
-- Failure alerts go to the main bot's chat.
-- **Open in Clipper** buttons open the web app, which asks for the site's username and password first.
+- Open your private chat with your bot and send `/help`. Tap `/` in the chat for the command menu.
+- Failure alerts go to every bot of yours with **Alerts** on.
+- **Open in Clipper** buttons open the web app, which asks you to sign in first if you aren't.
 
 ## Commands
 
 | Command | What it shows |
 |---|---|
-| `/status` | Whether the database, worker and publishing are up, with rendering, scheduled and failed counts |
+| `/status` | Whether the database, workers and your publishing are up (and why not), with your rendering, scheduled and failed counts |
 | `/clips [text]` | The library, 10 per page; add text to search (also `/library`) |
 | `/renders` | Recent renders |
 | `/ready` | Renders ready to schedule, to select and auto-schedule (also `/queue`) |
@@ -124,7 +135,7 @@ Tue 29 Sep
 
 ## Failed posts and alerts
 
-When a post fails, the main bot's chat gets an alert:
+When a post fails, each of your bots with **Alerts** on sends an alert:
 
 ```text
 Bot:  @afro.yahu post 234 failed: Instagram rejected the video or caption (format, length or policy).
@@ -164,9 +175,10 @@ For a disconnected account the remedy is two buttons: **Reconnect in Zernio**, t
 | Time to answer a question the bot asked | 10 minutes |
 
 - When the bot asks for text, reply with it; `-` clears an optional field, and `/cancel` or any command drops the question.
+- Alerts and **Open in Clipper** buttons link to the site the bot belongs to: a dev-site bot opens the dev site.
 - Anything you send while the bot is down is ignored, so an old **Post now** tap never publishes hours later. The bot says so when it is back: send it again.
 - A confirm button acts once; a second tap only answers **Already done.** Open forms and lists expire when the bot restarts (**This has expired: run the command again**); buttons on cards keep working.
 - While publishing is off, **Post now** answers **Publishing is off … nothing can post now**.
 - The web app alone has free drag for the logo and crop, a live preview before rendering, and the saved captions and covers from [Customizations](04-customizations.md).
 
-← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Workflows](../workflows.md) →
+← Previous: [Publishing and recovery](07-publishing-and-recovery.md) · [Guide](README.md) · Next: [Settings and your account](09-settings.md) →

@@ -19,15 +19,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import cli
-from app.api.pipeline import png_alpha
+from app.api.pipeline import BULK_PRIORITY, png_alpha
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import SPA, app
-from app.models import Brand, Render, SavedCaption, SourceClip, cas
+from app.models import Brand, Render, SavedCaption, SourceClip, User, cas
 from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
-from conftest import needs_ffmpeg
+from conftest import as_user, needs_ffmpeg
 
 PNG = b"\x89PNG\r\n\x1a\n"
 JPEG = b"\xff\xd8\xff\xe0" + bytes(100)  # the magic bytes are all the api checks
@@ -44,7 +44,7 @@ def png(color_type: int, *chunks: bytes) -> bytes:
 
 @pytest.fixture(scope="module")
 def client(db):
-    with TestClient(app) as c:
+    with TestClient(app, headers=as_user()) as c:
         yield c
         c.portal.call(engine.dispose)  # its connections belong to this client's event loop
 
@@ -91,7 +91,7 @@ def test_logo_upload_validation(client):
     assert client.post(url, files={"file": ("a.png", png(2))}).status_code == 422
     assert client.post(url, files={"file": ("a.png", png(6)[:40])}).json()["detail"] == "logo PNG is corrupt"
     first = client.post(url, files={"file": ("logo.png", png(6))})
-    assert first.status_code == 200 and first.json()["logo_url"].startswith(f"/media/logos/{brand['id']}-")
+    assert first.status_code == 200 and first.json()["logo_url"].startswith(f"/media/u/1/logos/{brand['id']}-")
     second = client.post(url, files={"file": ("logo.png", png(6))}).json()["logo_url"]
     assert second != first.json()["logo_url"]  # new name each time: no stale browser cache
     assert client.post("/api/brands/999999/logo", files={"file": ("logo.png", png(6))}).status_code == 404
@@ -176,7 +176,7 @@ def test_saved_covers(client, data_dir):
         return client.post("/api/covers", files={"file": ("summer.jpg", data)}, data={"name": name, **form})
 
     def files():
-        return sorted(p.name for p in data_dir.glob("cover-library/*"))
+        return sorted(p.name for p in data_dir.glob("u/1/cover-library/*"))
 
     assert up(data=PNG).status_code == 415
     assert up(data=JPEG + bytes(8 * 1024**2)).status_code == 413
@@ -187,7 +187,7 @@ def test_saved_covers(client, data_dir):
     assert r.status_code == 201, r.text
     a = r.json()
     assert (a["name"], a["is_default"], "image_key" in a) == ("Summer", False, False)
-    assert a["image_url"].startswith(f"/media/cover-library/{a['id']}-") and a["image_url"].endswith(".jpg")
+    assert a["image_url"].startswith(f"/media/u/1/cover-library/{a['id']}-") and a["image_url"].endswith(".jpg")
     assert (data_dir / a["image_url"].removeprefix("/media/")).read_bytes() == JPEG
     b = up("Winter", is_default="true").json()
     c = up("Autumn").json()
@@ -219,7 +219,7 @@ def test_upload_rejections_leave_nothing(client, data_dir, monkeypatch, tmp_path
     monkeypatch.setattr(settings, "MAX_UPLOAD_BYTES", 500)
     assert upload(client, fake).status_code == 413
     assert len(client.get("/api/clips").json()) == before
-    assert not any((data_dir / "raw").glob("*"))
+    assert not any((data_dir / "u/1/raw").glob("*"))
 
 
 @needs_ffmpeg
@@ -229,15 +229,15 @@ def test_upload_probe_render(client, db, data_dir, media):
     clip = r.json()
     assert (clip["status"], clip["origin"], clip["original_filename"]) == ("PROBING", "upload", "land.mp4")
     assert (clip["source_creator_handle"], clip["content_type"]) == ("@me", "video/mp4") and "rights_status" not in clip
-    assert (data_dir / f"raw/{clip['id']}.mp4").read_bytes() == media["land"].read_bytes()
+    assert (data_dir / f"u/1/raw/{clip['id']}.mp4").read_bytes() == media["land"].read_bytes()  # user 1's files
     assert job(db, "probe_clip", clip_id=clip["id"])
 
     probe_clip(clip["id"])
     clip = client.get(f"/api/clips/{clip['id']}").json()
     assert clip["status"] == "READY", clip
     assert (clip["width"], clip["height"], clip["fps"], clip["has_audio"], clip["video_codec"]) == (1920, 1080, 30, True, "h264")
-    assert clip["thumbnail_url"] == f"/media/thumbs/clip-{clip['id']}.jpg"
-    assert (data_dir / f"thumbs/clip-{clip['id']}.jpg").stat().st_size > 1000
+    assert clip["thumbnail_url"] == f"/media/u/1/thumbs/clip-{clip['id']}.jpg"
+    assert (data_dir / f"u/1/thumbs/clip-{clip['id']}.jpg").stat().st_size > 1000
     assert client.get("/api/clips").json()[0]["id"] == clip["id"]  # newest first
     assert client.post(f"/api/clips/{clip['id']}/retry").status_code == 409  # only from FAILED
 
@@ -272,7 +272,7 @@ def test_upload_probe_render(client, db, data_dir, media):
     render(rendered["id"])
     rendered = client.get(f"/api/renders/{rendered['id']}").json()
     assert rendered["status"] == "READY", rendered["ffmpeg_log"]
-    assert rendered["output_url"] == f"/media/renders/{rendered['id']}.mp4" and rendered["ffmpeg_log"]
+    assert rendered["output_url"] == f"/media/u/1/renders/{rendered['id']}.mp4" and rendered["ffmpeg_log"]
     assert abs(rendered["duration_s"] - 4) < 0.1 and rendered["size_bytes"] > 0
     assert [x["id"] for x in client.get(f"/api/renders?clip_id={clip['id']}&status=READY&unscheduled=true").json()] == [
         rendered["id"]
@@ -280,9 +280,9 @@ def test_upload_probe_render(client, db, data_dir, media):
 
     assert client.delete(f"/api/clips/{clip['id']}").status_code == 409  # a render uses it
     assert client.delete(f"/api/renders/{rendered['id']}").status_code == 204
-    assert not (data_dir / f"renders/{rendered['id']}.mp4").exists()
+    assert not (data_dir / f"u/1/renders/{rendered['id']}.mp4").exists()
     assert client.delete(f"/api/clips/{clip['id']}").status_code == 204
-    assert not (data_dir / f"raw/{clip['id']}.mp4").exists()
+    assert not (data_dir / f"u/1/raw/{clip['id']}.mp4").exists()
     assert client.get(f"/api/clips/{clip['id']}").status_code == 404
 
 
@@ -297,15 +297,15 @@ def test_render_failures_are_final(client, data_dir, media, monkeypatch):
     render(big["id"])
     big = client.get(f"/api/renders/{big['id']}").json()
     assert (big["status"], big["error_code"], big["output_url"]) == ("FAILED", "OUTPUT_TOO_LARGE", None)
-    assert not (data_dir / f"renders/{big['id']}.mp4").exists()
+    assert not (data_dir / f"u/1/renders/{big['id']}.mp4").exists()
 
-    (data_dir / f"raw/{clip['id']}.mp4").write_bytes(b"not a video")
+    (data_dir / f"u/1/raw/{clip['id']}.mp4").write_bytes(b"not a video")
     bad = client.post("/api/renders", json=create).json()
     render(bad["id"])
     bad = client.get(f"/api/renders/{bad['id']}").json()
     assert (bad["status"], bad["error_code"]) == ("FAILED", "FFMPEG_FAILED")
     assert "Invalid data found when processing input" in bad["ffmpeg_log"]
-    assert not any((data_dir / "renders").glob("*"))  # no .part left behind
+    assert not any((data_dir / "u/1/renders").glob("*"))  # no .part left behind
     assert client.post(f"/api/renders/{bad['id']}/retry").json()["status"] == "PENDING"
     assert client.post(f"/api/renders/{bad['id']}/retry").status_code == 409  # not FAILED any more
 
@@ -399,12 +399,12 @@ def test_import_links(client, db):
         ("https://www.instagram.com/reel/AAA111/", "DOWNLOADING", None),
         ("https://vimeo.com/77", "DOWNLOADING", None),
     }
-    with db.connect() as c:  # behind renders and single imports, in one of two lanes
-        jobs = c.execute(
-            text("SELECT priority, lock FROM procrastinate_jobs WHERE task_name = 'download_clip' AND args @> CAST(:a AS jsonb)"),
-            {"a": json.dumps({"clip_id": new[0]["id"]})},
-        ).all()
-    assert jobs == [(-10, f"import-{new[0]['id'] % 2}")]
+    with db.connect() as c:  # behind every render and single import; one media job of user 1's at a time, in order
+        jobs = c.execute(text(
+            "SELECT priority, lock, queue_name FROM procrastinate_jobs WHERE task_name = 'download_clip'"
+            " AND CAST(args->>'clip_id' AS int) = ANY(:ids) ORDER BY id"), {"ids": r.json()["ids"]}).all()  # fmt: skip
+    [(first, lock, queue), second] = jobs
+    assert (lock, queue, second) == ("media:u1", "media", (first - 1, lock, queue)) and first <= BULK_PRIORITY
     assert client.post("/api/clips/from-urls", json={"urls": urls}).json() == {"created": 0, "skipped": 4, "ids": []}
 
 
@@ -437,7 +437,7 @@ def test_download_clip(client, db, data_dir, media, monkeypatch, tmp_path):
     clip = client.get(f"/api/clips/{clip['id']}").json()
     assert (clip["status"], clip["platform"], clip["source_url"]) == ("READY", "Youtube", "https://y/w"), clip
     assert clip["source_creator_handle"] == "@operator"
-    assert not seen["cookies"].exists() and not (data_dir / f"raw/dl-{clip['id']}").exists()
+    assert not seen["cookies"].exists() and not (data_dir / f"u/1/raw/dl-{clip['id']}").exists()
 
     seen["empty"] = True
     clip = client.post("/api/clips/from-url", json=new).json()
@@ -474,22 +474,24 @@ def test_cli_interrupt_fails_the_render(db, monkeypatch):
 
 
 def test_api_startup_fails_orphaned_uploads_and_drops_their_part_file(db, client, data_dir):
-    """An UPLOADING row when the api starts lost its request (one api process): FAILED, .part removed."""
+    """An UPLOADING row when the api starts lost its request (one api process): FAILED, .part removed (under the
+    owner's prefix, or none: an upload taken before users)."""
     with Session(db) as s:
         clip = SourceClip(origin="upload", status="UPLOADING", original_filename="half.mp4")
         s.add(clip)
         s.commit()
         cid = clip.id
-    (data_dir / "raw").mkdir(exist_ok=True)
-    part = data_dir / "raw" / f"{cid}.part"
-    part.write_bytes(b"half an upload")
+    parts = [data_dir / f"u/1/raw/{cid}.part", data_dir / f"raw/{cid}.part"]
+    for part in parts:
+        part.parent.mkdir(parents=True, exist_ok=True)
+        part.write_bytes(b"half an upload")
     from app.main import _abandon_orphan_uploads  # what the lifespan runs at startup
 
     client.portal.call(_abandon_orphan_uploads)  # on the client's loop, which owns the pooled connections
     with Session(db) as s:
         clip = s.get(SourceClip, cid)
         assert (clip.status, clip.error_code) == ("FAILED", "UPLOAD_ABANDONED")
-    assert not part.exists()
+    assert not any(part.exists() for part in parts)
 
 
 def test_spa_fallback(tmp_path):
@@ -504,3 +506,84 @@ def test_spa_fallback(tmp_path):
     c = TestClient(Starlette(routes=[Mount("/", SPA(directory=tmp_path, html=True))]))
     assert [c.get(u).text for u in ("/", "/editor/12", "/assets/a.js")] == ["app", "app", "js"]
     assert c.get("/api/nope").status_code == 404
+
+
+# ---------------------------------------------------------------- users: fair share, storage, cookies
+
+
+def new_user(**values) -> int:
+    with SyncSession() as s:
+        u = User(username=f"a.{time.time_ns()}", **values)
+        s.add(u)
+        s.commit()
+        return u.id
+
+
+def test_media_jobs_are_shared_fairly_between_users(client, db):
+    """Critique A4: one media job per user at a time (lock media:u{id}), and a user's backlog waits behind other users'
+    first jobs (priority: minus the jobs of that kind they already have waiting), in their own order; every single
+    job goes before any list import's."""
+    with db.begin() as c:
+        c.execute(text("UPDATE procrastinate_jobs SET status = 'failed' WHERE status = 'todo'"))  # other tests' jobs
+    other = new_user()
+
+    def url(uid: int) -> int:
+        body = {"url": f"https://www.youtube.com/watch?v=fair{time.time_ns()}"}
+        return client.post("/api/clips/from-url", json=body, headers=as_user(uid)).json()["id"]
+
+    mine = [url(1) for _ in range(3)]
+    first = url(other)
+    urls = [f"https://www.youtube.com/watch?v=bulk{time.time_ns() + i}" for i in range(2)]  # another user: known sites only
+    assert client.post("/api/clips/from-urls", json={"urls": urls}, headers=as_user(other)).json()["created"] == 2
+    second = url(other)  # after the list, still ahead of it
+    with db.begin() as c:
+        rows = c.execute(text("SELECT CAST(args->>'clip_id' AS int), priority, lock, queue_name FROM procrastinate_jobs"
+                              " WHERE status = 'todo' ORDER BY id")).all()  # fmt: skip
+    assert [r[1:] for r in rows] == [
+        (0, "media:u1", "media"), (-1, "media:u1", "media"), (-2, "media:u1", "media"), (0, f"media:u{other}", "media"),
+        (BULK_PRIORITY, f"media:u{other}", "media"), (BULK_PRIORITY - 1, f"media:u{other}", "media"),
+        (-1, f"media:u{other}", "media")]  # fmt: skip
+
+    def fetch(c) -> int | None:  # what a worker on the media queue takes next
+        return c.execute(text("SELECT CAST(args->>'clip_id' AS int) FROM procrastinate_fetch_job_v2(ARRAY['media'], NULL)")).scalar()
+
+    def done(c, clip_id: int) -> None:
+        c.execute(text("UPDATE procrastinate_jobs SET status = 'succeeded' WHERE CAST(args->>'clip_id' AS int) = :i"), {"i": clip_id})
+
+    with db.begin() as c:
+        assert [fetch(c), fetch(c), fetch(c)] == [mine[0], first, None]  # one each, then both users are busy
+        done(c, mine[0])
+        done(c, first)
+        assert [fetch(c), fetch(c), fetch(c)] == [mine[1], second, None]  # the other's single, not their list
+        c.execute(text("UPDATE procrastinate_jobs SET status = 'failed' WHERE status IN ('todo', 'doing')"))
+
+
+@needs_ffmpeg
+def test_download_checks_room_and_uses_cookies_for_user_1_only(client, db, data_dir, monkeypatch, tmp_path):
+    """A queued download may run long after the api let it in: over the quota (or the disk floor) it fails before
+    yt-dlp. The operator's YTDLP_COOKIES_FILE is for user 1's downloads only."""
+    cookies = tmp_path / "cookies.txt"
+    cookies.write_text("# Netscape HTTP Cookie File\n")
+    monkeypatch.setattr(settings, "YTDLP_COOKIES_FILE", str(cookies))
+    other, seen = new_user(quota_bytes=1000), []
+
+    def fake_ytdlp(args, **kwargs):
+        seen.append(args)
+        return subprocess.CompletedProcess(args, 1, "", "ERROR: Unsupported URL: x\n")
+
+    monkeypatch.setattr(media_tasks.subprocess, "run", fake_ytdlp)
+    with SyncSession() as s:
+        clip = SourceClip(user_id=other, origin="url", status="DOWNLOADING", source_url="https://example.com/v")
+        s.add(clip)
+        s.commit()
+    download_clip(clip.id)
+    with SyncSession() as s:
+        assert "--cookies" not in seen[0] and s.get(SourceClip, clip.id).status == "FAILED"
+        s.add(SourceClip(user_id=other, origin="upload", status="READY", size_bytes=1000))  # quota reached
+        s.execute(update(SourceClip).where(SourceClip.id == clip.id).values(status="DOWNLOADING"))
+        s.commit()
+    download_clip(clip.id)
+    with SyncSession() as s:
+        failed = s.get(SourceClip, clip.id)
+    assert (failed.status, failed.error_code, len(seen)) == ("FAILED", "QUOTA_EXCEEDED", 1)
+    assert "storage is full" in failed.error_detail

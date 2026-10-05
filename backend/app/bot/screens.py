@@ -5,6 +5,7 @@ Callback data is 'verb:args' (64 bytes at most). Card buttons carry ids, so they
 and lists (render editor, schedule form, /ready, /calendar...) keep their state in Bot.views under their
 message id. A verb ending in ! is a confirmed action and runs once per message (core.Bot.on_callback)."""
 
+import asyncio
 import json
 import re
 import time
@@ -24,6 +25,8 @@ PAGE = 10
 TG_DOWNLOAD_MAX = 20 * 1024**2  # getFile
 TG_UPLOAD_MAX = 50 * 1024**2  # sendVideo / sendDocument
 LOGO_MAX = 10 * 1024**2  # pipeline.MAX_LOGO_BYTES
+# One process runs every user's bots: at most this many files (up to 50 MB each) in its memory at once; the rest wait
+FILES = asyncio.Semaphore(3)
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}  # what POST /api/clips takes
 DOCUMENTS = {".docx", ".txt", ".csv", ".md", ".rtf", ".html", ".htm", ".xlsx", ".pptx", ".odt"}  # utils.ts DOCUMENTS
 ZERNIO_URL = "https://zernio.com"
@@ -40,8 +43,12 @@ TITLES = {  # Recover.tsx: a failure's short title; PostOut.cause has the senten
     "TOO_LONG": "Video too long for a Reel", "TOO_SHORT": "Video too short for a Reel", "RENDER_FAILED": "Render failed",
     "WORKER_CRASHED": "Worker crashed while publishing", "MISSED": "Missed its slot",
     "NO_FREE_SLOT": "No free slot to move to", "WINDOW_EXPIRED": "Outcome unknown", "UNKNOWN": "Zernio reported a failure",
+    "KEY_CHANGED": "Sent with your previous Zernio key", "ZERNIO_KEY_INVALID": "Zernio refused your key",
+    "ZERNIO_PAYMENT_REQUIRED": "Zernio payment failed", "ZERNIO_KEY_MISSING": "No Zernio key",
+    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit",
 }  # fmt: skip
-MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED"}  # Recover.tsx: the Reel may be live already
+KEY_CODES = {"ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING"}  # Recover.tsx: fixed in Settings
+MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED", "KEY_CHANGED"}  # Recover.tsx: the Reel may be live already
 NO_ACCOUNT = "No account can post: connect one in Zernio, then /accounts and Sync accounts."
 TIME_Q = "Send the time in @{u}'s zone ({tz}): 18:30, 6:30pm, tomorrow 9am, fri 13:00, 2026-10-02 09:00 or now."
 MENU = [
@@ -162,9 +169,19 @@ def read_time(text: str, tz: str, day=None) -> datetime:
     return at
 
 
+# /api/status publishing_off: why publishing is off
+OFF_WHY = {
+    "switch": "PUBLISHING_ENABLED is off on the server",
+    "no_key": "you have no Zernio key yet: add it in Settings",
+    "key_invalid": "Zernio refused your key: update it in Settings",
+}
+
+
 async def publishing_on(bot) -> None:
-    if not (await bot.api.get("/api/status"))["publishing_enabled"]:
-        raise Alert("Publishing is off (PUBLISHING_ENABLED or ZERNIO_API_KEY in .env): nothing can post now.")
+    st = await bot.api.get("/api/status")
+    if not st["publishing_enabled"]:
+        why = OFF_WHY.get(st.get("publishing_off"), "see Settings")
+        raise Alert(f"Publishing is off ({why}): nothing can post now.")
 
 
 def post_time(p: dict) -> datetime:
@@ -194,13 +211,14 @@ def send_video(bot, url: str | None, size: int | None, caption: str, dims: tuple
     width, height, duration = (*dims, None, None, None)[:3]
 
     async def go():
-        data = await bot.api.media(url)
-        kind = VIDEO_TYPES.get(PurePath(name).suffix.lower(), "application/octet-stream")
-        await bot.tg(
-            "sendVideo" if mp4 else "sendDocument", files={"video" if mp4 else "document": (name, data, kind)},
-            chat_id=bot.chat, caption=caption, supports_streaming=mp4 or None, width=width if mp4 else None,
-            height=height if mp4 else None, duration=int(duration) if mp4 and duration else None,
-        )  # fmt: skip
+        async with FILES:
+            data = await bot.api.media(url)
+            kind = VIDEO_TYPES.get(PurePath(name).suffix.lower(), "application/octet-stream")
+            await bot.tg(
+                "sendVideo" if mp4 else "sendDocument", files={"video" if mp4 else "document": (name, data, kind)},
+                chat_id=bot.chat, caption=caption, supports_streaming=mp4 or None, width=width if mp4 else None,
+                height=height if mp4 else None, duration=int(duration) if mp4 and duration else None,
+            )  # fmt: skip
 
     bot.spawn(go())
     return "Sending the video…"
@@ -611,16 +629,21 @@ async def status_cmd(bot, arg):
         st = await bot.api.get("/api/status")
     except ApiError as e:
         return await bot.send(f"<b>API offline.</b> {h(e.message)}")
+    why = OFF_WHY.get(st.get("publishing_off"), "see Settings")
     label, hint = (
         ("Database offline", "Nothing renders or publishes until the database is back.") if not st["db"] else
-        ("Worker offline", "Nothing renders or publishes until the worker is back.") if not st["worker_alive"] else
-        ("Publishing off", ("Renders run. PUBLISHING_ENABLED is off or ZERNIO_API_KEY is unset: scheduled posts stay "
-                            "scheduled and nothing reaches Instagram.")) if not st["publishing_enabled"] else
+        ("Worker offline", "Nothing renders or publishes until the workers are back.")
+        if not (st["worker_alive"] or st["publisher_alive"]) else
+        ("Publisher offline", "Nothing publishes and no alerts go out until the publisher is back. Renders run.")
+        if not st["publisher_alive"] else
+        ("Worker offline", "Nothing renders or downloads until the worker is back. Ready posts still publish.")
+        if not st["worker_alive"] else
+        ("Publishing off", f"Renders run, but {why}: scheduled posts stay scheduled and nothing reaches Instagram.")
+        if not st["publishing_enabled"] else
         ("Publishing live", "Worker online. Scheduled posts go out at their time.")
     )  # fmt: skip
-    jobs = " · ".join(f"{n} {s}" for s, n in sorted(st["jobs"].items())) or "none"
     text = (f"<b>{label}.</b> {hint}\n{st['rendering_renders']} rendering · {st['scheduled_posts']} scheduled · "
-            f"{st['failed_posts']} failed\nJobs: {jobs}")  # fmt: skip
+            f"{st['failed_posts']} failed")  # fmt: skip
     rows = [[(f"Failed posts ({st['failed_posts']})", "ls:failed")]] if st["failed_posts"] else []
     await bot.send(text, rows + [[("Calendar", "ls:calendar"), ("Ready", "ls:ready"), ("Drafts", "ls:drafts")]])
 
@@ -832,7 +855,7 @@ async def post_card(bot, pid):
     if s in ("DRAFT", "SCHEDULED") and not (await bot.api.get("/api/status"))["publishing_enabled"]:
         lines.append("Publishing is off: it won't go out until it is turned on.")
     lines += [f"<blockquote>{h(fmt.cut(p['caption'], 250))}</blockquote>"] if p["caption"] else []
-    return "\n".join(lines), post_rows(p) + web(f"/recover/{pid}"), r["thumbnail_url"]
+    return "\n".join(lines), post_rows(p) + web("/settings" if p["error_code"] in KEY_CODES else f"/recover/{pid}"), r["thumbnail_url"]
 
 
 @button("pa")
@@ -1189,8 +1212,9 @@ async def brand_answer(bot, m, p):
                         if m.get("photo") else "Send the PNG as a file (paperclip, then File).")  # fmt: skip
         if (d.get("file_size") or 0) > LOGO_MAX:
             raise Alert("The logo must be under 10 MB.")
-        data = await bot.tg.download(d["file_id"])
-        await bot.api.post(f"/api/brands/{bid}/logo", files={"file": (d.get("file_name") or "logo.png", data, "image/png")})
+        async with FILES:
+            data = await bot.tg.download(d["file_id"])
+            await bot.api.post(f"/api/brands/{bid}/logo", files={"file": (d.get("file_name") or "logo.png", data, "image/png")})
     else:
         if not (t := text_of(m)):
             raise Alert("Send it as text.")
@@ -1645,9 +1669,10 @@ async def upload_all(bot, msg: dict, v: dict) -> None:
     for f in v["files"]:
         fields = {"source_creator_handle": v["handle"]} if v["handle"] else {}
         try:
-            data = await bot.tg.download(f["file_id"])
-            kind = VIDEO_TYPES[PurePath(f["name"]).suffix.lower()]
-            clip = await bot.api("POST", "/api/clips", data=fields, files={"file": (f["name"], data, kind)})
+            async with FILES:
+                data = await bot.tg.download(f["file_id"])
+                kind = VIDEO_TYPES[PurePath(f["name"]).suffix.lower()]
+                clip = await bot.api("POST", "/api/clips", data=fields, files={"file": (f["name"], data, kind)})
         except (ApiError, TelegramError) as e:
             bad.append(f"{h(f['name'])}: {h(str(e))}")
             continue
@@ -1702,8 +1727,9 @@ async def import_document(bot, m: dict, d: dict) -> None:
     if (d.get("file_size") or 0) > TG_DOWNLOAD_MAX:
         return await bot.send(f"{h(name)} is {fmt.mb(d['file_size'])}: Telegram lets bots download files up to 20 MB. "
                               "Use Import links in the web app.", reply_to=m["message_id"])  # fmt: skip
-    data = await bot.tg.download(d["file_id"])
-    found = await bot.api.post("/api/clips/links", files={"file": (name, data, d.get("mime_type") or "application/octet-stream")})
+    async with FILES:
+        data = await bot.tg.download(d["file_id"])
+        found = await bot.api.post("/api/clips/links", files={"file": (name, data, d.get("mime_type") or "application/octet-stream")})
     if not found["links"]:
         other = f" ({fmt.plural(found['other_count'], 'other link')})" if found["other_count"] else ""
         return await bot.send(f"No video links in {h(name)}{other}.", reply_to=m["message_id"])

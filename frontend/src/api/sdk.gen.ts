@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateCaptionData, CreateCaptionErrors, CreateCaptionResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteCaptionData, DeleteCaptionErrors, DeleteCaptionResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteCoverData, DeleteCoverErrors, DeleteCoverResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListCaptionsData, ListCaptionsResponses, ListClipsData, ListClipsResponses, ListCoversData, ListCoversResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, NextSlotData, NextSlotErrors, NextSlotResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateCaptionData, UpdateCaptionErrors, UpdateCaptionResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdateCoverData, UpdateCoverErrors, UpdateCoverResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses, UploadCoverData, UploadCoverErrors, UploadCoverResponses } from './types.gen';
+import type { AddBotData, AddBotErrors, AddBotResponses, ApprovePostData, ApprovePostErrors, ApprovePostResponses, AutoScheduleData, AutoScheduleErrors, AutoScheduleResponses, CancelPostData, CancelPostErrors, CancelPostResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CheckZernioKeyData, CheckZernioKeyResponses, CreateBrandData, CreateBrandErrors, CreateBrandResponses, CreateCaptionData, CreateCaptionErrors, CreateCaptionResponses, CreateClipFromUrlData, CreateClipFromUrlErrors, CreateClipFromUrlResponses, CreateClipsFromUrlsData, CreateClipsFromUrlsErrors, CreateClipsFromUrlsResponses, CreatePostData, CreatePostErrors, CreatePostResponses, CreateRenderData, CreateRenderErrors, CreateRenderResponses, DeleteBotData, DeleteBotErrors, DeleteBotResponses, DeleteCaptionData, DeleteCaptionErrors, DeleteCaptionResponses, DeleteClipData, DeleteClipErrors, DeleteClipResponses, DeleteCoverData, DeleteCoverErrors, DeleteCoverResponses, DeleteRenderCoverData, DeleteRenderCoverErrors, DeleteRenderCoverResponses, DeleteRenderData, DeleteRenderErrors, DeleteRenderResponses, DeleteZernioKeyData, DeleteZernioKeyResponses, FindLinksData, FindLinksErrors, FindLinksResponses, GetClipData, GetClipErrors, GetClipResponses, GetPostData, GetPostErrors, GetPostResponses, GetRenderData, GetRenderErrors, GetRenderResponses, HealthData, HealthResponses, ListAccountsData, ListAccountsResponses, ListBotsData, ListBotsResponses, ListBrandsData, ListBrandsErrors, ListBrandsResponses, ListCaptionsData, ListCaptionsResponses, ListClipsData, ListClipsResponses, ListCoversData, ListCoversResponses, ListPostsData, ListPostsErrors, ListPostsResponses, ListRendersData, ListRendersErrors, ListRendersResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutResponses, MeData, MeResponses, NextSlotData, NextSlotErrors, NextSlotResponses, PairBotData, PairBotErrors, PairBotResponses, PatchBotData, PatchBotErrors, PatchBotResponses, PutZernioKeyData, PutZernioKeyErrors, PutZernioKeyResponses, RemedyPostData, RemedyPostErrors, RemedyPostResponses, RetryClipData, RetryClipErrors, RetryClipResponses, RetryRenderData, RetryRenderErrors, RetryRenderResponses, SetRenderCoverData, SetRenderCoverErrors, SetRenderCoverResponses, SignupData, SignupErrors, SignupResponses, SignupStatusData, SignupStatusResponses, StatusData, StatusResponses, SyncAccountsData, SyncAccountsResponses, TestBotData, TestBotErrors, TestBotResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateBrandData, UpdateBrandErrors, UpdateBrandResponses, UpdateCaptionData, UpdateCaptionErrors, UpdateCaptionResponses, UpdateClipData, UpdateClipErrors, UpdateClipResponses, UpdateCoverData, UpdateCoverErrors, UpdateCoverResponses, UpdatePostData, UpdatePostErrors, UpdatePostResponses, UploadBrandLogoData, UploadBrandLogoErrors, UploadBrandLogoResponses, UploadClipData, UploadClipResponses, UploadCoverData, UploadCoverErrors, UploadCoverResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,149 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+/**
+ * Signup Status
+ */
+export const signupStatus = <ThrowOnError extends boolean = false>(options?: Options<SignupStatusData, ThrowOnError>): RequestResult<SignupStatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<SignupStatusResponses, unknown, ThrowOnError>({ url: '/api/auth/signup-status', ...options });
+
+/**
+ * Signup
+ *
+ * Username + password, nothing else; signs the new user in. Open until MAX_USERS users exist.
+ */
+export const signup = <ThrowOnError extends boolean = false>(options: Options<SignupData, ThrowOnError>): RequestResult<SignupResponses, SignupErrors, ThrowOnError> => (options.client ?? client).post<SignupResponses, SignupErrors, ThrowOnError>({
+    url: '/api/auth/signup',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Login
+ */
+export const login = <ThrowOnError extends boolean = false>(options: Options<LoginData, ThrowOnError>): RequestResult<LoginResponses, LoginErrors, ThrowOnError> => (options.client ?? client).post<LoginResponses, LoginErrors, ThrowOnError>({
+    url: '/api/auth/login',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Logout
+ */
+export const logout = <ThrowOnError extends boolean = false>(options?: Options<LogoutData, ThrowOnError>): RequestResult<LogoutResponses, unknown, ThrowOnError> => (options?.client ?? client).post<LogoutResponses, unknown, ThrowOnError>({ url: '/api/auth/logout', ...options });
+
+/**
+ * Me
+ */
+export const me = <ThrowOnError extends boolean = false>(options?: Options<MeData, ThrowOnError>): RequestResult<MeResponses, unknown, ThrowOnError> => (options?.client ?? client).get<MeResponses, unknown, ThrowOnError>({ url: '/api/me', ...options });
+
+/**
+ * Change Password
+ *
+ * Signs out every other session of the user; this browser stays signed in.
+ */
+export const changePassword = <ThrowOnError extends boolean = false>(options: Options<ChangePasswordData, ThrowOnError>): RequestResult<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError> => (options.client ?? client).post<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError>({
+    url: '/api/me/password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete Zernio Key
+ *
+ * Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later
+ * key, so this can't make a second Reel. The Zernio account stays recorded while you have its Instagram accounts, so
+ * a later key must be that account's (ZERNIO_ACCOUNT_CHANGED); with none, another Clipper user may connect it.
+ */
+export const deleteZernioKey = <ThrowOnError extends boolean = false>(options?: Options<DeleteZernioKeyData, ThrowOnError>): RequestResult<DeleteZernioKeyResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DeleteZernioKeyResponses, unknown, ThrowOnError>({ url: '/api/me/zernio-key', ...options });
+
+/**
+ * Put Zernio Key
+ *
+ * Check the key with Zernio, store it, and pull its Instagram accounts. 422 ZERNIO_KEY_INVALID (not a key, or
+ * refused); 409 ZERNIO_USER_CLAIMED (another Clipper user has that Zernio account), ZERNIO_ACCOUNT_CHANGED (your
+ * accounts are another Zernio account's), KEY_IN_USE (a post is publishing); 503 when keys can't be stored.
+ */
+export const putZernioKey = <ThrowOnError extends boolean = false>(options: Options<PutZernioKeyData, ThrowOnError>): RequestResult<PutZernioKeyResponses, PutZernioKeyErrors, ThrowOnError> => (options.client ?? client).put<PutZernioKeyResponses, PutZernioKeyErrors, ThrowOnError>({
+    url: '/api/me/zernio-key',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Check Zernio Key
+ *
+ * The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked
+ * invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again
+ * (unless Zernio won't list the accounts with it).
+ */
+export const checkZernioKey = <ThrowOnError extends boolean = false>(options?: Options<CheckZernioKeyData, ThrowOnError>): RequestResult<CheckZernioKeyResponses, unknown, ThrowOnError> => (options?.client ?? client).post<CheckZernioKeyResponses, unknown, ThrowOnError>({ url: '/api/me/zernio-key/check', ...options });
+
+/**
+ * List Bots
+ */
+export const listBots = <ThrowOnError extends boolean = false>(options?: Options<ListBotsData, ThrowOnError>): RequestResult<ListBotsResponses, unknown, ThrowOnError> => (options?.client ?? client).get<ListBotsResponses, unknown, ThrowOnError>({ url: '/api/me/bots', ...options });
+
+/**
+ * Add Bot
+ *
+ * Check the token with Telegram (getMe), store it sealed, and hand out a pairing code. 422 TOKEN_REJECTED (not a
+ * token, or Telegram refuses it); 409 BOT_IN_USE (it has a webhook: another app gets its messages), BOT_TAKEN (another
+ * Clipper user added it). Your own bot again with a new token (@BotFather /revoke) keeps its chat.
+ */
+export const addBot = <ThrowOnError extends boolean = false>(options: Options<AddBotData, ThrowOnError>): RequestResult<AddBotResponses, AddBotErrors, ThrowOnError> => (options.client ?? client).post<AddBotResponses, AddBotErrors, ThrowOnError>({
+    url: '/api/me/bots',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Pair Bot
+ *
+ * A new pairing code: the chat that uses it becomes the bot's (the current one answers until then).
+ */
+export const pairBot = <ThrowOnError extends boolean = false>(options: Options<PairBotData, ThrowOnError>): RequestResult<PairBotResponses, PairBotErrors, ThrowOnError> => (options.client ?? client).post<PairBotResponses, PairBotErrors, ThrowOnError>({ url: '/api/me/bots/{id}/pair', ...options });
+
+/**
+ * Delete Bot
+ *
+ * The bot service stops it within ~10 s.
+ */
+export const deleteBot = <ThrowOnError extends boolean = false>(options: Options<DeleteBotData, ThrowOnError>): RequestResult<DeleteBotResponses, DeleteBotErrors, ThrowOnError> => (options.client ?? client).delete<DeleteBotResponses, DeleteBotErrors, ThrowOnError>({ url: '/api/me/bots/{id}', ...options });
+
+/**
+ * Patch Bot
+ */
+export const patchBot = <ThrowOnError extends boolean = false>(options: Options<PatchBotData, ThrowOnError>): RequestResult<PatchBotResponses, PatchBotErrors, ThrowOnError> => (options.client ?? client).patch<PatchBotResponses, PatchBotErrors, ThrowOnError>({
+    url: '/api/me/bots/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Test Bot
+ *
+ * Send the bot's chat a message now, from here (not the bot service): ok, or Telegram's reason.
+ */
+export const testBot = <ThrowOnError extends boolean = false>(options: Options<TestBotData, ThrowOnError>): RequestResult<TestBotResponses, TestBotErrors, ThrowOnError> => (options.client ?? client).post<TestBotResponses, TestBotErrors, ThrowOnError>({ url: '/api/me/bots/{id}/test', ...options });
 
 /**
  * List Clips
@@ -400,5 +543,7 @@ export const health = <ThrowOnError extends boolean = false>(options?: Options<H
 
 /**
  * Status
+ *
+ * The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so.
  */
 export const status = <ThrowOnError extends boolean = false>(options?: Options<StatusData, ThrowOnError>): RequestResult<StatusResponses, unknown, ThrowOnError> => (options?.client ?? client).get<StatusResponses, unknown, ThrowOnError>({ url: '/api/status', ...options });

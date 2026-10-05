@@ -12,6 +12,8 @@ from app.services import zernio
 from app.services.errors import classify
 
 IN_FLIGHT = {"scheduled", "publishing", "pending", "processing", "uploading"}
+# Rejections about the user's key or Zernio account, not the post: the user's key goes invalid (publish._finish)
+KEY_CODES = {"ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED"}
 
 
 class NetworkError(Exception):
@@ -34,10 +36,12 @@ class Rejected(Exception):
         self.code, self.status, self.body = code, status, body
 
 
-def client(timeout: httpx.Timeout | float = httpx.Timeout(30, read=300), **kw) -> httpx.AsyncClient:  # noqa: B008
-    """Zernio client, by default with a 300 s read timeout (publishNow waits for Instagram); pass a short
-    one for a quick GET inside an API request. Raises zernio.ZernioError when ZERNIO_API_KEY is unset."""
-    return zernio.client(timeout=timeout, **kw)
+def client(
+    key: str | None, timeout: httpx.Timeout | float = httpx.Timeout(30, read=300), **kw  # noqa: B008
+) -> httpx.AsyncClient:
+    """Zernio client for the user's key, by default with a 300 s read timeout (publishNow waits for Instagram);
+    pass a short one for a quick GET inside an API request. Raises zernio.ZernioError without a key."""
+    return zernio.client(key, timeout=timeout, **kw)
 
 
 def _seconds(retry_after: str | None) -> int:
@@ -66,8 +70,15 @@ async def _call(c: httpx.AsyncClient, method: str, url: str, **kw) -> dict:
         body = {"text": r.text[:500]}
     if r.status_code == 429 or (r.status_code == 409 and body.get("code") == "idempotency_conflict"):
         raise Later(_seconds(r.headers.get("Retry-After")), body)
-    if r.status_code == 403 and body.get("code") == "ACCOUNT_DISCONNECTED":
-        raise Rejected("ACCOUNT_DISCONNECTED", 403, body)
+    # On status, code, required_group and type only (docs: ErrorResponse, ResourceGroupForbidden, create/retry-post),
+    # never the message. The key or the Zernio account itself: 401, 402 (a failed payment), an authentication_error,
+    # a 403 naming the resource group a restricted (zrk_) key lacks, or any 403 on presign (it names no account).
+    # A 403 without those is about the post or its account (not the key's, outside its profiles): per post.
+    if (r.status_code in (401, 402) or body.get("type") == "authentication_error"
+            or (r.status_code == 403 and (body.get("required_group") or url == "/media/presign"))):  # fmt: skip
+        raise Rejected("ZERNIO_PAYMENT_REQUIRED" if r.status_code == 402 else "ZERNIO_KEY_INVALID", r.status_code, body)
+    if r.status_code == 403 and body.get("code") in ("ACCOUNT_DISCONNECTED", "PROFILE_OVER_LIMIT"):
+        raise Rejected(body["code"], 403, body)
     if r.status_code >= 400:
         raise Rejected("UNKNOWN", r.status_code, body)
     return body

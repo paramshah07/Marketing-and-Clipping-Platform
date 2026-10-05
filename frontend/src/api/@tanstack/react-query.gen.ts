@@ -3,8 +3,8 @@
 import { type DefaultError, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { approvePost, autoSchedule, cancelPost, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, findLinks, getClip, getPost, getRender, health, listAccounts, listBrands, listCaptions, listClips, listCovers, listPosts, listRenders, nextSlot, type Options, remedyPost, retryClip, retryRender, setRenderCover, status, syncAccounts, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
-import type { ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, NextSlotData, NextSlotError, NextSlotResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
+import { addBot, approvePost, autoSchedule, cancelPost, changePassword, checkZernioKey, createBrand, createCaption, createClipFromUrl, createClipsFromUrls, createPost, createRender, deleteBot, deleteCaption, deleteClip, deleteCover, deleteRender, deleteRenderCover, deleteZernioKey, findLinks, getClip, getPost, getRender, health, listAccounts, listBots, listBrands, listCaptions, listClips, listCovers, listPosts, listRenders, login, logout, me, nextSlot, type Options, pairBot, patchBot, putZernioKey, remedyPost, retryClip, retryRender, setRenderCover, signup, signupStatus, status, syncAccounts, testBot, updateAccount, updateBrand, updateCaption, updateClip, updateCover, updatePost, uploadBrandLogo, uploadClip, uploadCover } from '../sdk.gen';
+import type { AddBotData, AddBotError, AddBotResponse, ApprovePostData, ApprovePostError, ApprovePostResponse, AutoScheduleData, AutoScheduleError, AutoScheduleResponse, CancelPostData, CancelPostError, CancelPostResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CheckZernioKeyData, CheckZernioKeyResponse, CreateBrandData, CreateBrandError, CreateBrandResponse, CreateCaptionData, CreateCaptionError, CreateCaptionResponse, CreateClipFromUrlData, CreateClipFromUrlError, CreateClipFromUrlResponse, CreateClipsFromUrlsData, CreateClipsFromUrlsError, CreateClipsFromUrlsResponse, CreatePostData, CreatePostError, CreatePostResponse, CreateRenderData, CreateRenderError, CreateRenderResponse, DeleteBotData, DeleteBotError, DeleteBotResponse, DeleteCaptionData, DeleteCaptionError, DeleteCaptionResponse, DeleteClipData, DeleteClipError, DeleteClipResponse, DeleteCoverData, DeleteCoverError, DeleteCoverResponse, DeleteRenderCoverData, DeleteRenderCoverError, DeleteRenderCoverResponse, DeleteRenderData, DeleteRenderError, DeleteRenderResponse, DeleteZernioKeyData, DeleteZernioKeyResponse, FindLinksData, FindLinksError, FindLinksResponse, GetClipData, GetClipError, GetClipResponse, GetPostData, GetPostError, GetPostResponse, GetRenderData, GetRenderError, GetRenderResponse, HealthData, HealthResponse, ListAccountsData, ListAccountsResponse, ListBotsData, ListBotsResponse, ListBrandsData, ListBrandsError, ListBrandsResponse, ListCaptionsData, ListCaptionsResponse, ListClipsData, ListClipsResponse, ListCoversData, ListCoversResponse, ListPostsData, ListPostsError, ListPostsResponse, ListRendersData, ListRendersError, ListRendersResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutResponse, MeData, MeResponse, NextSlotData, NextSlotError, NextSlotResponse, PairBotData, PairBotError, PairBotResponse, PatchBotData, PatchBotError, PatchBotResponse, PutZernioKeyData, PutZernioKeyError, PutZernioKeyResponse, RemedyPostData, RemedyPostError, RemedyPostResponse, RetryClipData, RetryClipError, RetryClipResponse, RetryRenderData, RetryRenderError, RetryRenderResponse, SetRenderCoverData, SetRenderCoverError, SetRenderCoverResponse, SignupData, SignupError, SignupResponse, SignupStatusData, SignupStatusResponse, StatusData, StatusResponse, SyncAccountsData, SyncAccountsResponse, TestBotData, TestBotError, TestBotResponse, UpdateAccountData, UpdateAccountError, UpdateAccountResponse, UpdateBrandData, UpdateBrandError, UpdateBrandResponse, UpdateCaptionData, UpdateCaptionError, UpdateCaptionResponse, UpdateClipData, UpdateClipError, UpdateClipResponse, UpdateCoverData, UpdateCoverError, UpdateCoverResponse, UpdatePostData, UpdatePostError, UpdatePostResponse, UploadBrandLogoData, UploadBrandLogoError, UploadBrandLogoResponse, UploadClipData, UploadClipResponse, UploadCoverData, UploadCoverError, UploadCoverResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -37,6 +37,290 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
         params.query = options.query;
     }
     return [params];
+};
+
+export const signupStatusQueryKey = (options?: Options<SignupStatusData>) => createQueryKey('signupStatus', options);
+
+/**
+ * Signup Status
+ */
+export const signupStatusOptions = (options?: Options<SignupStatusData>) => queryOptions<SignupStatusResponse, DefaultError, SignupStatusResponse, ReturnType<typeof signupStatusQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await signupStatus({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: signupStatusQueryKey(options)
+});
+
+/**
+ * Signup
+ *
+ * Username + password, nothing else; signs the new user in. Open until MAX_USERS users exist.
+ */
+export const signupMutation = (options?: Partial<Options<SignupData>>): UseMutationOptions<SignupResponse, SignupError, Options<SignupData>> => {
+    const mutationOptions: UseMutationOptions<SignupResponse, SignupError, Options<SignupData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await signup({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Login
+ */
+export const loginMutation = (options?: Partial<Options<LoginData>>): UseMutationOptions<LoginResponse, LoginError, Options<LoginData>> => {
+    const mutationOptions: UseMutationOptions<LoginResponse, LoginError, Options<LoginData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await login({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Logout
+ */
+export const logoutMutation = (options?: Partial<Options<LogoutData>>): UseMutationOptions<LogoutResponse, DefaultError, Options<LogoutData>> => {
+    const mutationOptions: UseMutationOptions<LogoutResponse, DefaultError, Options<LogoutData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await logout({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const meQueryKey = (options?: Options<MeData>) => createQueryKey('me', options);
+
+/**
+ * Me
+ */
+export const meOptions = (options?: Options<MeData>) => queryOptions<MeResponse, DefaultError, MeResponse, ReturnType<typeof meQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await me({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: meQueryKey(options)
+});
+
+/**
+ * Change Password
+ *
+ * Signs out every other session of the user; this browser stays signed in.
+ */
+export const changePasswordMutation = (options?: Partial<Options<ChangePasswordData>>): UseMutationOptions<ChangePasswordResponse, ChangePasswordError, Options<ChangePasswordData>> => {
+    const mutationOptions: UseMutationOptions<ChangePasswordResponse, ChangePasswordError, Options<ChangePasswordData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await changePassword({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Zernio Key
+ *
+ * Any time but while a post is publishing (409 KEY_IN_USE): a post that may be live never replays under a later
+ * key, so this can't make a second Reel. The Zernio account stays recorded while you have its Instagram accounts, so
+ * a later key must be that account's (ZERNIO_ACCOUNT_CHANGED); with none, another Clipper user may connect it.
+ */
+export const deleteZernioKeyMutation = (options?: Partial<Options<DeleteZernioKeyData>>): UseMutationOptions<DeleteZernioKeyResponse, DefaultError, Options<DeleteZernioKeyData>> => {
+    const mutationOptions: UseMutationOptions<DeleteZernioKeyResponse, DefaultError, Options<DeleteZernioKeyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteZernioKey({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Put Zernio Key
+ *
+ * Check the key with Zernio, store it, and pull its Instagram accounts. 422 ZERNIO_KEY_INVALID (not a key, or
+ * refused); 409 ZERNIO_USER_CLAIMED (another Clipper user has that Zernio account), ZERNIO_ACCOUNT_CHANGED (your
+ * accounts are another Zernio account's), KEY_IN_USE (a post is publishing); 503 when keys can't be stored.
+ */
+export const putZernioKeyMutation = (options?: Partial<Options<PutZernioKeyData>>): UseMutationOptions<PutZernioKeyResponse, PutZernioKeyError, Options<PutZernioKeyData>> => {
+    const mutationOptions: UseMutationOptions<PutZernioKeyResponse, PutZernioKeyError, Options<PutZernioKeyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await putZernioKey({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Check Zernio Key
+ *
+ * The Re-check button: verify the stored key again and re-pull its accounts. A key Zernio refuses is marked
+ * invalid (200: zernio.status, zernio.error); a working one valid again, and a paused user's posts go out again
+ * (unless Zernio won't list the accounts with it).
+ */
+export const checkZernioKeyMutation = (options?: Partial<Options<CheckZernioKeyData>>): UseMutationOptions<CheckZernioKeyResponse, DefaultError, Options<CheckZernioKeyData>> => {
+    const mutationOptions: UseMutationOptions<CheckZernioKeyResponse, DefaultError, Options<CheckZernioKeyData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await checkZernioKey({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listBotsQueryKey = (options?: Options<ListBotsData>) => createQueryKey('listBots', options);
+
+/**
+ * List Bots
+ */
+export const listBotsOptions = (options?: Options<ListBotsData>) => queryOptions<ListBotsResponse, DefaultError, ListBotsResponse, ReturnType<typeof listBotsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listBots({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listBotsQueryKey(options)
+});
+
+/**
+ * Add Bot
+ *
+ * Check the token with Telegram (getMe), store it sealed, and hand out a pairing code. 422 TOKEN_REJECTED (not a
+ * token, or Telegram refuses it); 409 BOT_IN_USE (it has a webhook: another app gets its messages), BOT_TAKEN (another
+ * Clipper user added it). Your own bot again with a new token (@BotFather /revoke) keeps its chat.
+ */
+export const addBotMutation = (options?: Partial<Options<AddBotData>>): UseMutationOptions<AddBotResponse, AddBotError, Options<AddBotData>> => {
+    const mutationOptions: UseMutationOptions<AddBotResponse, AddBotError, Options<AddBotData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await addBot({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Pair Bot
+ *
+ * A new pairing code: the chat that uses it becomes the bot's (the current one answers until then).
+ */
+export const pairBotMutation = (options?: Partial<Options<PairBotData>>): UseMutationOptions<PairBotResponse, PairBotError, Options<PairBotData>> => {
+    const mutationOptions: UseMutationOptions<PairBotResponse, PairBotError, Options<PairBotData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await pairBot({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Bot
+ *
+ * The bot service stops it within ~10 s.
+ */
+export const deleteBotMutation = (options?: Partial<Options<DeleteBotData>>): UseMutationOptions<DeleteBotResponse, DeleteBotError, Options<DeleteBotData>> => {
+    const mutationOptions: UseMutationOptions<DeleteBotResponse, DeleteBotError, Options<DeleteBotData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteBot({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Patch Bot
+ */
+export const patchBotMutation = (options?: Partial<Options<PatchBotData>>): UseMutationOptions<PatchBotResponse, PatchBotError, Options<PatchBotData>> => {
+    const mutationOptions: UseMutationOptions<PatchBotResponse, PatchBotError, Options<PatchBotData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await patchBot({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Test Bot
+ *
+ * Send the bot's chat a message now, from here (not the bot service): ok, or Telegram's reason.
+ */
+export const testBotMutation = (options?: Partial<Options<TestBotData>>): UseMutationOptions<TestBotResponse, TestBotError, Options<TestBotData>> => {
+    const mutationOptions: UseMutationOptions<TestBotResponse, TestBotError, Options<TestBotData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await testBot({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
 };
 
 export const listClipsQueryKey = (options?: Options<ListClipsData>) => createQueryKey('listClips', options);
@@ -789,6 +1073,8 @@ export const statusQueryKey = (options?: Options<StatusData>) => createQueryKey(
 
 /**
  * Status
+ *
+ * The signed-in user's counts (401 when signed out). Database down: db false, no sign-in needed to say so.
  */
 export const statusOptions = (options?: Options<StatusData>) => queryOptions<StatusResponse, DefaultError, StatusResponse, ReturnType<typeof statusQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {

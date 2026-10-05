@@ -1,32 +1,30 @@
-# The VM's only public entry point (compose.prod.yml, docs/deploy.md), for production and staging: HTTPS with an automatic Let's
-# Encrypt certificate, and one shared password in front of everything, because Clipper has no login.
-# All three values come from the VM's .env; the password is only there as a bcrypt hash (base64: no `$`
-# for compose to interpolate).
+# The VM's only public entry point (compose.prod.yml, docs/deploy.md), for production and staging: HTTPS with an
+# automatic Let's Encrypt certificate. Both apps sign users in themselves and show each only their own data, so there
+# is no shared password. The values come from the VM's .env.
 {
 	# With an email Caddy falls back to ZeroSSL: sslip.io is not on the Public Suffix List, so every *.sslip.io
 	# site shares one Let's Encrypt quota (50 certificates a week), which runs out.
 	email {$CLIPPER_ACME_EMAIL}
 }
 
-(password) {
-	basic_auth {
-		{$CLIPPER_USER} {$CLIPPER_PASSWORD_HASH}
-	}
+# The bot service calls its api directly, with its bearer and X-Clipper-User (the user it acts as), and is the only
+# caller of /api/internal/*: from outside, none of them exists. (The api checks the bearer too.)
+(api) {
+	request_header -Authorization
+	request_header -X-Clipper-User
+	respond /api/internal/* 404
 }
 
 # Caddy sits on the edge network only (compose.prod.yml), with every api on this VM, so it names each by its
 # container: an api's service name, `api`, is the same in both projects.
 {$CLIPPER_HOST} {
-	import password
+	import api
 	reverse_proxy clipper-api-1:8000 # streams request bodies: 2 GB clip uploads pass, no size cap
 }
 
-# Staging (docs/deploy.md): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's data. No
-# shared password: its app signs every user in itself and shows each only their own data. From outside, the bot
-# service's headers and /api/internal/* don't exist (the api checks the bearer too).
+# Staging (docs/deploy.md section 7): the dev branch in ~/clipper-dev (project clipper-dev), on a copy of production's
+# data.
 dev.{$CLIPPER_HOST} {
-	request_header -Authorization
-	request_header -X-Clipper-User
-	respond /api/internal/* 404
+	import api
 	reverse_proxy clipper-dev-api-1:8000
 }

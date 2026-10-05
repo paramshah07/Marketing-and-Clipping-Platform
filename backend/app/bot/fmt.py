@@ -27,7 +27,8 @@ CAUSES = {
     "DURATION_OUT_OF_RANGE": "Must be 3 s to 15 min", "PROBE_FAILED": "Not a readable video",
     "THUMBNAIL_FAILED": "Thumbnail failed", "WORKER_CRASHED": "Worker crashed", "INTERRUPTED": "Interrupted",
     "INTERNAL_ERROR": "Internal error", "UPLOAD_ABANDONED": "Upload abandoned", "FFMPEG_FAILED": "ffmpeg exited with an error",
-    "OUTPUT_TOO_LARGE": "Output file too large",
+    "OUTPUT_TOO_LARGE": "Output file too large", "QUOTA_EXCEEDED": "Your storage is full",
+    "DISK_FULL": "Server disk almost full",
 }  # fmt: skip
 FINAL = {"PRIVATE", "REMOVED", "GEO_BLOCKED", "DURATION_OUT_OF_RANGE", "PROBE_FAILED", "UPLOAD_ABANDONED"}  # retry can't fix
 

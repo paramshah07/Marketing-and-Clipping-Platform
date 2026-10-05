@@ -45,6 +45,17 @@ CAUSES: dict[str, tuple[str, Remedy]] = {
     "NO_FREE_SLOT": ("The post had to move, but the account has no free slot in the next 30 days.", RETRY),
     "WINDOW_EXPIRED": ("Zernio can no longer tell whether this Reel went out: the first attempt was over 20 h ago. "
                        "Check Instagram first; only if it is not there, re-render and schedule it again.", RERENDER),
+    "KEY_CHANGED": ("The first attempt went out with your previous Zernio key, and Zernio only recognises a repeat "
+                    "under the same key, so resending could post the Reel twice. Check Instagram first; only if it "
+                    "is not there, re-render and schedule it again.", RERENDER),
+    "ZERNIO_KEY_INVALID": ("Zernio refused your API key (revoked, expired, or without the publishing group). Your "
+                           "publishing is paused: update the key in Settings, then retry.", RETRY),
+    "ZERNIO_PAYMENT_REQUIRED": ("Zernio reports a failed payment on your Zernio account. Your publishing is paused: "
+                                "fix billing in Zernio, Re-check the key in Settings, then retry.", RETRY),
+    "ZERNIO_KEY_MISSING": ("There was no working Zernio key when this post was due. Add yours in Settings, then retry.",
+                           RETRY),
+    "PROFILE_OVER_LIMIT": ("The Instagram account is beyond your Zernio plan's account limit. Upgrade the plan (or "
+                           "remove an account) in Zernio, then retry.", RETRY),
 }  # fmt: skip
 
 
