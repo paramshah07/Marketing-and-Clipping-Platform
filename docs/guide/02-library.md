@@ -114,7 +114,7 @@ defaults from [Customizations](04-customizations.md), the ones the Editor and th
 - your default song, at full volume over the clip's own sound,
 - a copy of your default cover (without one, Instagram picks a frame).
 
-It asks first, listing the brand, caption, song and cover it will use and how many ticked clips aren't ready yet
+It asks first, listing the brand, caption, song and cover it will use and how many ticked clips aren't **Ready**
 (those are left out). The renders queue in the order of the list, one at a time, and the **Renders** column counts
 them. When they're done, [Auto-schedule](05-calendar.md#auto-schedule-several-renders) places them from the Calendar's
 **Ready to schedule** tray. If a render is refused (your storage is full, say), it stops there and says why, and the

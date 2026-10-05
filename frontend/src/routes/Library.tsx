@@ -278,7 +278,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
         `Caption: ${brand?.caption_template ? `${brand.name}'s template` : caption ? `${caption.name} (saved caption)` : "none"}`,
         `Song: ${song?.name ?? "none, the clip's own sound"}`,
         `Cover: ${cover?.name ?? "none, Instagram picks a frame"}`,
-        ...(left ? ["", `${plural(left, "ticked clip")} not ready yet ${left === 1 ? "is" : "are"} left out.`] : []),
+        ...(left ? ["", `${plural(left, "ticked clip")} that ${left === 1 ? "isn't" : "aren't"} ready ${left === 1 ? "is" : "are"} left out.`] : []),
         "",
         "Change the defaults in Customizations.",
       ]
