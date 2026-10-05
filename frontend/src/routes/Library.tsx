@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo, Globe, HardDriveUpload, Link2, ListPlus, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
+import { AtSign, CalendarDays, ChevronDown, Clapperboard, CloudUpload, ExternalLink, FileVideo, Globe, HardDriveUpload, Link2, ListPlus, RotateCw, Search, Trash2, Upload as UploadIcon } from "lucide-react"
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 
-import { createRender, deleteClip, freePublishedRenders, type AccountOut, type BrandOut, type ClipOut, type FilterOut, type PostOut } from "@/api"
+import { createRender, deleteClip, freePublishedRenders, setRenderCover, type AccountOut, type BrandOut, type ClipOut, type FilterOut, type PostOut } from "@/api"
 import {
   createClipFromUrlMutation,
   deleteClipMutation,
@@ -11,16 +11,20 @@ import {
   getRenderOptions,
   listAccountsOptions,
   listBrandsOptions,
+  listCaptionsOptions,
   listClipsOptions,
   listClipsQueryKey,
+  listCoversOptions,
   listPostsOptions,
   listRendersOptions,
   listRendersQueryKey,
+  listTracksOptions,
   meQueryKey,
   retryClipMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { Box, Chip, Header } from "@/components/bits"
 import { ImportLinks } from "@/components/ImportLinks"
+import { savedCover } from "@/lib/cover"
 import { BROWSER_TZ as TZ, apiError, dayLabel, localParts, shortWhen, utcOffset } from "@/lib/schedule"
 import { CAUSES, DOCUMENTS, MAX_UPLOAD_BYTES, ago, clipName, cn, errorText, field, fillCaption, gb, mb, mmss, btn, plural, signedOut } from "@/lib/utils"
 
@@ -169,13 +173,14 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const [handle, setHandle] = useState("")
   const [url, setUrl] = useState("")
   const [over, setOver] = useState(false)
-  const [notice, setNotice] = useState("")
+  const [notice, setNotice] = useState<{ text: ReactNode; ok?: boolean }>()
   const [sel, setSel] = useState<Set<number>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [queuing, setQueuing] = useState<string | null>(null) // Render n: "" asking, "3/12" sending, null idle
   const renders = useQuery(listRendersOptions())
   const refresh = () => qc.invalidateQueries({ queryKey: listClipsQueryKey() })
   const gone = () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: listRendersQueryKey() })]) // the counts too
-  const onError = (e: unknown) => setNotice(errorText(e))
+  const onError = (e: unknown) => setNotice({ text: errorText(e) })
   const fromUrl = useMutation({ ...createClipFromUrlMutation(), onSuccess: () => (setUrl(""), setHandle(""), refresh()), onError })
   const remove = useMutation({ ...deleteClipMutation(), onSuccess: gone, onError })
   const retry = useMutation({ ...retryClipMutation(), onSuccess: refresh, onError })
@@ -204,6 +209,8 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
   const counts = new Map<number, number>()
   renders.data?.forEach((r) => counts.set(r.source_clip_id, (counts.get(r.source_clip_id) ?? 0) + 1))
   const chosen = rows.filter((c) => sel.has(c.id)) // selected and listed: a search hides the rest, and they stay put
+  const ready = chosen.filter((c) => c.status === "READY")
+  const busy = deleting || queuing !== null
   const all = chosen.length && chosen.length === rows.length ? true : chosen.length ? "mixed" : false
   const pick = (ids: number[], on: boolean) =>
     setSel((s) => {
@@ -223,7 +230,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
     const text = `Delete ${plural(list.length, "clip")}${n ? ` and ${plural(n, "render")}` : ""}? Their files are deleted too.`
     if (!confirm(`${text}\n\nA clip with a published, scheduled or failed post stays.`)) return
     setDeleting(true)
-    setNotice("")
+    setNotice(undefined)
     const kept = new Map<string, number[]>() // why (the api's code) -> clips
     for (const c of list) {
       try {
@@ -237,10 +244,82 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
     setSel(new Set(left)) // what stayed stays selected, to see which
     if (left.length) {
       const why = [...kept].map(([k, ids]) => `${ids.length} ${KEPT[k] ?? k}`).join(", ")
-      setNotice(`Deleted ${plural(list.length - left.length, "clip")}. Kept ${left.length}: ${why}${kept.has("HAS_POSTS") ? ". A post keeps its clip until you cancel or dismiss it; a published one, for good" : ""}.`)
+      setNotice({ text: `Deleted ${plural(list.length - left.length, "clip")}. Kept ${left.length}: ${why}${kept.has("HAS_POSTS") ? ". A post keeps its clip until you cancel or dismiss it; a published one, for good" : ""}.` })
     }
     await gone()
     setDeleting(false)
+  }
+
+  // One render per ticked READY clip with your defaults (Customizations), as the Editor and the bot start: the default
+  // brand at its default placement (overlay_config omitted), its caption template or else the default saved caption,
+  // the default song, and a copy of the default cover. One at a time; it stops at the first refusal (a full disk or
+  // quota refuses the rest too), and the clips not queued stay selected.
+  async function renderChosen() {
+    const list = ready
+    setNotice(undefined)
+    setQueuing("")
+    const queued = new Set<number>()
+    try {
+      const [brands, captions, covers, tracks] = await Promise.all([
+        qc.fetchQuery(listBrandsOptions()),
+        qc.fetchQuery(listCaptionsOptions()),
+        qc.fetchQuery(listCoversOptions()),
+        qc.fetchQuery(listTracksOptions()),
+      ])
+      const brand = brands.find((b) => b.is_default && b.logo_url)
+      const caption = captions.find((c) => c.is_default)
+      const cover = covers.find((c) => c.is_default)
+      const song = tracks.find((t) => t.is_default)
+      const left = chosen.length - list.length
+      const ask = [
+        `Render ${plural(list.length, "clip")} with your defaults?`,
+        "",
+        `Brand: ${brand ? `${brand.name}, at its default placement` : "none, no logo"}`,
+        `Caption: ${brand?.caption_template ? `${brand.name}'s template` : caption ? `${caption.name} (saved caption)` : "none"}`,
+        `Song: ${song?.name ?? "none, the clip's own sound"}`,
+        `Cover: ${cover?.name ?? "none, Instagram picks a frame"}`,
+        ...(left ? ["", `${plural(left, "ticked clip")} not ready yet ${left === 1 ? "is" : "are"} left out.`] : []),
+        "",
+        "Change the defaults in Customizations.",
+      ]
+      if (!confirm(ask.join("\n"))) return
+      setQueuing(`0/${list.length}`)
+      const template = brand?.caption_template || (caption?.text ?? null)
+      const music = song ? { track_id: song.id, volume: 100, clip_volume: 100 } : null
+      const jpeg = cover && (await savedCover(cover))
+      for (const c of list) {
+        let id = 0
+        try {
+          const text = fillCaption(template, brand?.link ?? null, c.source_creator_handle).trim() || null
+          id = (await createRender({ body: { clip_id: c.id, brand_id: brand?.id ?? null, caption: text, music }, throwOnError: true })).data.id
+          queued.add(c.id)
+          setQueuing(`${queued.size}/${list.length}`)
+          if (jpeg) await setRenderCover({ path: { render_id: id }, body: { file: jpeg }, throwOnError: true })
+        } catch (e) {
+          const why = id ? `: render #${id} is queued without its cover (${errorText(e)})` : ` at ${clipName(c)}: ${errorText(e)}`
+          setNotice({ text: `Queued ${queued.size} of ${plural(list.length, "render")}, then stopped${why}` })
+          return
+        }
+      }
+      setNotice({
+        ok: true,
+        text: (
+          <>
+            Queued {plural(queued.size, "render")}. When they're ready, Auto-schedule places them from the{" "}
+            <Link to="/calendar" className="text-fg underline underline-offset-2">
+              Calendar
+            </Link>
+            's Ready tray.
+          </>
+        ),
+      })
+    } catch (e) {
+      setNotice({ text: `Couldn't render: ${errorText(e)}` })
+    } finally {
+      setSel((s) => new Set([...s].filter((id) => !queued.has(id))))
+      setQueuing(null)
+      await qc.invalidateQueries({ queryKey: listRendersQueryKey() }) // the Renders column
+    }
   }
 
   return (
@@ -252,9 +331,13 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
             <button className={btn.ghost} onClick={() => setSel(new Set())}>
               Clear
             </button>
-            <button className={cn(btn.secondary, "ml-auto")} disabled={deleting} onClick={removeChosen}>
+            <button className={cn(btn.secondary, "ml-auto")} disabled={busy} onClick={removeChosen}>
               <Trash2 className="size-3.5" />
               {deleting ? "Deleting…" : `Delete ${chosen.length}`}
+            </button>
+            <button className={btn.primary} disabled={busy || !ready.length} onClick={renderChosen} title="One render per ready clip, with your default brand, caption, cover and song (Customizations)">
+              <Clapperboard className="size-3.5" />
+              {queuing ? `Queuing ${queuing}…` : `Render ${ready.length}`}
             </button>
           </div>
         )}
@@ -276,7 +359,7 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
             className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5"
             onSubmit={(e) => {
               e.preventDefault()
-              setNotice("")
+              setNotice(undefined)
               fromUrl.mutate({ body: { url, source_creator_handle: handle.trim() || null } })
             }}
           >
@@ -299,9 +382,9 @@ function Clips(props: { clips?: ClipOut[]; loading: boolean; error: string; sear
         </div>
         {notice && (
           // floats over the table header, so the table doesn't jump
-          <div className="absolute inset-x-4 top-full z-20 mt-1 flex items-center justify-between rounded border border-bad/40 bg-raised px-2 py-1 text-sm text-bad">
-            {notice}
-            <button className="text-muted hover:text-fg" onClick={() => setNotice("")}>
+          <div className={cn("absolute inset-x-4 top-full z-20 mt-1 flex items-center justify-between rounded border bg-raised px-2 py-1 text-sm", notice.ok ? "border-line-strong text-muted" : "border-bad/40 text-bad")}>
+            <span>{notice.text}</span>
+            <button className="text-muted hover:text-fg" onClick={() => setNotice(undefined)}>
               Dismiss
             </button>
           </div>

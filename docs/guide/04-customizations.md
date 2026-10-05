@@ -130,6 +130,8 @@ Use songs you have the rights to: Instagram may mute or block a Reel with copyri
 | Music | The default song, else none (the clip's own sound). |
 
 Everything is only a starting point: change it in the Editor for one clip without touching the defaults.
+**Render _n_** in the Library renders every ticked clip with these defaults straight away, always with the default
+brand ([Render many at once](02-library.md#render-many-at-once)).
 
 ## Good to know
 

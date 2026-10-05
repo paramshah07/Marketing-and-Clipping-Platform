@@ -142,7 +142,7 @@ Settings' reload: every 10 s, every 2 s while a pairing code is out).
 Not in the bot, by design: sign-in, **Setup** and **Settings** (the Zernio key, the bots themselves, the password,
 storage), saving, editing or deleting saved captions and covers and choosing the defaults (**Customizations**), a cover
 from an image of your own (the bot offers the saved ones), free-drag logo and crop placement, a live preview before
-rendering (the render's thumbnail and video are the preview, filters and songs included), ticking clips to delete many at once and **Free up space** (the clip card's **Remove** deletes a clip that has
+rendering (the render's thumbnail and video are the preview, filters and songs included), ticking clips to delete or render many at once and **Free up space** (the clip card's **Remove** deletes a clip that has
 no renders yet), videos over 20 MB from the phone, and upload progress bars. The card of a post that failed on the
 Zernio key links to **Settings** (**Open in Clipper**).
 

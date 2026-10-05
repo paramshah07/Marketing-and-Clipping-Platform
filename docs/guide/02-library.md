@@ -90,7 +90,7 @@ A file that can't be uploaded stops in its row before it reaches the server: "No
 - Hover a **Ready** row and click the bin icon to remove the clip, its renders and all their files.
 - To clean up many at once, tick their boxes and click **Delete _n_** in the bar that replaces the drop zone.
 
-![The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3](../images/library-select.png)
+![The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear, Delete 3 and Render 3](../images/library-select.png)
 
 | # | What it is |
 |---|---|
@@ -98,10 +98,28 @@ A file that can't be uploaded stops in its row before it reaches the server: "No
 | 2 | A ticked clip. |
 | 3 | How many are ticked. **Clear** unticks them. |
 | 4 | **Delete _n_**: deletes them with their renders and files. It asks first, with how many clips and renders go. |
+| 5 | **Render _n_**: one render of each ticked **Ready** clip with your defaults ([below](#render-many-at-once)). |
 
 A clip stays if one of its renders has a post that isn't cancelled: a published Reel keeps its clip for good (it is the history Clipper checks to never post a video twice), and a draft, scheduled or failed post keeps it until you cancel or dismiss that post. A clip that is still uploading, downloading or probing, or has a render still rendering, stays too. After a bulk delete, the clips that stayed remain ticked, and a note says why.
 
 For a whole cleanup, start to finish: [Cleaning up your library](../workflows.md#cleaning-up-your-library).
+
+## Render many at once
+
+Tick the clips and click **Render _n_** in the same bar. Each ticked clip that is **Ready** gets one render with your
+defaults from [Customizations](04-customizations.md), the ones the Editor and the Telegram bot start from:
+
+- your default brand's logo at its default placement (with no default brand, no logo),
+- the brand's caption template, else your default caption, with `{link}` and `{creator}` filled in for each clip,
+- your default song, at full volume over the clip's own sound,
+- a copy of your default cover (without one, Instagram picks a frame).
+
+It asks first, listing the brand, caption, song and cover it will use and how many ticked clips aren't ready yet
+(those are left out). The renders queue in the order of the list, one at a time, and the **Renders** column counts
+them. When they're done, [Auto-schedule](05-calendar.md#auto-schedule-several-renders) places them from the Calendar's
+**Ready to schedule** tray. If a render is refused (your storage is full, say), it stops there and says why, and the
+clips not queued stay ticked. Open the [Editor](03-editor.md) only for a clip that needs its own crop, filter,
+caption or another brand.
 
 ## Published
 
