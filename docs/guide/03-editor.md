@@ -56,6 +56,27 @@ With **Crop** off, the source fills the 9:16 frame and is centred, so a landscap
 > [!TIP]
 > A large upscale (a small region of a small source) gives a soft picture. Keep the box as large as the shot allows.
 
+## Pick a filter
+
+Instagram's own filters can't be applied when a Reel is posted through its API, so Clipper bakes a look-alike into the render. Under **Filter**, each tile shows this clip with one filter: Normal (no filter), then Clarendon, Gingham, Moon, Lark, Reyes, Juno, Slumber, Crema, Ludwig, Aden, Valencia, Nashville, Inkwell and 1977. Point at a tile for its name; the chosen one's name shows beside **Filter**.
+
+Click a tile and the stage shows the result; the render matches it. The filter goes under the logo, so the advertiser's colours stay true. The render card names the filter, and **Re-render for…** and **Re-render and retry** keep it.
+
+## Add music
+
+Under **Music**, pick a song from your [Customizations](04-customizations.md#music) (the default one is preselected), or
+click **Upload…** to add one from your computer. **None** keeps the clip's own sound.
+
+- **Song** and **Clip's sound** set the two volumes (the clip's only when it has sound; 0% leaves the song alone).
+- Play the stage to hear the mix with the video.
+- The render mixes the song into the MP4: looped if it is shorter than the clip, cut at its end, and faded out over the
+  last 2 seconds. Instagram shows the song's name as the Reel's audio instead of "Original audio".
+- The render card names the song, and **Re-render for…** and **Re-render and retry** keep it.
+
+The song is part of your video, not Instagram's music library, so use songs you have the rights to: Instagram may mute
+or block a Reel with copyrighted music. Instagram's own library (its tracks and trending sounds) only works for accounts
+connected to Zernio with Facebook Login, so it is switched off.
+
 ## Choose a cover
 
 The cover is the still Instagram shows before the Reel plays and in your profile grid.

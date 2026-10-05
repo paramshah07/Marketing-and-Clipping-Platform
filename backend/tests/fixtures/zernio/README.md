@@ -45,6 +45,8 @@ with `status: publishing`, not `published` as `docs_create_published.json` shows
 | `docs_403_insufficient_permissions.json` | the `ResourceGroupForbidden` response (openapi.yaml; api-keys tag): a restricted `zrk_` key without the operation's group gets `code: insufficient_permissions` plus `required_group`. Only those two fields: the docs' example message is about another group |
 | `docs_403_profile_over_limit.json` | posts/create-post 403 `code: PROFILE_OVER_LIMIT` ("a target account belongs to a profile beyond the plan's profile limit"); no example message |
 | `docs_403_not_your_account.json` | posts/create-post 403 with no `code`: "a target accountId does not belong to the authenticated user (or is outside the API key's profile scope)"; no example message |
+| `docs_audio_search.json` | platforms/instagram "Reels with catalog audio", the `GET /v1/accounts/{id}/instagram/audio` "Response (200)" example, verbatim |
+| `docs_400_audio_requires_facebook_login.json` | platforms/instagram and the openapi spec: an Instagram Login account gets "a 400 with code `instagram_audio_requires_facebook_login`" from the audio search and from `POST /v1/posts` with `audioConfiguration`; no example message, so the body is that `code` alone |
 
 The key tests (`test_zernio_key.py`) serve `accounts.json` for `GET /v1/accounts` and, for `includeOverLimit=true`,
 the same body plus a copy of its account under another `_id` and `username`: the docs describe that parameter

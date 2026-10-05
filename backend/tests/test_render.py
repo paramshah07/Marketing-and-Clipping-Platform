@@ -4,10 +4,12 @@ import subprocess
 import pytest
 
 from app.services.render import (
+    FILTERS,
     build_ffmpeg_args,
     classify_ytdlp_error,
     crop_px,
     ffprobe,
+    filter_chain,
     parse_probe,
     source_fields,
 )
@@ -62,6 +64,30 @@ def test_audio_first_track_only_or_silence():
     assert "2:a" in silent and "-shortest" in silent  # inputs: 0 source, 1 logo, 2 silence
     no_logo = build_ffmpeg_args({**CLIP, "has_audio": False}, None, None, None, "in", "out", 2)
     assert "1:a" in no_logo
+
+
+def test_filter_goes_under_the_logo_in_rgb():
+    g = graph(build_ffmpeg_args(CLIP, TOP_RIGHT, None, "logo.png", "in", "out", 2, "Juno"))
+    assert f"setsar=1,format=gbrp,{filter_chain('Juno')},format=yuv420p[bg];" in g
+    assert "format=gbrp" not in graph(build_ffmpeg_args(CLIP, TOP_RIGHT, None, "logo.png", "in", "out", 2))
+
+
+SONG = {"path": "song.m4a", "volume": 80, "clip_volume": 50}
+STEREO = "aresample=48000,aformat=channel_layouts=stereo"
+
+
+def test_music_is_looped_mixed_faded_and_bounded():
+    args = build_ffmpeg_args({**CLIP, "duration_s": 12.0}, TOP_RIGHT, None, "logo.png", "in", "out", 2, None, SONG)
+    i = args.index("song.m4a")
+    assert args[i - 3 : i] == ["-stream_loop", "-1", "-i"] and args[args.index("[v]") + 2] == "[a]"
+    g = graph(args)  # input 2: the logo is input 1
+    assert f"[2:a:0]{STEREO},volume=0.8,afade=t=out:st=10.000:d=2[song]" in g
+    assert f"[0:a:0]{STEREO},volume=0.5,apad[own]" in g
+    assert g.endswith("[own][song]amix=inputs=2:normalize=0,alimiter=limit=0.95:level=0,atrim=end=13.000[a]")
+    assert "anullsrc" not in " ".join(args)
+    for clip, song in [({**CLIP, "has_audio": False}, SONG), (CLIP, SONG | {"clip_volume": 0})]:  # the song alone
+        g = graph(build_ffmpeg_args({**clip, "duration_s": 12.0}, None, None, None, "in", "out", 2, None, song))
+        assert g.endswith(f"[v];[1:a:0]{STEREO},volume=0.8,afade=t=out:st=10.000:d=2,atrim=end=13.000[a]")
 
 
 def test_encode_settings():
@@ -155,9 +181,10 @@ def test_source_fields():
 # ---------------------------------------------------------------- real ffmpeg (worker container)
 
 
-def run_render(clip_path, out, overlay=None, crop=None, logo=None):
+def run_render(clip_path, out, overlay=None, crop=None, logo=None, filter_name=None, music=None):
     clip = parse_probe(ffprobe(clip_path))
-    p = subprocess.run(build_ffmpeg_args(clip, overlay, crop, logo, clip_path, out, 2), capture_output=True, text=True)
+    args = build_ffmpeg_args(clip, overlay, crop, logo, clip_path, out, 2, filter_name, music)
+    p = subprocess.run(args, capture_output=True, text=True)
     assert p.returncode == 0, p.stderr
     return clip
 
@@ -269,6 +296,78 @@ def test_output_spec(media, tmp_path, name):
     assert order[0] == "ftyp" and order.index("moov") < order.index("mdat")  # faststart
     if name == "hlg":
         assert v.get("color_transfer") == "bt709"  # tonemapped, not HLG-tagged
+
+
+# What Chrome 154 drew for these colours with each filter's CSS (FilterOut: the layers over an <img>, the filter
+# over both, as the Editor previews it); within 1 of the Filter Effects and Compositing specs' maths.
+SWATCHES = [(128, 128, 128), (200, 100, 50), (30, 60, 200), (90, 200, 120), (20, 20, 20)]
+CHROME = {
+    "Clarendon": [(124, 143, 156), (246, 99, 16), (0, 53, 255), (46, 233, 126), (0, 1, 3)],
+    "Gingham": [(177, 179, 188), (240, 152, 128), (58, 123, 228), (152, 231, 171), (57, 58, 64)],
+    "Moon": [(157, 157, 157), (145, 145, 145), (84, 84, 84), (204, 204, 204), (54, 54, 54)],
+    "Lark": [(146, 148, 166), (221, 118, 72), (44, 76, 233), (106, 223, 156), (33, 33, 37)],
+    "Reyes": [(167, 160, 151), (196, 142, 105), (88, 100, 165), (163, 209, 159), (56, 52, 48)],
+    "Juno": [(174, 176, 158), (255, 132, 24), (28, 75, 255), (106, 255, 126), (9, 9, 6)],
+    "Slumber": [(131, 128, 114), (179, 106, 64), (54, 61, 149), (121, 195, 124), (38, 28, 19)],
+    "Crema": [(155, 142, 118), (193, 121, 74), (41, 55, 115), (161, 207, 132), (0, 0, 0)],
+    "Ludwig": [(152, 139, 107), (255, 99, 0), (20, 62, 255), (66, 233, 63), (18, 16, 10)],
+    "Aden": [(150, 143, 128), (241, 112, 39), (35, 68, 225), (98, 224, 109), (24, 23, 20)],
+    "Valencia": [(142, 141, 138), (201, 110, 71), (54, 63, 193), (115, 220, 134), (40, 15, 39)],
+    "Nashville": [(147, 141, 142), (235, 108, 86), (21, 59, 186), (102, 212, 134), (3, 26, 61)],
+    "Inkwell": [(151, 151, 151), (139, 139, 139), (71, 71, 71), (200, 200, 200), (12, 12, 12)],
+    "1977": [(190, 158, 177), (255, 123, 85), (99, 83, 255), (133, 243, 154), (101, 42, 78)],
+}
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("name", list(FILTERS))
+def test_filter_matches_the_editor_preview(name):
+    """filter_chain on 8-bit RGB lands within 3 of the browser's float maths for every recipe (Editor preview =
+    render)."""
+    p = subprocess.run(
+        ["ffmpeg", "-v", "error", "-f", "rawvideo", "-pix_fmt", "gbrp", "-s", f"{len(SWATCHES)}x1", "-i", "-",
+         "-vf", filter_chain(name), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        input=bytes(c[i] for i in (1, 2, 0) for c in SWATCHES), capture_output=True,
+    )  # fmt: skip
+    assert p.returncode == 0, p.stderr.decode()
+    got = [tuple(p.stdout[i : i + 3]) for i in range(0, len(p.stdout), 3)]
+    assert all(abs(a - b) <= 3 for g, want in zip(got, CHROME[name], strict=True) for a, b in zip(g, want)), got
+
+
+@needs_ffmpeg
+def test_filtered_render_keeps_the_colour_tags(media, tmp_path):
+    """The RGB detour converts back with the source's own matrix (bt709 here), and says so."""
+    src = tmp_path / "bt709.mp4"
+    ffmpeg("-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=1,format=yuv420p,"
+           "setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709", "-c:v", "libx264", str(src))  # fmt: skip
+    tags = []
+    for name in (None, "Clarendon"):
+        run_render(src, tmp_path / "out.mp4", TOP_RIGHT, None, media["logo"], name)
+        v = ffprobe(tmp_path / "out.mp4")["streams"][0]
+        tags.append((v.get("color_space"), v.get("color_primaries"), v.get("color_transfer")))
+    assert tags == [("bt709", "bt709", "bt709")] * 2
+
+
+def mean_volume(path, start: float, length: float) -> float:
+    err = subprocess.run(
+        ["ffmpeg", "-nostdin", "-hide_banner", "-ss", str(start), "-t", str(length), "-i", str(path), "-vn",
+         "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True, check=True,
+    ).stderr  # fmt: skip
+    return float(err.rsplit("mean_volume: ", 1)[1].split(" dB")[0])
+
+
+@needs_ffmpeg
+def test_music_render(media, tmp_path):
+    """A silent 4 s clip and a 1 s song: the song loops to the end of the video, then fades out with it."""
+    song = tmp_path / "song.m4a"
+    ffmpeg("-f", "lavfi", "-i", "sine=frequency=880:duration=1", "-c:a", "aac", str(song))
+    out = tmp_path / "out.mp4"
+    src = run_render(media["odd"], out, music={"path": song, "volume": 100, "clip_volume": 100})
+    info = ffprobe(out)
+    [a] = [s for s in info["streams"] if s["codec_type"] == "audio"]
+    assert (a["codec_name"], a["sample_rate"], a["channels"]) == ("aac", "48000", 2)
+    assert abs(float(info["format"]["duration"]) - src["duration_s"]) < 0.1  # still the video's length
+    assert mean_volume(out, 2.2, 0.5) > -30 > mean_volume(out, src["duration_s"] - 0.3, 0.3)  # looped; faded at the end
 
 
 @needs_ffmpeg

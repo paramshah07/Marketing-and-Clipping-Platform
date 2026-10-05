@@ -13,11 +13,12 @@ _quota_cache: dict[str, tuple[float, Quota | None]] = {}  # zernio_account_id ->
 
 
 class ZernioError(Exception):
-    """status: Zernio's HTTP status (401: the key is refused), None when there was no answer or no key."""
+    """status: Zernio's HTTP status (401: the key is refused), None when there was no answer or no key. code: the
+    error body's documented `code`, if any."""
 
-    def __init__(self, message: str, status: int | None = None):
+    def __init__(self, message: str, status: int | None = None, code: str | None = None):
         super().__init__(message)
-        self.status = status
+        self.status, self.code = status, code
 
 
 def client(key: str | None, **kw) -> httpx.AsyncClient:
@@ -38,7 +39,11 @@ async def _get(key: str | None, path: str, **params) -> dict:
     except httpx.HTTPError as e:
         raise ZernioError(f"GET {path}: {type(e).__name__}") from e
     if not r.is_success:
-        raise ZernioError(f"GET {path}: HTTP {r.status_code} {r.text[:200]}", r.status_code)
+        try:
+            code = r.json().get("code")
+        except (ValueError, AttributeError):  # not JSON, or not an object
+            code = None
+        raise ZernioError(f"GET {path}: HTTP {r.status_code} {r.text[:200]}", r.status_code, code)
     return r.json()
 
 
@@ -52,6 +57,14 @@ async def list_accounts(key: str | None, over_limit: bool = False) -> dict:
     """GET /v1/accounts (raw body). Zernio lists only the accounts within the plan's limit unless over_limit
     (includeOverLimit=true). Raises ZernioError on any failure."""
     return await _get(key, "/accounts", **({"includeOverLimit": "true"} if over_limit else {}))
+
+
+async def search_audio(key: str | None, zernio_account_id: str, kind: str, q: str | None = None) -> list[dict]:
+    """GET /v1/accounts/{id}/instagram/audio (instagram/search-instagram-audio): up to ~30 assets of Instagram's
+    catalog, kind music or original_sound, trending without q. Only through an account connected with Facebook
+    Login: an Instagram Login one is a 400 with code instagram_audio_requires_facebook_login."""
+    path = f"/accounts/{zernio_account_id}/instagram/audio"
+    return (await _get(key, path, audioType=kind, **({"q": q} if q else {}))).get("audio") or []
 
 
 def parse_accounts(body: dict) -> list[dict]:

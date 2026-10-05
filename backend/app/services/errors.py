@@ -56,6 +56,10 @@ CAUSES: dict[str, tuple[str, Remedy]] = {
                            RETRY),
     "PROFILE_OVER_LIMIT": ("The Instagram account is beyond your Zernio plan's account limit. Upgrade the plan (or "
                            "remove an account) in Zernio, then retry.", RETRY),
+    "MUSIC_NEEDS_FACEBOOK_LOGIN": ("Instagram's music only works on an account connected to Zernio with Facebook "
+                                   "Login, and this one isn't, so nothing was posted. Reconnect it in Zernio choosing "
+                                   "Facebook, then retry; or cancel this post and schedule it again without music.",
+                                   RETRY),
 }  # fmt: skip
 
 

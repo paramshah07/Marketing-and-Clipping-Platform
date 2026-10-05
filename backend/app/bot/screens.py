@@ -28,9 +28,12 @@ LOGO_MAX = 10 * 1024**2  # pipeline.MAX_LOGO_BYTES
 # One process runs every user's bots: at most this many files (up to 50 MB each) in its memory at once; the rest wait
 FILES = asyncio.Semaphore(3)
 VIDEO_TYPES = {".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm"}  # what POST /api/clips takes
+AUDIO_TYPES = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".wav": "audio/wav", ".ogg": "audio/ogg",
+               ".flac": "audio/flac"}  # what POST /api/tracks takes (pipeline.AUDIO_EXTENSIONS)
 DOCUMENTS = {".docx", ".txt", ".csv", ".md", ".rtf", ".html", ".htm", ".xlsx", ".pptx", ".odt"}  # utils.ts DOCUMENTS
 ZERNIO_URL = "https://zernio.com"
-NAMES = {"c": "Clip", "r": "Render", "p": "Post", "b": "Brand", "a": "Account", "t": "Saved caption", "i": "Saved cover"}
+NAMES = {"c": "Clip", "r": "Render", "p": "Post", "b": "Brand", "a": "Account", "t": "Saved caption", "i": "Saved cover",
+         "m": "Song"}
 FAILED = ("FAILED", "DEAD_LETTER")
 STATUS = {"DRAFT": "Draft", "SCHEDULED": "Scheduled", "PUBLISHING": "Publishing", "PUBLISHED": "Published",
           "FAILED": "Failed", "DEAD_LETTER": "Failed", "CANCELLED": "Cancelled"}  # fmt: skip
@@ -45,7 +48,7 @@ TITLES = {  # Recover.tsx: a failure's short title; PostOut.cause has the senten
     "NO_FREE_SLOT": "No free slot to move to", "WINDOW_EXPIRED": "Outcome unknown", "UNKNOWN": "Zernio reported a failure",
     "KEY_CHANGED": "Sent with your previous Zernio key", "ZERNIO_KEY_INVALID": "Zernio refused your key",
     "ZERNIO_PAYMENT_REQUIRED": "Zernio payment failed", "ZERNIO_KEY_MISSING": "No Zernio key",
-    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit",
+    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit", "MUSIC_NEEDS_FACEBOOK_LOGIN": "Music needs Facebook Login",
 }  # fmt: skip
 KEY_CODES = {"ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING"}  # Recover.tsx: fixed in Settings
 MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED", "KEY_CHANGED"}  # Recover.tsx: the Reel may be live already
@@ -57,18 +60,19 @@ MENU = [
     ("drafts", "Drafts waiting for approval"), ("failed", "Failed posts to recover"),
     ("published", "Published posts (add text to search)"), ("brands", "Brands, logos and caption templates"),
     ("captions", "Saved captions (Customizations)"), ("covers", "Saved Reel covers (Customizations)"),
+    ("music", "Songs to mix into renders (Customizations)"),
     ("accounts", "Instagram accounts and posting slots"), ("help", "What this bot does"), ("cancel", "Drop my question"),
 ]  # fmt: skip
 HELP = """<b>Clipper</b>: everything the web app does, from here.
 
-<b>Import</b>: send a video (up to 20 MB; a caption like @creator sets the creator), a link, several links, or a document full of links (docx, xlsx, pptx, odt, txt, csv, md, rtf, html).
+<b>Import</b>: send a video (up to 20 MB; a caption like @creator sets the creator), a link, several links, or a document full of links (docx, xlsx, pptx, odt, txt, csv, md, rtf, html). Send an audio file (MP3, M4A, AAC, WAV, Ogg, FLAC) to save it as a song for your renders.
 
 /clips [text] the library · /renders · /ready renders to schedule
 /calendar an account's week · /drafts approve · /failed recover
-/published history · /brands · /captions · /covers · /accounts · /status
+/published history · /brands · /captions · /covers · /music · /accounts · /status
 /cancel drops a question I asked.
 
-Tap an id to open it: /c12 clip, /r34 render, /p56 post, /b4 brand, /t3 caption, /i5 cover, /a1 account. A clip's card has Render… (it starts from your default brand, caption and cover in Customizations), a render's card has Schedule… and Post now."""
+Tap an id to open it: /c12 clip, /r34 render, /p56 post, /b4 brand, /t3 caption, /i5 cover, /m7 song, /a1 account. A clip's card has Render… (it starts from your default brand, caption, cover and song in Customizations, and has Instagram-style filters), a render's card has Schedule… and Post now."""
 
 
 class Alert(Exception):
@@ -477,6 +481,22 @@ async def covers_list(bot, v):
     if not covers:
         lines.append("None yet: upload them in Customizations › Covers. The default one becomes every new render's Reel cover.")
     return "\n".join(lines), nav + web("/customizations/covers")
+
+
+@command("music", "songs")
+async def music_cmd(bot, arg):
+    await open_list(bot, "music")
+
+
+@listing("music")
+async def music_list(bot, v):
+    songs = await bot.api.get("/api/tracks")  # the default first, then the newest
+    items, nav = paged(songs, v)
+    lines = [f"<b>Songs</b> · {len(songs)}"] + [f"/m{t['id']} · {h(t['name'])}" + (" · default" if t["is_default"] else "") for t in items]
+    if not songs:
+        lines.append("None yet: send me an audio file (MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB) to save it as a song, "
+                     "or upload them in Customizations › Music. The default one goes into every new render.")  # fmt: skip
+    return "\n".join(lines), nav + web("/customizations/music")
 
 
 @command("accounts")
@@ -901,6 +921,8 @@ async def post_card(bot, pid):
     lines = [f"<b>{HEADLINE[s]}</b> · post {pid}",
              f"@{h(p['account_username'])} · {fmt.when(post_time(p), tz)} ({fmt.rel(post_time(p), now())})",
              f"{h(r['brand_name'] or 'No logo')} · {h(clip)} · {fmt.mmss(r['duration_s'])} /r{r['id']}"]  # fmt: skip
+    if m := p["music"]:
+        lines.append(f"♫ {h(m['title'] or 'Instagram audio')}" + (f" · {h(m['artist'])}" if m["artist"] else ""))
     if s in FAILED:
         lines.append(f"<b>{h(TITLES.get(p['error_code'], p['error_code'] or 'Failed'))}.</b> {h(p['cause'] or '')}")
         said = (p["error_detail"] or {}).get("errorMessage")
@@ -1085,7 +1107,7 @@ async def post_rerender_pick(bot, msg, pid):
         raise Alert("No brand has a logo yet: /brands.")
     rows = [[(b["name"] + (" (original)" if b["id"] == p["render"]["brand_id"] else ""), f"pr!:{pid}:{b['id']}")] for b in brands]
     await bot.buttons(msg, rows + [[("Back", f"re:p:{pid}")]])
-    return "Same clip and crop, with the brand's default logo placement and caption, and your default cover if you have one"
+    return "Same clip, crop, filter and music, with the brand's default logo placement and caption, and your default cover if you have one"
 
 
 @button("pr!")
@@ -1098,7 +1120,8 @@ async def post_rerender(bot, msg, pid, bid):
     caps, covers = await bot.api.get("/api/captions"), await bot.api.get("/api/covers")
     text = b["caption_template"] or (default_of(caps) or {}).get("text")  # as the render editor's template()
     caption = fmt.fill_caption(text, b["link"], clip["source_creator_handle"]).strip() or None
-    r = await bot.api.post("/api/renders", json={"clip_id": clip["id"], "brand_id": b["id"], "crop_config": orig["crop_config"], "caption": caption})
+    r = await bot.api.post("/api/renders", json={"clip_id": clip["id"], "brand_id": b["id"], "crop_config": orig["crop_config"],
+                                                  "filter": orig["filter"], "music": orig["music"], "caption": caption})  # fmt: skip
     bot.watch("render", r["id"])
     if cover := default_of(covers):
         bot.spawn(attach_cover(bot, r["id"], cover))
@@ -1353,6 +1376,72 @@ async def cover_card(bot, iid):
     return text, web("/customizations/covers"), c["image_url"]
 
 
+async def song(bot, mid: int) -> dict:
+    if (t := next((x for x in await bot.api.get("/api/tracks") if x["id"] == mid), None)) is None:
+        raise ApiError(404, f"song {mid} not found")
+    return t
+
+
+@card("m")
+async def song_card(bot, mid):
+    t = await song(bot, mid)
+    text = (f"<b>{h(t['name'])}</b> · song {mid}" + (" · default" if t["is_default"] else "") + "\n"
+            + ("The default: it goes into every new render. " if t["is_default"] else "Pick it in the render editor: Music. ")
+            + "Instagram shows its name as the Reel's audio.")  # fmt: skip
+    rows = [[("Play", f"mup:{mid}"), ("Clear default" if t["is_default"] else "Make default", f"mud:{mid}")],
+            [("Rename", f"mun:{mid}"), ("Delete", f"mux:{mid}")]]  # fmt: skip
+    return text, rows + web("/customizations/music"), None
+
+
+@button("mup")
+async def song_play(bot, msg, mid):
+    t = await song(bot, int(mid))
+    suffix = PurePath(t["audio_url"]).suffix.lower()
+
+    async def go():
+        async with FILES:
+            data = await bot.api.media(t["audio_url"])
+            await bot.tg("sendAudio", files={"audio": (f"song-{mid}{suffix}", data, AUDIO_TYPES.get(suffix, "audio/mpeg"))},
+                         chat_id=bot.chat, title=t["name"])  # fmt: skip
+
+    bot.spawn(go())
+    return "Sending the song…"
+
+
+@button("mud")
+async def song_default(bot, msg, mid):
+    t = await song(bot, int(mid))
+    await bot.api.patch(f"/api/tracks/{mid}", {"is_default": not t["is_default"]})
+    await refresh(bot, msg, "m", int(mid))
+    return "Default cleared" if t["is_default"] else "Now the default song"
+
+
+@button("mun")
+async def song_rename_ask(bot, msg, mid):
+    t = await song(bot, int(mid))
+    await bot.ask(f"New name for {h(t['name'])}? Instagram shows it as the Reel's audio.", "song_name", "Name", mid=int(mid))
+
+
+@answer("song_name")
+async def song_rename(bot, m, p):
+    if not (name := text_of(m).strip()[:100]):
+        raise Alert("Send the song's name.")
+    await bot.api.patch(f"/api/tracks/{p['mid']}", {"name": name})
+    await bot.send(f"Renamed: /m{p['mid']} {h(name)}.")
+
+
+@button("mux")
+async def song_delete_ask(bot, msg, mid):
+    await bot.buttons(msg, [[("Delete the song", f"mux!:{mid}"), ("Back", f"re:m:{mid}")]])
+    return "Delete it? Finished renders keep it; re-rendering one of them fails."
+
+
+@button("mux!")
+async def song_delete(bot, msg, mid):
+    await bot.api.delete(f"/api/tracks/{mid}")
+    await bot.edit(msg, f"Song {mid} deleted.")
+
+
 # ---------------------------------------------------------------- render editor and placement editor
 
 
@@ -1408,6 +1497,11 @@ def editor_view(v: dict) -> tuple[str, list]:
         lines.append(f"Brand: <b>{h(b['name']) if b else 'No logo'}</b>")
         lines += [f"Logo: {logo_line(v)}" + ("" if edited(v) else " (brand default)")] if b else []
         lines.append(f"Crop: {v['crop']}" + (", the source fills the 9:16 frame" if v["crop"] == "centre" else " 9:16 window of the source"))
+        lines.append(f"Filter: {h(v['filter'])}" if v["filter"] else "Filter: none")
+        if mu := v["music"]:
+            lines.append(f"Music: ♫ {h(mu['name'])} · song {mu['volume']}%" + (f" · clip's sound {mu['clip_volume']}%" if c["has_audio"] else ""))
+        else:
+            lines.append("Music: none, the clip's own sound")
         if v["covers"]:
             x = v["cover"]
             lines.append("Cover: " + (h(x["name"]) + (" (default)" if x["is_default"] else "") if x else "none, Instagram picks a frame"))
@@ -1421,6 +1515,16 @@ def editor_view(v: dict) -> tuple[str, list]:
     if v["picking"] == "caption":  # an action, not a state: the pick replaces the caption (Editor.tsx)
         rows = [[(x["name"] + (" (default)" if x["is_default"] else ""), f"e:sc:{x['id']}")] for x in v["captions"]]
         return "\n".join(lines), rows + [[("Back", "e:bk")]]
+    if v["picking"] == "filter":  # Instagram-style looks, baked into the render under the logo (the web Editor previews them)
+        names = [(("● " if f == v["filter"] else "") + f, f"e:f:{f}") for f in v["filters"]]
+        rows = [names[i : i + 3] for i in range(0, len(names), 3)]
+        return "\n".join(lines), rows + [[(("● " if v["filter"] is None else "") + "Normal", "e:f:"), ("Back", "e:bk")]]
+    if v["picking"] == "music":
+        mine = (v["music"] or {}).get("id")
+        rows = [[(("● " if t["id"] == mine else "") + t["name"] + (" (default)" if t["is_default"] else ""), f"e:m:{t['id']}")]
+                for t in v["tracks"]]  # fmt: skip
+        lines += [] if v["tracks"] else ["No songs yet: send me an audio file to save one, or see /music."]
+        return "\n".join(lines), rows + [[(("● " if mine is None else "") + "None: the clip's own sound", "e:m:0"), ("Back", "e:bk")]]
     if v["picking"] == "cover":
         mine = (v["cover"] or {}).get("id")
         rows = [[(("● " if x["id"] == mine else "") + x["name"] + (" (default)" if x["is_default"] else ""), f"e:v:{x['id']}")]
@@ -1433,6 +1537,10 @@ def editor_view(v: dict) -> tuple[str, list]:
     rows = [[(f"Brand: {b['name'] if b else 'No logo'}", "e:bp")]] + (logo_rows(v) if b else [])
     crop = [(f"Crop: {v['crop']}", "e:c")] if len(fmt.crop_options(c["width"], c["height"])) > 1 else []
     rows.append(crop + [("Caption", "e:t")] + ([("Template", "e:tr")] if cap != template(v, v["brand"]) else []))
+    mu = v["music"]
+    rows.append([(f"Filter: {v['filter'] or 'none'}", "e:fp"), (f"Music: {fmt.cut(mu['name'], 24) if mu else 'none'}", "e:mp")])
+    if mu:
+        rows.append([(f"Song {mu['volume']}%", "e:mv")] + ([(f"Clip's sound {mu['clip_volume']}%", "e:mc")] if c["has_audio"] else []))
     saved = [("Saved captions", "e:tp")] if v["captions"] else []
     saved += [(f"Cover: {fmt.cut(v['cover']['name'], 24) if v['cover'] else 'none'}", "e:vp")] if v["covers"] else []
     rows += [saved] if saved else []
@@ -1470,22 +1578,35 @@ async def open_editor(bot, cid: int) -> None:
     # the brand this clip was last rendered with (newest first), else the default brand, else the user picks (Editor.tsx)
     first = next((r["brand_id"] for r in await bot.api.get("/api/renders", clip_id=cid) if r["brand_id"] in brands), None)
     first = first or (default_of(brands.values()) or {}).get("id")
-    covers = await bot.api.get("/api/covers")
+    covers, tracks = await bot.api.get("/api/covers"), await bot.api.get("/api/tracks")
     v = {"kind": "editor", "clip": c, "brands": brands, "brand": None, "chosen": False, "picking": False, "cell": None,
          "overlay": dict(fmt.DEFAULT_OVERLAY), "aspect": 1.0, "crop": "centre", "caption": "",
-         "captions": await bot.api.get("/api/captions"), "covers": covers, "cover": default_of(covers)}  # fmt: skip
+         "captions": await bot.api.get("/api/captions"), "covers": covers, "cover": default_of(covers),
+         "filters": [f["name"] for f in await bot.api.get("/api/filters")], "filter": None, "tracks": tracks,
+         "music": music_of(default_of(tracks))}  # fmt: skip
     if first:
         await set_brand(bot, v, first)
     text, rows = editor_view(v)
     bot.keep(await bot.send(text, rows, photo=c["thumbnail_url"]), v)
 
 
+def music_of(t: dict | None, was: dict | None = None) -> dict | None:
+    """A song for the render, at the volumes it had (100% and 100% at first, as the web Editor)."""
+    return t and {"id": t["id"], "name": t["name"], "volume": (was or {}).get("volume", 100),
+                  "clip_volume": (was or {}).get("clip_volume", 100)}  # fmt: skip
+
+
+def lower(steps: list, now) -> int:
+    """The next step down, round to the top: a button that cycles 100 -> 75 -> ... -> 100."""
+    return next((x for x in steps if x < now), steps[0])
+
+
 @button("e")
 async def editor_op(bot, msg, op, arg=""):
     v = bot.view(msg, "editor", "overlay")
     o, toast = v["overlay"], None
-    if op in ("bp", "tp", "vp"):
-        v["picking"] = {"bp": "brand", "tp": "caption", "vp": "cover"}[op]
+    if op in ("bp", "tp", "vp", "fp", "mp"):
+        v["picking"] = {"bp": "brand", "tp": "caption", "vp": "cover", "fp": "filter", "mp": "music"}[op]
     elif op == "bk":
         v["picking"] = False
     elif op == "b":
@@ -1496,6 +1617,13 @@ async def editor_op(bot, msg, op, arg=""):
         v["picking"] = False
     elif op == "v":
         v["cover"], v["picking"] = next((x for x in v["covers"] if x["id"] == int(arg)), None), False
+    elif op == "f":
+        v["filter"], v["picking"] = (arg if arg in v["filters"] else None), False
+    elif op == "m":
+        v["music"], v["picking"] = music_of(next((t for t in v["tracks"] if t["id"] == int(arg)), None), v["music"]), False
+    elif op in ("mv", "mc") and v["music"]:  # the song never goes silent: 0% is for the clip's own sound
+        key = "volume" if op == "mv" else "clip_volume"
+        v["music"][key] = lower(fmt.VOLUMES[:-1] if op == "mv" else fmt.VOLUMES, v["music"][key])
     elif op == "g":
         v["cell"] = int(arg)
         v["overlay"] = fmt.place(o, v["cell"], v["aspect"])
@@ -1543,8 +1671,10 @@ async def render_go(bot, v: dict) -> str:
     cap, c = v["caption"].strip(), v["clip"]
     if len(cap) > fmt.CAPTION_MAX or fmt.hashtags(cap) > fmt.HASHTAG_MAX:
         raise Alert("Instagram refuses captions over 2200 characters or 30 hashtags: shorten it first.")
+    mu = v["music"]
     body = {"clip_id": c["id"], "brand_id": v["brand"], "overlay_config": v["overlay"] if v["brand"] else None,
-            "crop_config": fmt.crop_box(c["width"], c["height"], v["crop"]), "caption": cap or None}  # fmt: skip
+            "crop_config": fmt.crop_box(c["width"], c["height"], v["crop"]), "filter": v["filter"], "caption": cap or None,
+            "music": mu and {"track_id": mu["id"], "volume": mu["volume"], "clip_volume": mu["clip_volume"]}}  # fmt: skip
     r = await bot.api.post("/api/renders", json=body)
     v["went"], v["last"] = time.monotonic(), r["id"]
     bot.watch("render", r["id"])
@@ -1767,17 +1897,61 @@ def upload_question(v: dict) -> str:
             + (f" by {h(v['handle'])}" if v["handle"] else "") + "?")  # fmt: skip
 
 
+def audio_of(m: dict) -> dict | None:
+    """An audio file the api takes as a song: an audio message, or a document with an audio extension."""
+    f = m.get("audio") or m.get("document") or {}
+    suffix = PurePath(f.get("file_name") or "").suffix.lower()
+    return f if suffix in AUDIO_TYPES or (m.get("audio") and f.get("mime_type") in AUDIO_TYPES.values()) else None
+
+
+async def ask_song(bot, m: dict, f: dict) -> None:
+    size = f.get("file_size") or 0
+    if size > TG_DOWNLOAD_MAX:
+        return await bot.send(f"That file is {fmt.mb(size)}. Telegram lets bots download files up to 20 MB: upload it in "
+                              "Customizations › Music instead.", reply_to=m["message_id"])  # fmt: skip
+    suffix = PurePath(f.get("file_name") or "").suffix.lower()
+    suffix = suffix if suffix in AUDIO_TYPES else next(e for e, t in AUDIO_TYPES.items() if t == f.get("mime_type"))
+    name = (f.get("title") or PurePath(f.get("file_name") or "").stem or "Song").strip()[:100]  # its own title tag first
+    v = {"kind": "song", "file_id": f["file_id"], "name": name, "suffix": suffix}
+    q = f"Save {h(name)} ({fmt.mb(size)}) as a song for your renders? Instagram shows its name as the Reel's audio."
+    bot.keep(await bot.send(q, [[("Save", "sng:go"), ("Cancel", "sng:x")]], reply_to=m["message_id"]), v)
+
+
+@button("sng")
+async def song_save(bot, msg, op):
+    v = bot.view(msg, "song")
+    bot.views.pop(msg["message_id"], None)
+    if op == "x":
+        return await bot.edit(msg, "Not saved.")
+    await bot.edit(msg, f"Saving {h(v['name'])}…")
+
+    async def go():
+        try:
+            async with FILES:
+                data = await bot.tg.download(v["file_id"])
+                t = await bot.api("POST", "/api/tracks", data={"name": v["name"]},
+                                  files={"file": (f"song{v['suffix']}", data, AUDIO_TYPES[v["suffix"]])})  # fmt: skip
+        except (ApiError, TelegramError) as e:
+            return await bot.edit(msg, f"{h(v['name'])} not saved: {h(str(e))}")
+        await bot.edit(msg, f"Saved: /m{t['id']} {h(t['name'])}. Pick it in the render editor: Music.")
+
+    bot.spawn(go())
+
+
 async def on_message(bot, m: dict) -> None:
     """A message that is neither a command nor an answer: something to import."""
     if f := video_of(m):
         return await ask_upload(bot, m, f)
+    if f := audio_of(m):
+        return await ask_song(bot, m, f)
     if d := m.get("document"):
         suffix = PurePath(d.get("file_name") or "").suffix.lower()
         if suffix in DOCUMENTS or (d.get("mime_type") or "").startswith("text/"):
             return await import_document(bot, m, d)
         if suffix == ".png":
             return await bot.send("To set a brand's logo: /brands, open the brand, tap Logo, then send the PNG.")
-        return await bot.send("I import videos (mp4, mov, webm) and the links in documents (docx, xlsx, pptx, odt, txt, csv, md, rtf, html).")
+        return await bot.send("I import videos (mp4, mov, webm), the links in documents (docx, xlsx, pptx, odt, txt, csv, md, rtf, html) "
+                              "and songs (mp3, m4a, aac, wav, ogg, flac).")  # fmt: skip
     if m.get("photo"):
         return await bot.send("That's a photo. Send a video to import it; a brand's logo goes in /brands (open the brand, tap Logo).")
     if text := text_of(m):

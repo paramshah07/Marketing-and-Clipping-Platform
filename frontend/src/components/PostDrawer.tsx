@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowUpRight, Maximize2, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
+import { ArrowUpRight, Maximize2, Music2, Pause, Play, Volume2, VolumeX, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router"
 
 import type { AccountOut, PostOut } from "@/api"
 import { approvePostMutation, cancelPostMutation, getPostQueryKey, listAccountsQueryKey, listPostsQueryKey, listRendersQueryKey, statusOptions, updatePostMutation } from "@/api/@tanstack/react-query.gen"
 import { Avatar } from "@/components/AccountBits"
+import { MusicPicker } from "@/components/MusicPicker"
 import { Drawer } from "@/components/bits"
 import { Slider } from "@/components/ui/slider"
 import { FAILED, MOVABLE, STATUS_LABEL, apiError, dayLabel, isHHMM, localParts, nowIso, postAt, postNowConfirm, shortWhen, slotTime, utcOffset, zonedToUtc } from "@/lib/schedule"
@@ -15,14 +16,16 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
   const qc = useQueryClient()
   const at = localParts(p.scheduled_for, a.timezone)
   const [caption, setCaption] = useState(p.caption)
+  const [music, setMusic] = useState(p.music)
   const [date, setDate] = useState(at.date)
   const [time, setTime] = useState(at.time)
   // Re-seed the fields when the post changes under the drawer (approve moved it, a drag, the 30 s refetch).
-  const seed = `${p.scheduled_for}|${p.status}|${p.caption}`
+  const seed = `${p.scheduled_for}|${p.status}|${p.caption}|${JSON.stringify(p.music)}`
   const [seen, setSeen] = useState(seed)
   if (seen !== seed) {
     setSeen(seed)
     setCaption(p.caption)
+    setMusic(p.music)
     setDate(at.date)
     setTime(at.time)
   }
@@ -48,12 +51,13 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
 
   const editable = MOVABLE.has(p.status)
   const moved = date !== at.date || time !== at.time
-  const dirty = moved || caption !== p.caption
+  const retuned = JSON.stringify(music) !== JSON.stringify(p.music)
+  const dirty = moved || caption !== p.caption || retuned
   function save() {
     setMsg(null)
     update.mutate({
       path: { post_id: p.id },
-      body: { ...(moved && { scheduled_for: zonedToUtc(date, time, a.timezone).toISOString() }), ...(caption !== p.caption && { caption }) },
+      body: { ...(moved && { scheduled_for: zonedToUtc(date, time, a.timezone).toISOString() }), ...(caption !== p.caption && { caption }), ...(retuned && { music }) },
     })
   }
 
@@ -136,6 +140,7 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
                 onChange={(e) => setCaption(e.target.value)}
               />
             </div>
+            {st.data?.instagram_music && <MusicPicker accountId={a.id} value={music} onChange={setMusic} />}
           </fieldset>
         ) : (
           <>
@@ -153,6 +158,16 @@ export function PostDrawer({ p, a, onClose }: { p: PostOut; a: AccountOut; onClo
               <div className={label}>Caption</div>
               {p.caption ? <p className="break-words whitespace-pre-wrap">{p.caption}</p> : <p className="text-subtle">No caption</p>}
             </div>
+            {p.music && (
+              <div className="space-y-1.5">
+                <div className={label}>Music</div>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Music2 className="size-3.5 shrink-0 text-muted" />
+                  <span className="truncate">{p.music.title ?? "Instagram audio"}</span>
+                  {p.music.artist && <span className="truncate text-muted">· {p.music.artist}</span>}
+                </div>
+              </div>
+            )}
           </>
         )}
         {msg && <p className={cn("text-sm", msg.ok ? "text-ok" : "text-bad")}>{msg.text}</p>}

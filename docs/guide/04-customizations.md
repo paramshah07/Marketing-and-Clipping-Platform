@@ -1,12 +1,12 @@
 # Customizations
 
-Customizations holds the brands, saved captions and saved covers the Editor offers, and which one of each it preselects. Your [Telegram bot](08-telegram-bot.md) shows them too (`/brands`, `/captions`, `/covers`) and starts its renders from the same defaults.
+Customizations holds the brands, saved captions, saved covers and songs the Editor offers, and which one of each it preselects. Your [Telegram bot](08-telegram-bot.md) shows them too (`/brands`, `/captions`, `/covers`) and starts its renders from the same defaults.
 
 ![The Brands tab with the Flux Energy drawer open: logo, name and link, caption template, Auto-approve, Default brand and the default logo placement](../images/customizations-brands.png)
 
 | # | What it is |
 |---|---|
-| 1 | **Brands**, **Captions** and **Covers** tabs, with how many each holds. |
+| 1 | **Brands**, **Captions**, **Covers** and **Music** tabs, with how many each holds. |
 | 2 | A brand. Click its row to edit it. |
 | 3 | Logo: a PNG with a transparent background. |
 | 4 | **Name** and **Link**. The link fills `{link}` in captions. |
@@ -57,7 +57,7 @@ Saved captions are texts you reuse. The Editor lists them under **Saved captions
 
 | # | What it is |
 |---|---|
-| 1 | **Brands**, **Captions** and **Covers** tabs. |
+| 1 | **Brands**, **Captions**, **Covers** and **Music** tabs. |
 | 2 | A saved caption. Click its row to edit it. |
 | 3 | **Name**, as the Editor lists it. |
 | 4 | The text, with its length and hashtag count. |
@@ -96,6 +96,18 @@ Saved covers are images you reuse as Reel covers. The Editor lists them under it
 
 Instagram's profile grid shows only the middle 3:4 of a cover. Check it in the Editor's **Cover** view before you render.
 
+## Music
+
+Songs you mix into renders. The Editor lists them under its **Music** section and preselects the default.
+
+- **Upload song**: MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB each, several at once, named after their files.
+- Play one in its row; **Make default** (or **Clear default**); rename (pencil) or delete (bin).
+- A song's name is also what Instagram shows as the Reel's audio, so name it the way you want it to read there.
+- Deleting a song leaves finished renders as they are (the song is in their MP4), but re-rendering one of them fails
+  with **Its song was deleted**: pick another song and render again.
+
+Use songs you have the rights to: Instagram may mute or block a Reel with copyrighted music.
+
 ## How the Editor uses your defaults
 
 | In the Editor | What it starts with |
@@ -104,6 +116,7 @@ Instagram's profile grid shows only the middle 3:4 of a cover. Check it in the E
 | Logo placement | The brand's default placement. |
 | Caption | The brand's caption template, else the default caption, with `{link}` and `{creator}` filled in. |
 | Cover | The default cover, else none (Instagram picks a frame). |
+| Music | The default song, else none (the clip's own sound). |
 
 Everything is only a starting point: change it in the Editor for one clip without touching the defaults.
 

@@ -203,6 +203,27 @@ def test_patch_moves_without_rekeying(client):
     assert client.patch("/api/posts/999999", json={"caption": "x"}).status_code == 404
 
 
+def test_music_on_a_post(client, monkeypatch):
+    aid, rid = account(), render()
+    music = {"id": "482851939985510", "title": "Summer Nights", "artist": "The Example Band", "volume": 80}
+    r = create(client, rid, aid, NOW + D, music=music)  # the server's switch is off
+    assert (r.status_code, r.json()["detail"]["code"]) == (409, "INSTAGRAM_MUSIC_OFF")
+    monkeypatch.setattr(settings, "INSTAGRAM_CATALOG_MUSIC", True)
+    p = create(client, rid, aid, NOW + D, music=music).json()
+    assert p["music"] == music | {"video_volume": 100}
+    assert create(client, render(), aid, NOW + 2 * D, music={"id": "summer"}).status_code == 422  # ids are digits
+    patch = lambda body: client.patch(f"/api/posts/{p['id']}", json=body)  # noqa: E731
+    assert patch({"music": music | {"volume": 50}}).json()["music"]["volume"] == 50
+    assert patch({"caption": "new"}).json()["music"]["volume"] == 50  # omitted: kept
+    monkeypatch.setattr(settings, "INSTAGRAM_CATALOG_MUSIC", False)
+    assert patch({"music": music}).json()["detail"]["code"] == "INSTAGRAM_MUSIC_OFF"
+    assert patch({"music": None}).json()["music"] is None  # taking it off always works
+    monkeypatch.setattr(settings, "INSTAGRAM_CATALOG_MUSIC", True)
+    set_post(p["id"], first_post_at=NOW)  # Zernio may have it with its first body
+    r = patch({"music": music})
+    assert (r.status_code, r.json()["detail"]["code"]) == (409, "MUSIC_LOCKED")
+
+
 def test_approve(client, env):
     aid = account()
     p = create(client, render(), aid, NOW + D).json()

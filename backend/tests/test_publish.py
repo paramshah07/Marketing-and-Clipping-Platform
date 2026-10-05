@@ -146,7 +146,7 @@ def make_post(
         key = f"renders/{uuid.uuid4().hex}.mp4"
         (env.dir / key).write_bytes(bytes(range(256)) * 10_000)  # 2.5 MB: several 1 MB chunks
         r = Render(user_id=user_id, source_clip_id=clip.id, status=render_status, output_key=key, duration_s=duration,
-                   overlay_config={"x": 0.1}, crop_config={"x": 0.2}, caption="render caption")  # fmt: skip
+                   overlay_config={"x": 0.1}, crop_config={"x": 0.2}, filter="Juno", caption="render caption")  # fmt: skip
         s.add(r)
         s.flush()
         at = at or now() - timedelta(minutes=1)
@@ -652,7 +652,7 @@ def test_remedy_rerender(db, env, monkeypatch):
     p = row(db, pid)
     with Session(db) as s:
         a, b = s.get(Render, old.render_id), s.get(Render, p.render_id)
-        same = lambda x: (x.source_clip_id, x.brand_id, x.overlay_config, x.crop_config, x.caption)  # noqa: E731
+        same = lambda x: (x.source_clip_id, x.brand_id, x.overlay_config, x.crop_config, x.filter, x.caption)  # noqa: E731
         assert b.id != a.id and same(b) == same(a) and b.status == "PENDING"
     assert (p.status, p.scheduled_for, p.idempotency_key) == (
         "SCHEDULED",
@@ -994,6 +994,76 @@ def test_publish_with_a_cover(db, env, monkeypatch):
     assert first.content == second.content and first.headers["Idempotency-Key"] == second.headers["Idempotency-Key"]
     ig = json.loads(first.content)["platforms"][0]["platformSpecificData"]
     assert ig == {"shareToFeed": True, "instagramThumbnail": COVER_URL}
+
+
+MUSIC = {"id": "482851939985510", "title": "Summer Nights", "artist": "The Example Band", "volume": 80,
+         "video_volume": 0}  # docs_audio_search's track
+
+
+def test_publish_with_music(db, env, monkeypatch):
+    pid = make_post(db, env, music=MUSIC)
+    z = use(monkeypatch, Zernio(routes()))
+    go(pid)
+    assert row(db, pid).status == "PUBLISHED"
+    ig = json.loads(z.sent(POST_)[0].content)["platforms"][0]["platformSpecificData"]
+    assert ig == {"shareToFeed": True,
+                  "audioConfiguration": {"audioId": MUSIC["id"], "audioVolume": 80, "videoVolume": 0}}  # fmt: skip
+
+
+def test_publish_names_the_reels_audio_after_its_song(db, env, monkeypatch):
+    pid = make_post(db, env)
+    with Session(db) as s:
+        song = {"track_id": 1, "name": "Morning Coffee", "volume": 80, "clip_volume": 50}
+        s.execute(update(Render).where(Render.id == row(db, pid).render_id).values(music=song))
+        s.commit()
+    z = use(monkeypatch, Zernio(routes()))
+    go(pid)
+    ig = json.loads(z.sent(POST_)[0].content)["platforms"][0]["platformSpecificData"]
+    assert ig == {"shareToFeed": True, "audioName": "Morning Coffee"}
+
+
+def test_music_on_an_instagram_login_account_fails_the_post(db, env, monkeypatch):
+    pid = make_post(db, env, music=MUSIC)
+    use(monkeypatch, Zernio(routes("docs_400_audio_requires_facebook_login")))
+    go(pid)
+    p = row(db, pid)
+    assert (p.status, p.error_code) == ("FAILED", "MUSIC_NEEDS_FACEBOOK_LOGIN")  # nothing was posted: Retry is safe
+    assert p.error_detail == {"code": "instagram_audio_requires_facebook_login"}
+    assert len(env.alerts) == 1 and "Facebook Login" in env.alerts[0][0]
+
+
+def test_music_search(db, env, monkeypatch):
+    aid = row(db, make_post(db, env, status="CANCELLED")).account_id
+    with TestClient(api_app, headers=as_user()) as c:  # the server's switch is off: no call to Zernio
+        r = c.get(f"/api/accounts/{aid}/music")
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "INSTAGRAM_MUSIC_OFF")
+        assert c.get("/api/status").json()["instagram_music"] is False
+        c.portal.call(engine.dispose)
+    monkeypatch.setattr(settings, "INSTAGRAM_CATALOG_MUSIC", True)
+    with Session(db) as s:
+        search = f"GET /accounts/{s.get(Account, aid).zernio_account_id}/instagram/audio"
+    z = use(monkeypatch, Zernio({search: ["docs_audio_search", "docs_400_audio_requires_facebook_login",
+                                          "docs_401_unauthorized"]}))  # fmt: skip
+    with TestClient(api_app, headers=as_user()) as c:
+        r = c.get(f"/api/accounts/{aid}/music", params={"q": " summer "})
+        assert r.status_code == 200, r.text
+        assert r.json() == [{
+            "id": "482851939985510", "title": "Summer Nights", "artist": "The Example Band", "kind": "music",
+            "duration_s": 182.0, "preview_url": "https://scontent.cdninstagram.com/o1/v/t2/f2/m86/482851939985510.mp4",
+            "artwork_url": None,
+        }]  # fmt: skip
+        r = c.get(f"/api/accounts/{aid}/music", params={"kind": "original_sound"})
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "MUSIC_NEEDS_FACEBOOK_LOGIN")
+        r = c.get(f"/api/accounts/{aid}/music")
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "ZERNIO_KEY_INVALID")
+        assert c.get(f"/api/accounts/{aid}/music", params={"kind": "sfx"}).status_code == 422
+        c.portal.call(engine.dispose)
+    assert [dict(r.url.params) for r in z.sent(search)] == [
+        {"audioType": "music", "q": "summer"}, {"audioType": "original_sound"}, {"audioType": "music"}
+    ]
+    assert [r.headers["Authorization"] for r in z.sent(search)] == ["Bearer sk_test"] * 3
+    with Session(db) as s:
+        assert s.get(User, 1).zernio_key_status == "invalid"  # a refused key pauses the user, as everywhere
 
 
 def test_crash_after_cover_upload_before_its_commit(db, env, monkeypatch):

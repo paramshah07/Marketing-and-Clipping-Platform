@@ -16,6 +16,9 @@ export const label = "text-xs uppercase tracking-wider text-subtle"
 export const DOCUMENTS = ["docx", "txt", "csv", "md", "rtf", "html", "htm", "xlsx", "pptx", "odt"]
 
 export const MAX_UPLOAD_BYTES = 2 * 1024 ** 3 // backend MAX_UPLOAD_BYTES default
+export const SONG_TYPES = ".mp3,.m4a,.aac,.wav,.ogg,.flac" // backend pipeline.AUDIO_EXTENSIONS
+/** A song's name from its file: "02 Morning Coffee.mp3" -> "02 Morning Coffee". */
+export const songName = (f: File) => f.name.replace(/\.[^.]*$/, "").trim().slice(0, 100) || "Song"
 export const MAX_REEL_SECONDS = 900 // backend ZERNIO_MAX_REEL_SECONDS: Instagram's 15 min API Reel limit (Zernio's documented 90 s is not enforced)
 export const MIN_REEL_SECONDS = 3 // backend ZERNIO_MIN_REEL_SECONDS
 
@@ -35,6 +38,7 @@ export const CAUSES: Record<string, string> = {
   UPLOAD_ABANDONED: "Upload abandoned",
   FFMPEG_FAILED: "ffmpeg exited with an error",
   OUTPUT_TOO_LARGE: "Output file too large",
+  MUSIC_MISSING: "Its song was deleted", // render: pick another song, then render again
   QUOTA_EXCEEDED: "Your storage is full", // 507, storage.room(): delete clips or renders, then Retry
   DISK_FULL: "Server disk almost full", // 507, for everyone until the operator frees space
 }

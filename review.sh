@@ -28,6 +28,7 @@ dc exec -T postgres pg_restore -U clipper -d clipper --no-owner -x --exit-on-err
 dc exec -T postgres psql -U clipper -d clipper -q -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF to_regclass('users') IS NOT NULL THEN
   DELETE FROM posts WHERE user_id <> 1; DELETE FROM renders WHERE user_id <> 1; DELETE FROM accounts WHERE user_id <> 1;
   DELETE FROM saved_captions WHERE user_id <> 1; DELETE FROM saved_covers WHERE user_id <> 1;
+  IF to_regclass('saved_tracks') IS NOT NULL THEN DELETE FROM saved_tracks WHERE user_id <> 1; END IF;  -- not in a dump from before 0012
   DELETE FROM brands WHERE user_id <> 1; DELETE FROM source_clips WHERE user_id <> 1;
   DELETE FROM telegram_bots WHERE user_id <> 1; DELETE FROM users WHERE id <> 1; END IF; END \$\$"
 dc up -d --build api worker publisher

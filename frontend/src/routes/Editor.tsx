@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarPlus, Camera, ChevronDown, ChevronsUpDown, Download, Ellipsis, Eye, EyeOff, FileText, Heart, MessageCircle, Music2, Pause, Play, RotateCw, Send, Trash2, Upload, Volume2, VolumeX, X } from "lucide-react"
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react"
 import { Link, useParams, useSearchParams } from "react-router"
 
-import type { BrandOut, CaptionOut, ClipOut, CoverOut, OverlayConfig, RenderOut } from "@/api"
+import type { BrandOut, CaptionOut, ClipOut, CoverOut, FilterOut, OverlayConfig, RenderOut, TrackOut } from "@/api"
 import {
   createRenderMutation,
   deleteRenderMutation,
@@ -14,11 +14,15 @@ import {
   listBrandsQueryKey,
   listCaptionsOptions,
   listCoversOptions,
+  listFiltersOptions,
   listRendersOptions,
   listRendersQueryKey,
+  listTracksOptions,
+  listTracksQueryKey,
   retryRenderMutation,
   setRenderCoverMutation,
   updateBrandMutation,
+  uploadTrackMutation,
 } from "@/api/@tanstack/react-query.gen"
 import { FracBox } from "@/components/FracBox"
 import { SchedulePopover } from "@/components/SchedulePopover"
@@ -27,7 +31,7 @@ import { Slider } from "@/components/ui/slider"
 import { Switch } from "@/components/ui/switch"
 import { coverJpeg, savedCover } from "@/lib/cover"
 import { GRID, IG, OUT_H, OUT_W, type Box, clamp, coverScale, crop916, cropAspect, cropPx, logoAspect, outputView, snapPosition } from "@/lib/geometry"
-import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, btn, label } from "@/lib/utils"
+import { CAPTION_MAX, CAUSES, HASHTAG_MAX, MAX_REEL_SECONDS, SONG_TYPES, ago, clipName, cn, errorText, fillCaption, hashtagCount, mb, mmss, btn, label, songName } from "@/lib/utils"
 
 const DEFAULT_OVERLAY: OverlayConfig = { x: 0.72, y: 0.16, w: 0.22, opacity: 1 } // backend brands default (below the IG top bar)
 const MIN_W = 0.02
@@ -43,14 +47,16 @@ export function Editor() {
   })
   const brands = useQuery(listBrandsOptions())
   const history = useQuery(listRendersOptions({ query: { clip_id: id } }))
-  // Saved captions and covers (Customizations) are extras: the editor opens without them if they fail to load
+  // Saved captions, covers and songs (Customizations) and the filters are extras: the editor opens without them if they fail to load
   const captions = useQuery(listCaptionsOptions())
   const covers = useQuery(listCoversOptions())
+  const tracks = useQuery(listTracksOptions())
+  const filters = useQuery({ ...listFiltersOptions(), staleTime: Infinity })
   const def = covers.data?.find((c) => c.is_default)
   const defCover = useQuery({ queryKey: ["saved-cover", def?.id], queryFn: () => savedCover(def!), enabled: !!def, staleTime: Infinity })
   const [params] = useSearchParams()
   if (clip.isError || brands.isError) return <Page title="Clip">{errorText(clip.error ?? brands.error)}</Page>
-  if (!clip.data || !brands.data || history.isPending || captions.isPending || covers.isPending || (def && defCover.isPending))
+  if (!clip.data || !brands.data || history.isPending || captions.isPending || covers.isPending || tracks.isPending || filters.isPending || (def && defCover.isPending))
     return <Page title="Clip">Loading…</Page>
   // ?brand= wins, else the brand this clip was last rendered with (newest first), else the default brand, else the operator picks
   const byId = (bid: number | null | undefined) => brands.data.find((b) => b.id === bid && b.logo_url)
@@ -65,7 +71,7 @@ export function Editor() {
   if (clip.data.status !== "READY" || !clip.data.width || !clip.data.height)
     return <Page title={clipName(clip.data)}>This clip is {clip.data.status.toLowerCase()}; the editor opens once it is READY.</Page>
   const cover = def && defCover.data ? { jpeg: defCover.data, url: def.image_url, from: def.id } : null
-  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} captions={captions.data ?? []} covers={covers.data ?? []} initialCover={cover} />
+  return <EditorBody key={id} clip={clip.data} brands={brands.data} initial={initial} captions={captions.data ?? []} covers={covers.data ?? []} tracks={tracks.data ?? []} filters={filters.data ?? []} initialCover={cover} />
 }
 
 function Page({ title, children }: { title: string; children: ReactNode }) {
@@ -95,7 +101,7 @@ function useSize<T extends HTMLElement>() {
 // url: an object URL for a chosen file, a saved cover's own /media URL (revoking that is a no-op); from: that saved cover
 type Cover = { jpeg: Blob; url: string; from?: number }
 
-function EditorBody({ clip, brands, initial, captions, covers, initialCover }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null; captions: CaptionOut[]; covers: CoverOut[]; initialCover: Cover | null }) {
+function EditorBody({ clip, brands, initial, captions, covers, tracks, filters, initialCover }: { clip: ClipOut; brands: BrandOut[]; initial: BrandOut | null; captions: CaptionOut[]; covers: CoverOut[]; tracks: TrackOut[]; filters: FilterOut[]; initialCover: Cover | null }) {
   const qc = useQueryClient()
   const W = clip.width!
   const H = clip.height!
@@ -114,6 +120,19 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
   const [logoAR, setLogoAR] = useState<number | null>(null) // logo natural h/w
   const [cropOn, setCropOn] = useState(false)
   const [crop, setCrop] = useState<Box>(() => crop916(W, H))
+  const [filter, setFilter] = useState<FilterOut | null>(null)
+  // the song mixed into the render; the default song (Customizations) is preselected
+  const [music, setMusic] = useState<{ track: TrackOut; volume: number; clipVolume: number } | null>(() => {
+    const d = tracks.find((t) => t.is_default)
+    return d ? { track: d, volume: 100, clipVolume: 100 } : null
+  })
+  const pickSong = (t: TrackOut | null) => setMusic(t && { track: t, volume: music?.volume ?? 100, clipVolume: music?.clipVolume ?? 100 })
+  const songFile = useRef<HTMLInputElement>(null)
+  const songUpload = useMutation({
+    ...uploadTrackMutation(),
+    onSuccess: (t) => (pickSong(t), qc.invalidateQueries({ queryKey: listTracksQueryKey() })),
+    onError: (e) => setError(errorText(e)),
+  })
   const [mode, setMode] = useState<"output" | "crop" | "cover">("output")
   const [cover, setCover] = useState<Cover | null>(initialCover) // the Reel cover exactly as uploaded
   useEffect(() => () => void (cover && URL.revokeObjectURL(cover.url)), [cover]) // on replace and unmount
@@ -182,6 +201,8 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
           brand_id: brand?.id ?? null,
           overlay_config: brand ? overlay : null,
           crop_config: cropOn ? { x: crop.x, y: crop.y, w: Math.min(1, crop.w), h: Math.min(1, crop.h) } : null,
+          filter: filter?.name ?? null,
+          music: music && { track_id: music.track.id, volume: music.volume, clip_volume: music.clipVolume },
           caption: caption.trim() || null,
         },
       })
@@ -252,6 +273,8 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
           previewLabel={preview ? `#${preview.id} · ${brandName(preview.brand_id)} · 1080x1920` : ""}
           onExitPreview={() => setPreview(null)}
           view={outputView(W, H, cropOn ? crop : null)}
+          look={filter}
+          song={music && { url: music.track.audio_url, volume: music.volume, clipVolume: clip.has_audio ? music.clipVolume : 100 }}
           setMode={(m) => {
             if (m === "crop") setCropOn(true)
             setMode(m)
@@ -426,6 +449,87 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
               )}
             </div>
 
+            {filters.length > 0 && (
+              <div className="space-y-2 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <span className={label}>Filter</span>
+                  <span className="text-sm text-muted">{filter?.name ?? "Normal"}</span>
+                </div>
+                <div className="grid grid-cols-[repeat(8,28px)] justify-between gap-y-2.5 py-0.5">
+                  {[null, ...filters].map((f) => {
+                    const name = f?.name ?? "Normal"
+                    const on = filter?.name === f?.name
+                    return (
+                      <button
+                        key={name}
+                        aria-label={name}
+                        aria-pressed={on}
+                        title={name}
+                        className={cn("h-[50px] w-7 rounded-sm", on ? "ring-2 ring-fg ring-offset-1 ring-offset-panel" : "hover:ring-1 hover:ring-line-strong")}
+                        onClick={() => setFilter(f)}
+                      >
+                        <Look look={f} className="relative size-full rounded-sm bg-raised">
+                          {clip.thumbnail_url && <img src={clip.thumbnail_url} alt="" className="block size-full object-cover" />}
+                        </Look>
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-sm text-subtle">Baked into the render, under the logo.</p>
+              </div>
+            )}
+
+            <div className="space-y-2 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className={label}>Music</span>
+                <Link to="/customizations/music" className="text-sm text-muted hover:text-fg">
+                  All songs
+                </Link>
+              </div>
+              <div className="flex gap-1.5">
+                {tracks.length > 0 && (
+                  <label className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded border border-line bg-bg px-2 hover:border-line-strong focus-within:border-muted">
+                    <Music2 className="size-3.5 shrink-0 text-subtle" />
+                    <select
+                      aria-label="Song"
+                      value={music?.track.id ?? ""}
+                      onChange={(e) => pickSong(tracks.find((t) => t.id === Number(e.target.value)) ?? null)}
+                      className="min-w-0 flex-1 appearance-none truncate bg-transparent outline-none"
+                    >
+                      <option value="">None</option>
+                      {tracks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                          {t.is_default ? " (default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronsUpDown className="size-3.5 shrink-0 text-subtle" />
+                  </label>
+                )}
+                <input ref={songFile} type="file" accept={SONG_TYPES} hidden onChange={(e) => (e.target.files?.[0] && songUpload.mutate({ body: { file: e.target.files[0], name: songName(e.target.files[0]) } }), (e.target.value = ""))} />
+                <button className={cn(btn.secondary, "px-2.5 font-normal", !tracks.length && "flex-1")} disabled={songUpload.isPending} onClick={() => songFile.current?.click()}>
+                  <Upload className="size-3.5" />
+                  {songUpload.isPending ? "Uploading…" : tracks.length ? "Upload…" : "Upload a song…"}
+                </button>
+              </div>
+              {music && (
+                <>
+                  <Labeled name="Song" value={`${music.volume}%`}>
+                    <Slider aria-label="Song volume" min={0} max={100} step={5} value={[music.volume]} onValueChange={([v]) => setMusic({ ...music, volume: v })} />
+                  </Labeled>
+                  {clip.has_audio && (
+                    <Labeled name="Clip's sound" value={`${music.clipVolume}%`}>
+                      <Slider aria-label="Clip's sound volume" min={0} max={100} step={5} value={[music.clipVolume]} onValueChange={([v]) => setMusic({ ...music, clipVolume: v })} />
+                    </Labeled>
+                  )}
+                </>
+              )}
+              <p className="text-sm text-subtle">
+                {music ? "Mixed into the render, looped to the clip and faded out at its end. Instagram shows its name as the Reel's audio." : "None: the clip's own sound. Use songs you have the rights to."}
+              </p>
+            </div>
+
             <div className="space-y-2 px-4 py-3">
               <div className="flex items-center justify-between">
                 <span className={label}>Cover</span>
@@ -548,6 +652,19 @@ function EditorBody({ clip, brands, initial, captions, covers, initialCover }: {
   )
 }
 
+/** A filter's preview: its colour layers blended over children, its CSS filter over the lot (CSSgram's way), the maths
+ * render.py's filter_chain replays in ffmpeg. */
+function Look({ look, className, style, children }: { look: FilterOut | null; className?: string; style?: CSSProperties; children: ReactNode }) {
+  return (
+    <div className={cn("isolate overflow-hidden", className)} style={{ ...style, filter: look?.css }}>
+      {children}
+      {look?.layers.map((l, i) => (
+        <div key={i} className="absolute inset-0" style={{ background: l.color, mixBlendMode: l.mode, opacity: l.opacity }} />
+      ))}
+    </div>
+  )
+}
+
 function Labeled({ name, value, children }: { name: string; value: ReactNode; children: ReactNode }) {
   return (
     <div className="space-y-1.5">
@@ -573,6 +690,8 @@ function Stage(props: {
   previewLabel: string
   onExitPreview: () => void
   view: ReturnType<typeof outputView>
+  look: FilterOut | null
+  song: { url: string; volume: number; clipVolume: number } | null
   setMode: (m: "output" | "crop" | "cover") => void
   ig: boolean
   setIg: (v: boolean) => void
@@ -591,6 +710,22 @@ function Stage(props: {
   const [muted, setMuted] = useState(true)
   const [broken, setBroken] = useState<string | null>(null)
   useEffect(() => void (mode === "cover" && video.current?.pause()), [mode]) // its transport is disabled there
+  // The song plays with the video, at the render's volumes; it loops there too, so its position wraps. A render
+  // (preview) has it mixed in already.
+  const song = mode === "preview" ? null : props.song
+  const songEl = useRef<HTMLAudioElement>(null)
+  function follow() {
+    const a = songEl.current
+    const v = video.current
+    if (!a || !v) return
+    if (a.duration > 0 && Number.isFinite(a.duration)) a.currentTime = v.currentTime % a.duration
+    if (v.paused) a.pause()
+    else a.play().catch(() => {})
+  }
+  useEffect(() => {
+    if (songEl.current) songEl.current.volume = (song?.volume ?? 0) / 100
+    if (video.current) video.current.volume = (song?.clipVolume ?? 100) / 100
+  })
 
   const src = mode === "preview" ? props.previewSrc! : clip.raw_url!
   // 420-576 px tall as the height allows, but never wider than the column (size is the content box, padding excluded)
@@ -626,26 +761,30 @@ function Stage(props: {
         )}
         <div data-stage={mode} className={cn("relative shrink-0", mode !== "crop" && "rounded ring-1 ring-line")} style={{ width: fw, height: fh }}>
           <div className="absolute inset-0 overflow-hidden rounded bg-black">
-            {failed ? (
-              <img src={clip.thumbnail_url ?? ""} alt="" className="absolute max-w-none" style={mode === "preview" ? full : pos} />
-            ) : (
-              <video
-                ref={video}
-                src={src}
-                poster={(mode === "preview" ? props.previewPoster : clip.thumbnail_url) ?? undefined}
-                muted={muted}
-                playsInline
-                loop
-                preload="auto"
-                className="absolute max-w-none object-fill"
-                style={pos}
-                onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
-                onLoadedMetadata={(e) => (e.currentTarget.videoWidth ? setDur(e.currentTarget.duration) : setBroken(src))}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                onError={() => setBroken(src)}
-              />
-            )}
+            {/* a render has its filter baked in */}
+            <Look look={mode === "preview" ? null : props.look} className="absolute" style={pos}>
+              {failed ? (
+                <img src={clip.thumbnail_url ?? ""} alt="" className="block size-full max-w-none" />
+              ) : (
+                <video
+                  ref={video}
+                  src={src}
+                  poster={(mode === "preview" ? props.previewPoster : clip.thumbnail_url) ?? undefined}
+                  muted={muted}
+                  playsInline
+                  loop
+                  preload="auto"
+                  className="block size-full max-w-none object-fill"
+                  onTimeUpdate={(e) => setT(e.currentTarget.currentTime)}
+                  onLoadedMetadata={(e) => (e.currentTarget.videoWidth ? setDur(e.currentTarget.duration) : setBroken(src))}
+                  onPlay={() => (setPlaying(true), follow())}
+                  onPause={() => (setPlaying(false), songEl.current?.pause())}
+                  onSeeked={follow}
+                  onError={() => setBroken(src)}
+                />
+              )}
+            </Look>
+            {song && <audio ref={songEl} src={song.url} loop muted={muted} preload="auto" onLoadedMetadata={follow} />}
             {mode === "output" && props.ig && (
               <>
                 <div
@@ -891,10 +1030,10 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
   )
 }
 
-/** "Top right · 22% · 9:16 crop" / "Full frame" (no logo: the card already says so). */
+/** "Top right · 22% · 9:16 crop" / "Full frame · Juno" (no logo: the card already says so). */
 function placement(r: RenderOut) {
   const c = r.crop_config
-  const crop = !c || (c.w > 0.999 && c.h > 0.999) ? "full frame" : "9:16 crop"
+  const crop = (!c || (c.w > 0.999 && c.h > 0.999) ? "full frame" : "9:16 crop") + (r.filter ? ` · ${r.filter}` : "") + (r.music ? ` · ♫ ${r.music.name ?? "song"}` : "")
   const o = r.overlay_config
   if (r.brand_id == null || !o) return crop[0].toUpperCase() + crop.slice(1)
   // ponytail: the row buckets the logo's centre, estimated as if the logo were square (renders don't carry its aspect);

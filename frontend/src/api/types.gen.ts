@@ -168,6 +168,24 @@ export type BodyUploadCover = {
 };
 
 /**
+ * Body_upload_track
+ */
+export type BodyUploadTrack = {
+    /**
+     * File
+     */
+    file: Blob | File;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
+};
+
+/**
  * BotIn
  */
 export type BotIn = {
@@ -654,6 +672,42 @@ export type CropConfig = {
 };
 
 /**
+ * FilterLayer
+ */
+export type FilterLayer = {
+    /**
+     * Mode
+     */
+    mode: 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'soft-light' | 'exclusion';
+    /**
+     * Color
+     */
+    color: string;
+    /**
+     * Opacity
+     */
+    opacity: number;
+};
+
+/**
+ * FilterOut
+ */
+export type FilterOut = {
+    /**
+     * Name
+     */
+    name: 'Clarendon' | 'Gingham' | 'Moon' | 'Lark' | 'Reyes' | 'Juno' | 'Slumber' | 'Crema' | 'Ludwig' | 'Aden' | 'Valencia' | 'Nashville' | 'Inkwell' | '1977';
+    /**
+     * Layers
+     */
+    layers: Array<FilterLayer>;
+    /**
+     * Css
+     */
+    css: string;
+};
+
+/**
  * FoundLink
  */
 export type FoundLink = {
@@ -768,6 +822,40 @@ export type Me = {
 };
 
 /**
+ * MusicOut
+ */
+export type MusicOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Artist
+     */
+    artist: string | null;
+    /**
+     * Kind
+     */
+    kind: 'music' | 'original_sound';
+    /**
+     * Duration S
+     */
+    duration_s: number | null;
+    /**
+     * Preview Url
+     */
+    preview_url: string | null;
+    /**
+     * Artwork Url
+     */
+    artwork_url: string | null;
+};
+
+/**
  * NextSlot
  */
 export type NextSlot = {
@@ -847,10 +935,39 @@ export type PostCreate = {
      * Caption
      */
     caption?: string | null;
+    music?: PostMusic | null;
     /**
      * Repost
      */
     repost?: boolean;
+};
+
+/**
+ * PostMusic
+ *
+ * Instagram's catalog track a Reel goes out with (Zernio audioConfiguration); title and artist are for show.
+ */
+export type PostMusic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Artist
+     */
+    artist?: string | null;
+    /**
+     * Volume
+     */
+    volume?: number;
+    /**
+     * Video Volume
+     */
+    video_volume?: number;
 };
 
 /**
@@ -877,6 +994,7 @@ export type PostOut = {
      * Caption
      */
     caption: string;
+    music: PostMusic | null;
     /**
      * Scheduled For
      */
@@ -939,6 +1057,7 @@ export type PostPatch = {
      * Caption
      */
     caption?: string;
+    music?: PostMusic | null;
 };
 
 /**
@@ -1046,6 +1165,11 @@ export type RenderCreate = {
     overlay_config?: OverlayConfig | null;
     crop_config?: CropConfig | null;
     /**
+     * Filter
+     */
+    filter?: 'Clarendon' | 'Gingham' | 'Moon' | 'Lark' | 'Reyes' | 'Juno' | 'Slumber' | 'Crema' | 'Ludwig' | 'Aden' | 'Valencia' | 'Nashville' | 'Inkwell' | '1977' | null;
+    music?: RenderMusic | null;
+    /**
      * Caption
      */
     caption?: string | null;
@@ -1069,6 +1193,11 @@ export type RenderDetail = {
     brand_id: number | null;
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
+    /**
+     * Filter
+     */
+    filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1120,6 +1249,30 @@ export type RenderDetail = {
 };
 
 /**
+ * RenderMusic
+ *
+ * A saved track mixed into a render (renders.music): looped to the clip's length, faded out at its end.
+ */
+export type RenderMusic = {
+    /**
+     * Track Id
+     */
+    track_id: number;
+    /**
+     * Volume
+     */
+    volume?: number;
+    /**
+     * Clip Volume
+     */
+    clip_volume?: number;
+    /**
+     * Name
+     */
+    name?: string | null;
+};
+
+/**
  * RenderOut
  */
 export type RenderOut = {
@@ -1137,6 +1290,11 @@ export type RenderOut = {
     brand_id: number | null;
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
+    /**
+     * Filter
+     */
+    filter: string | null;
+    music: RenderMusic | null;
     /**
      * Caption
      */
@@ -1273,6 +1431,50 @@ export type SystemStatus = {
      * Publishing Off
      */
     publishing_off?: 'switch' | 'no_key' | 'key_invalid' | null;
+    /**
+     * Instagram Music
+     */
+    instagram_music?: boolean;
+};
+
+/**
+ * TrackOut
+ */
+export type TrackOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Audio Url
+     */
+    readonly audio_url: string;
+};
+
+/**
+ * TrackPatch
+ */
+export type TrackPatch = {
+    /**
+     * Name
+     */
+    name?: string;
+    /**
+     * Is Default
+     */
+    is_default?: boolean;
 };
 
 /**
@@ -1541,6 +1743,11 @@ export type RenderDetailWritable = {
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
     /**
+     * Filter
+     */
+    filter: string | null;
+    music: RenderMusic | null;
+    /**
      * Caption
      */
     caption: string | null;
@@ -1597,6 +1804,11 @@ export type RenderOutWritable = {
     overlay_config: OverlayConfig | null;
     crop_config: CropConfig | null;
     /**
+     * Filter
+     */
+    filter: string | null;
+    music: RenderMusic | null;
+    /**
      * Caption
      */
     caption: string | null;
@@ -1628,6 +1840,28 @@ export type RenderOutWritable = {
      * Completed At
      */
     completed_at: string | null;
+};
+
+/**
+ * TrackOut
+ */
+export type TrackOutWritable = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Is Default
+     */
+    is_default: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 export type SignupStatusData = {
@@ -2395,6 +2629,24 @@ export type CreateRenderResponses = {
 
 export type CreateRenderResponse = CreateRenderResponses[keyof CreateRenderResponses];
 
+export type ListFiltersData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/filters';
+};
+
+export type ListFiltersResponses = {
+    /**
+     * Response List Filters
+     *
+     * Successful Response
+     */
+    200: Array<FilterOut>;
+};
+
+export type ListFiltersResponse = ListFiltersResponses[keyof ListFiltersResponses];
+
 export type DeleteRenderData = {
     body?: never;
     path: {
@@ -2781,6 +3033,109 @@ export type UpdateCoverResponses = {
 
 export type UpdateCoverResponse = UpdateCoverResponses[keyof UpdateCoverResponses];
 
+export type ListTracksData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/tracks';
+};
+
+export type ListTracksResponses = {
+    /**
+     * Response List Tracks
+     *
+     * Successful Response
+     */
+    200: Array<TrackOut>;
+};
+
+export type ListTracksResponse = ListTracksResponses[keyof ListTracksResponses];
+
+export type UploadTrackData = {
+    body: BodyUploadTrack;
+    path?: never;
+    query?: never;
+    url: '/api/tracks';
+};
+
+export type UploadTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UploadTrackError = UploadTrackErrors[keyof UploadTrackErrors];
+
+export type UploadTrackResponses = {
+    /**
+     * Successful Response
+     */
+    201: TrackOut;
+};
+
+export type UploadTrackResponse = UploadTrackResponses[keyof UploadTrackResponses];
+
+export type DeleteTrackData = {
+    body?: never;
+    path: {
+        /**
+         * Track Id
+         */
+        track_id: number;
+    };
+    query?: never;
+    url: '/api/tracks/{track_id}';
+};
+
+export type DeleteTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTrackError = DeleteTrackErrors[keyof DeleteTrackErrors];
+
+export type DeleteTrackResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteTrackResponse = DeleteTrackResponses[keyof DeleteTrackResponses];
+
+export type UpdateTrackData = {
+    body: TrackPatch;
+    path: {
+        /**
+         * Track Id
+         */
+        track_id: number;
+    };
+    query?: never;
+    url: '/api/tracks/{track_id}';
+};
+
+export type UpdateTrackErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateTrackError = UpdateTrackErrors[keyof UpdateTrackErrors];
+
+export type UpdateTrackResponses = {
+    /**
+     * Successful Response
+     */
+    200: TrackOut;
+};
+
+export type UpdateTrackResponse = UpdateTrackResponses[keyof UpdateTrackResponses];
+
 export type ListAccountsData = {
     body?: never;
     path?: never;
@@ -2876,6 +3231,47 @@ export type NextSlotResponses = {
 };
 
 export type NextSlotResponse = NextSlotResponses[keyof NextSlotResponses];
+
+export type SearchMusicData = {
+    body?: never;
+    path: {
+        /**
+         * Account Id
+         */
+        account_id: number;
+    };
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Kind
+         */
+        kind?: 'music' | 'original_sound';
+    };
+    url: '/api/accounts/{account_id}/music';
+};
+
+export type SearchMusicErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchMusicError = SearchMusicErrors[keyof SearchMusicErrors];
+
+export type SearchMusicResponses = {
+    /**
+     * Response Search Music
+     *
+     * Successful Response
+     */
+    200: Array<MusicOut>;
+};
+
+export type SearchMusicResponse = SearchMusicResponses[keyof SearchMusicResponses];
 
 export type ListPostsData = {
     body?: never;

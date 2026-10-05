@@ -6,6 +6,8 @@ frame after autorotate (the probe stores display dims, and ffmpeg autorotates, s
 """
 
 import json
+import math
+import re
 import subprocess
 from pathlib import Path
 
@@ -44,13 +46,101 @@ def crop_px(crop: dict, width: int, height: int) -> tuple[int, int, int, int]:
     )
 
 
+# Instagram-style filters. Instagram's API applies none (docs.zernio.com/platforms/instagram, "What you cannot do"),
+# so the render bakes one in. Recipes from CSSgram (github.com/una/CSSgram) and, for Juno, Crema, Ludwig and Aden,
+# instagram.css (github.com/picturepan2/instagram.css), both MIT: solid colour layers (blend mode, sRGB colour,
+# opacity) blended over the frame in order, then CSS filter functions over the result. The Editor previews them
+# with that CSS (GET /api/filters) and filter_chain replays the CSS maths in ffmpeg. Only recipes whose layers are
+# one colour: a gradient (vignette) layer is not a per-channel curve.
+FILTERS = {
+    "Clarendon": ("contrast(1.2) saturate(1.35)", [("overlay", (127, 187, 227), 0.2)]),
+    "Gingham": ("brightness(1.05) hue-rotate(-10deg)", [("soft-light", (230, 230, 250), 1)]),
+    "Moon": ("grayscale(1) contrast(1.1) brightness(1.1)", [("soft-light", (160, 160, 160), 1), ("lighten", (56, 56, 56), 1)]),
+    "Lark": ("contrast(0.9)", [("color-dodge", (34, 37, 63), 1), ("darken", (242, 242, 242), 0.8)]),
+    "Reyes": ("sepia(0.22) brightness(1.1) contrast(0.85) saturate(0.75)", [("soft-light", (239, 205, 173), 0.5)]),
+    "Juno": ("sepia(0.35) contrast(1.15) brightness(1.15) saturate(1.8)", [("overlay", (127, 187, 227), 0.2)]),
+    "Slumber": ("saturate(0.66) brightness(1.05)", [("lighten", (69, 41, 12), 0.4), ("soft-light", (125, 105, 24), 0.5)]),
+    "Crema": ("sepia(0.5) contrast(1.25) brightness(1.15) saturate(0.9) hue-rotate(-2deg)", [("multiply", (125, 105, 24), 0.2)]),
+    "Ludwig": ("sepia(0.25) contrast(1.05) brightness(1.05) saturate(2)", [("overlay", (125, 105, 24), 0.1)]),
+    "Aden": ("sepia(0.2) brightness(1.15) saturate(1.4)", [("multiply", (125, 105, 24), 0.1)]),
+    "Valencia": ("contrast(1.08) brightness(1.08) sepia(0.08)", [("exclusion", (58, 3, 57), 0.5)]),
+    "Nashville": ("sepia(0.2) contrast(1.2) brightness(1.05) saturate(1.2)", [("darken", (247, 176, 153), 0.56), ("lighten", (0, 70, 150), 0.4)]),
+    "Inkwell": ("sepia(0.3) contrast(1.1) brightness(1.1) grayscale(1)", []),
+    "1977": ("contrast(1.1) brightness(1.1) saturate(1.3)", [("screen", (243, 106, 188), 0.3)]),
+}  # fmt: skip
+
+# W3C Compositing: the blend of backdrop x with layer colour s, both 0..1, as an ffmpeg expression
+BLEND = {
+    "multiply": "{x}*{s}",
+    "screen": "{x}+{s}-{x}*{s}",
+    "overlay": "if(lte({x},0.5),2*{x}*{s},{s}+2*{x}-1-{s}*(2*{x}-1))",
+    "darken": "min({x},{s})",
+    "lighten": "max({x},{s})",
+    "color-dodge": "min(1,{x}/(1-{s}))",  # s < 1 in every recipe
+    "soft-light": "if(lte({s},0.5),{x}-(1-2*{s})*{x}*(1-{x}),"
+    "{x}+(2*{s}-1)*(if(lte({x},0.25),((16*{x}-12)*{x}+4)*{x},sqrt({x}))-{x}))",
+    "exclusion": "{x}+{s}-2*{x}*{s}",
+}
+
+# W3C Filter Effects: the colour matrices behind the filter functions
+EYE = ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+LUMA = ((0.213, 0.715, 0.072),) * 3  # saturate, hue-rotate
+LUMA_GRAY = ((0.2126, 0.7152, 0.0722),) * 3
+SEPIA = ((0.393, 0.769, 0.189), (0.349, 0.686, 0.168), (0.272, 0.534, 0.131))
+HUE_SIN = ((-0.213, -0.715, 0.928), (0.143, 0.140, -0.283), (-0.787, 0.715, 0.072))
+
+
+def _mixer(*terms: tuple[float, tuple]) -> str:
+    """colorchannelmixer for the sum of weight * matrix (rows: out r, g, b; columns: in r, g, b)."""
+    m = [[sum(w * t[i][j] for w, t in terms) for j in range(3)] for i in range(3)]
+    return "colorchannelmixer=" + ":".join(f"{o}{i}={m[a][b]:.6g}" for a, o in enumerate("rgb") for b, i in enumerate("rgb"))
+
+
+def _lut(expr) -> str:
+    """lutrgb from expr(x, c): channel c's new value, 0..1, as an ffmpeg expression of its value x (0..1).
+    lutrgb clamps and truncates: +0.5 rounds."""
+    return "lutrgb=" + ":".join(f"{ch}='255*({expr('(val/255)', c)})+0.5'" for c, ch in enumerate("rgb"))
+
+
+def filter_chain(name: str) -> str:
+    """FILTERS[name] as ffmpeg filters on 8-bit RGB: each layer, then each CSS function, clamped after every step
+    as a browser does (build_ffmpeg_args converts to RGB and back). Within 3 of the browser (test_render.py).
+    ponytail: one pass per step (~7 ms a 1080x1920 frame for a whole recipe on an M-series Mac); adjacent per-channel
+    steps could share one lutrgb if render time matters."""
+    css, layers = FILTERS[name]
+    steps = []
+    for mode, rgb, a in layers:  # mixed with the frame at opacity a
+        steps.append(_lut(lambda x, c: f"{1 - a:g}*{x}+{a:g}*({BLEND[mode].format(x=x, s=f'{rgb[c] / 255:.6g}')})"))
+    for fn, v in re.findall(r"([a-z-]+)\(([-\d.]+)(?:deg)?\)", css):
+        v = float(v)
+        if fn == "brightness":
+            steps.append(_lut(lambda x, c: f"{x}*{v:g}"))
+        elif fn == "contrast":
+            steps.append(_lut(lambda x, c: f"({x}-0.5)*{v:g}+0.5"))
+        elif fn == "saturate":
+            steps.append(_mixer((1 - v, LUMA), (v, EYE)))
+        elif fn == "hue-rotate":
+            cos, sin = math.cos(math.radians(v)), math.sin(math.radians(v))
+            steps.append(_mixer((1 - cos, LUMA), (cos, EYE), (sin, HUE_SIN)))
+        else:  # grayscale, sepia: amounts above 1 count as 1
+            a = min(v, 1)
+            steps.append(_mixer((1 - a, EYE), (a, {"grayscale": LUMA_GRAY, "sepia": SEPIA}[fn])))
+    return ",".join(steps)
+
+
+MUSIC_FADE_S = 2  # a song fades out over the video's last seconds
+
+
 def build_ffmpeg_args(
-    clip: dict, overlay: dict | None, crop: dict | None, logo_path, in_path, out_path, threads: int
+    clip: dict, overlay: dict | None, crop: dict | None, logo_path, in_path, out_path, threads: int,
+    filter_name: str | None = None, music: dict | None = None,
 ) -> list[str]:
-    """The one render command. clip: display width/height, has_audio, color_transfer (probe output).
+    """The one render command. clip: display width/height, duration_s, has_audio, color_transfer (probe output).
     Chain: fps 30 -> crop (source fractions) -> tonemap if HLG/PQ -> fill + centre-crop 1080x1920
-    (limited range) -> logo (output fractions; its width is a fraction of 1080, not of the logo) -> H.264/AAC.
-    The output is exactly as long as the video: audio is padded with silence and cut at the last frame."""
+    (limited range) -> filter (FILTERS, under the logo) -> logo (output fractions; its width is a fraction of 1080,
+    not of the logo) -> H.264/AAC. The output is exactly as long as the video: audio is padded with silence and cut
+    at the last frame. music: {path, volume, clip_volume} (renders.music, volumes 0-100), a song looped to the video,
+    faded out over its last MUSIC_FADE_S, mixed with the clip's own sound."""
     inputs = ["-i", str(in_path)]
     v = "[0:V:0]fps=30"  # V: not cover art (attached_pic), the same stream parse_probe measured
     if crop:
@@ -59,6 +149,8 @@ def build_ffmpeg_args(
         v += "," + TONEMAP
     # out_range=tv: a full-range (yuvj420p / pc) source would otherwise stay full range
     v += f",scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase:out_range=tv,crop={OUT_W}:{OUT_H},setsar=1"
+    if filter_name:  # RGB, as the browser's CSS; the conversions keep the frame's colour matrix and its tags
+        v += f",format=gbrp,{filter_chain(filter_name)},format=yuv420p"
     if logo_path:
         inputs += ["-i", str(logo_path)]
         v += (
@@ -67,7 +159,20 @@ def build_ffmpeg_args(
             f"[bg][logo]overlay=x={round(overlay['x'] * OUT_W)}:y={round(overlay['y'] * OUT_H)}"
         )
     v += "[v]"
-    if clip["has_audio"]:  # first audio track only, padded so a short track still spans the video
+    stereo = "aresample=48000,aformat=channel_layouts=stereo"
+    if music:  # looped; an endless input never ends with -shortest, so the mix stops 1 s past the video (atrim)
+        inputs += ["-stream_loop", "-1", "-i", str(music["path"])]
+        end = clip.get("duration_s") or 0
+        song = (f"[{2 if logo_path else 1}:a:0]{stereo},volume={music['volume'] / 100:g},"
+                f"afade=t=out:st={max(0, end - MUSIC_FADE_S):.3f}:d={MUSIC_FADE_S}")  # fmt: skip
+        if clip["has_audio"] and music["clip_volume"]:  # amix without normalize keeps both volumes; the limiter, peaks
+            v += (f";{song}[song];[0:a:0]{stereo},volume={music['clip_volume'] / 100:g},apad[own];"
+                  "[own][song]amix=inputs=2:normalize=0,alimiter=limit=0.95:level=0")  # fmt: skip
+        else:
+            v += f";{song}"
+        v += f",atrim=end={end + 1:.3f}[a]"
+        audio = "[a]"
+    elif clip["has_audio"]:  # first audio track only, padded so a short track still spans the video
         v += ";[0:a:0]apad[a]"
         audio = "[a]"
     else:  # Reels need an audio track: silent stereo

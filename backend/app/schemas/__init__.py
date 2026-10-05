@@ -7,6 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, model_validator
 
 from app.services import storage
+from app.services.render import BLEND, FILTERS
+
+FilterName = Literal[tuple(FILTERS)]
 
 
 def _url(key: str | None) -> str | None:
@@ -196,11 +199,22 @@ class CoverOut(BaseModel):
         return storage.url_for(self.image_key)
 
 
+class RenderMusic(BaseModel):
+    """A saved track mixed into a render (renders.music): looped to the clip's length, faded out at its end."""
+
+    track_id: int
+    volume: int = Field(100, ge=0, le=100)  # the song
+    clip_volume: int = Field(100, ge=0, le=100)  # the clip's own sound; 0 leaves the song alone
+    name: str | None = None  # the track's name when rendered (set by the api): the Reel's audio label on Instagram
+
+
 class RenderCreate(BaseModel):
     clip_id: int
     brand_id: int | None = None  # None: no logo
     overlay_config: OverlayConfig | None = None  # None: the brand's default
     crop_config: CropConfig | None = None  # None: fill + centre crop of the whole frame
+    filter: FilterName | None = None  # GET /api/filters; None: no filter
+    music: RenderMusic | None = None  # a saved track (GET /api/tracks); None: the clip's own sound
     caption: str | None = Field(None, max_length=2200)  # Instagram's caption limit; a render's caption is fixed
 
 
@@ -212,6 +226,8 @@ class RenderOut(BaseModel):
     brand_id: int | None
     overlay_config: OverlayConfig | None
     crop_config: CropConfig | None
+    filter: str | None
+    music: RenderMusic | None
     caption: str | None
     status: str
     error_code: str | None
@@ -239,6 +255,37 @@ class RenderOut(BaseModel):
 
 class RenderDetail(RenderOut):
     ffmpeg_log: str | None
+
+
+class FilterLayer(BaseModel):
+    mode: Literal[tuple(BLEND)]  # CSS mix-blend-mode
+    color: str  # CSS rgb()
+    opacity: float
+
+
+class FilterOut(BaseModel):  # an Instagram-style filter (services.render.FILTERS), as the Editor previews it
+    name: FilterName
+    layers: list[FilterLayer]  # solid colours blended over the frame, bottom first
+    css: str  # CSS filter functions, over the frame and its layers
+
+
+class TrackOut(BaseModel):  # Customizations: a song for the Editor to mix into renders
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_default: bool
+    created_at: datetime
+    audio_key: str = Field(exclude=True)
+
+    @computed_field
+    def audio_url(self) -> str:
+        return storage.url_for(self.audio_key)
+
+
+class TrackPatch(BaseModel):  # omit a field to leave it unchanged
+    name: str = Field(None, min_length=1, max_length=100)
+    is_default: bool = None
 
 
 class FreedSpace(BaseModel):  # POST /api/renders/free-published
@@ -310,12 +357,33 @@ class Remedy(BaseModel):
     label: str  # e.g. "Reconnect account", "Re-render and retry", "Retry now", "Moved to next free slot"
 
 
+class PostMusic(BaseModel):
+    """Instagram's catalog track a Reel goes out with (Zernio audioConfiguration); title and artist are for show."""
+
+    id: str = Field(pattern=r"^\d{1,30}$")  # Zernio's audioId (GET /api/accounts/{id}/music)
+    title: str | None = Field(None, max_length=300)
+    artist: str | None = Field(None, max_length=300)  # the artist, or the @creator of an original sound
+    volume: int = Field(100, ge=0, le=100)  # audioVolume: the track
+    video_volume: int = Field(100, ge=0, le=100)  # videoVolume: the clip's own sound; 0 mutes it
+
+
+class MusicOut(BaseModel):  # GET /api/accounts/{id}/music: one asset of Instagram's audio catalog
+    id: str
+    title: str | None
+    artist: str | None  # the artist, or the @creator of an original sound
+    kind: Literal["music", "original_sound"]
+    duration_s: float | None
+    preview_url: str | None  # Meta's, expires after about 1.5 days
+    artwork_url: str | None
+
+
 class PostOut(BaseModel):
     id: int
     render_id: int
     account_id: int
     account_username: str
     caption: str
+    music: PostMusic | None
     scheduled_for: datetime
     status: PostStatus
     error_code: str | None
@@ -336,12 +404,14 @@ class PostCreate(BaseModel):
     account_id: int
     scheduled_for: datetime  # must be tz-aware
     caption: str | None = Field(None, max_length=2200)  # None: the render's caption
+    music: PostMusic | None = None  # None: the clip's own sound
     repost: bool = False  # post it even if this video already went (or is queued) to the account: else 409 ALREADY_POSTED
 
 
 class PostPatch(BaseModel):  # DRAFT or SCHEDULED only; omit a field to leave it unchanged
     scheduled_for: datetime = None
     caption: str = Field(None, max_length=2200)
+    music: PostMusic | None = None  # null takes it off; not once a publish was attempted (409 MUSIC_LOCKED)
 
 
 class AutoScheduleIn(BaseModel):

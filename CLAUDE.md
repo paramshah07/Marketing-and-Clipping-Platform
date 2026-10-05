@@ -136,6 +136,11 @@ Geometry lives in `frontend/src/lib/geometry.ts` and must keep matching `backend
 (overlay = fractions of the 1080x1920 output, crop = fractions of the source, cover-fit). Change both or
 neither, and keep `geometry.test.ts` and `e2e/accept.mjs` passing.
 
+Filters (Instagram-style looks; Instagram's API applies none) live only in `FILTERS` in `render.py`: the Editor
+previews them by `GET /api/filters` (CSS `filter` over `mix-blend-mode` colour layers) and `filter_chain` replays that
+CSS maths in ffmpeg. A new recipe needs solid-colour layers in a `BLEND` mode and a Chrome-measured row in
+`test_render.py`'s `CHROME`.
+
 Procrastinate tasks live in `app/tasks/`; add each new task module to `import_paths` in
 `app/tasks/queue.py` (the workers only import that module, so a task defined elsewhere fails with
 TaskNotFound). Always pass an explicit `name=`. `probe_clip`, `download_clip` and `render` run on queue `media`
@@ -154,7 +159,10 @@ look offline for up to the render's length before Docker restarts it.
    track if the source has none), and `-movflags +faststart`.
 2. Publishing is: upload the render to Zernio (`POST /v1/media/presign`, PUT the bytes), persist
    `zernio_media_url` (the cover, if any, the same way as `zernio_cover_url`), then `POST /v1/posts`
-   with `publishNow: true` and an `Idempotency-Key` header, all with the post owner's Zernio key.
+   with `publishNow: true` and an `Idempotency-Key` header, all with the post owner's Zernio key. The post's Instagram
+   music (`posts.music`, Zernio `audioConfiguration`; off unless `INSTAGRAM_CATALOG_MUSIC`, because it needs accounts
+   connected with Facebook Login) goes with that first POST and is locked from then on. A render's song
+   (`renders.music`) is mixed into the MP4 and only named on Instagram (`audioName`).
 3. The `Idempotency-Key` is the post's `idempotency_key`, persisted before the first call. Every retry
    reuses the same key and the same media URL. Never re-POST without the key, and never re-POST more
    than 20 hours after the first attempt (Zernio's replay window is 24 h). Zernio replays a key per credential,
