@@ -241,6 +241,11 @@ class RenderDetail(RenderOut):
     ffmpeg_log: str | None
 
 
+class FreedSpace(BaseModel):  # POST /api/renders/free-published
+    renders: int  # renders whose MP4 was (dry_run: would be) deleted
+    bytes: int
+
+
 # --- Phase 4: accounts, posts, scheduling (contract shared by backend + frontend agents) ---
 
 PostStatus = Literal["DRAFT", "SCHEDULED", "PUBLISHING", "PUBLISHED", "FAILED", "DEAD_LETTER", "CANCELLED"]
@@ -331,6 +336,7 @@ class PostCreate(BaseModel):
     account_id: int
     scheduled_for: datetime  # must be tz-aware
     caption: str | None = Field(None, max_length=2200)  # None: the render's caption
+    repost: bool = False  # post it even if this video already went (or is queued) to the account: else 409 ALREADY_POSTED
 
 
 class PostPatch(BaseModel):  # DRAFT or SCHEDULED only; omit a field to leave it unchanged

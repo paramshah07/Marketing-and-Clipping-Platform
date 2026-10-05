@@ -4,7 +4,7 @@ import { HoverCard, Popover } from "radix-ui"
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router"
 
-import { approvePost, autoSchedule, createPost, type AccountOut, type AutoScheduleOut, type PostOut, type RenderOut } from "@/api"
+import { approvePost, autoSchedule, type AccountOut, type AutoScheduleOut, type PostOut, type RenderOut } from "@/api"
 import {
   getPostOptions,
   listAccountsOptions,
@@ -34,6 +34,7 @@ import {
   apiError,
   boardRows,
   boardSpot,
+  createPostAsking,
   dayLabel,
   dropTime,
   firstFree,
@@ -48,12 +49,11 @@ import {
   utcOffset,
   zonedToUtc,
 } from "@/lib/schedule"
-import { MAX_REEL_SECONDS, MIN_REEL_SECONDS, btn, clipName, cn, shortUrl } from "@/lib/utils"
+import { MAX_REEL_SECONDS, MIN_REEL_SECONDS, btn, clipName, cn, plural, shortUrl } from "@/lib/utils"
 
 // The slot board: one account at a time (its own zone), 7 days from ?week= (default: today there), one row per
 // posting slot. Free slots are drop targets; the queue on the right fills them (select + Auto-schedule, or drag).
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 const MIN = 60_000
 type Drag = { post: PostOut } | { render: RenderOut }
 type Notice = { ok: boolean; text: string }
@@ -279,7 +279,8 @@ export function Calendar() {
     setPending({ key: `${date}|${slot}`, r })
     try {
       const body = { render_id: r.id, account_id: acc.id, scheduled_for: zonedToUtc(date, slot, acc.timezone).toISOString() }
-      const { data: out } = await createPost({ body, throwOnError: true })
+      const out = await createPostAsking(body)
+      if (!out) return // the video is on the account already, and the answer was: don't post it again
       select([r.id], false)
       setNotice({ ok: true, text: `${out.status === "DRAFT" ? "Draft" : "Scheduled"} for ${shortWhen(out.scheduled_for, acc.timezone)} on @${acc.username}` })
     } catch (e) {

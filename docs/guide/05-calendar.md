@@ -62,7 +62,7 @@ Auto-schedule is the fast way to fill a week: pick renders and Clipper puts each
 3. Check the dashed **Fill** previews on the board. Each says **lands scheduled** or **lands as a draft**.
 4. Click **Auto-schedule**. A message confirms how many were placed.
 
-Anything that could not be placed stays selected, with its reason under the button: `no free slot within 30 days`, `account has no posting slots`, `render longer than 900 s` or `render shorter than 3 s`.
+Anything that could not be placed stays selected, with its reason under the button: `no free slot within 30 days`, `account has no posting slots`, `render longer than 900 s`, `render shorter than 3 s`, or `this video already went to @account on Fri 2 Oct (post 234)` (or `is already queued on…`). Auto-schedule never puts a video on an account twice: not another render of the same clip, and not another clip of the same link.
 
 > [!NOTE]
 > Auto-schedule only uses slots at least 10 minutes away and within the next 30 days. It respects the daily cap and the minimum gap. Brands with **Auto-approve** on land as **Scheduled**; everything else, including renders with no logo, lands as a **Draft**.
@@ -72,6 +72,8 @@ Anything that could not be placed stays selected, with its reason under the butt
 - **Click:** tick a render in the tray, then click a free slot. The slot's tooltip names the render it will place.
 - **Drag:** drag a render from the tray onto a free slot. The slot turns blue and says whether it lands scheduled or as a draft.
 - **From the Editor:** a ready render's **Schedule…** button picks an account, suggests the next free slot and lets you edit the caption. See the [Editor](03-editor.md).
+
+If that video already went to the account (or is queued there, as another render of the clip or another clip of the same link), placing it asks first: "This video already went to @account on Fri 2 Oct (post 234). Post it there again?". **Cancel** places nothing; **OK** posts it again. The Telegram bot asks the same way.
 
 ## Approve drafts
 

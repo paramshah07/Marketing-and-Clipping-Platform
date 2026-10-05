@@ -8,8 +8,10 @@ import struct
 import subprocess
 import sys
 import time
+import uuid
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -23,7 +25,7 @@ from app.api.pipeline import BULK_PRIORITY, png_alpha
 from app.core.config import settings
 from app.core.db import SyncSession, engine
 from app.main import SPA, app
-from app.models import Brand, Render, SavedCaption, SourceClip, User, cas
+from app.models import Account, Brand, Post, Render, SavedCaption, SourceClip, User, cas
 from app.services import links
 from app.tasks import media as media_tasks
 from app.tasks.media import download_clip, probe_clip, render
@@ -587,3 +589,85 @@ def test_download_checks_room_and_uses_cookies_for_user_1_only(client, db, data_
         failed = s.get(SourceClip, clip.id)
     assert (failed.status, failed.error_code, len(seen)) == ("FAILED", "QUOTA_EXCEEDED", 1)
     assert "storage is full" in failed.error_detail
+
+
+# ---------------------------------------------------------------- library cleanup and duplicates
+
+
+def owned(uid: int, data_dir: Path, clip_status: str = "READY", renders: tuple = ()) -> tuple[int, list[int]]:
+    """A clip of user uid's with renders, each (status, its post's status or None), and every file on disk."""
+    with SyncSession() as s:
+        acc = Account(user_id=uid, zernio_account_id=uuid.uuid4().hex, zernio_profile_id="p", username="u", timezone="UTC")
+        clip = SourceClip(user_id=uid, origin="upload", status=clip_status)
+        s.add_all([acc, clip])
+        s.flush()
+        clip.raw_key, clip.thumbnail_key = f"u/{uid}/raw/{clip.id}.mp4", f"u/{uid}/thumbs/clip-{clip.id}.jpg"
+        rs = [Render(user_id=uid, source_clip_id=clip.id, status=status) for status, _ in renders]
+        s.add_all(rs)
+        s.flush()
+        for r, (_, post) in zip(rs, renders, strict=True):
+            r.output_key, r.thumbnail_key = f"u/{uid}/renders/{r.id}.mp4", f"u/{uid}/thumbs/render-{r.id}.jpg"
+            if post:
+                s.add(Post(user_id=uid, render_id=r.id, account_id=acc.id, caption="", status=post,
+                           scheduled_for=datetime.now(UTC), idempotency_key=uuid.uuid4().hex))  # fmt: skip
+        s.commit()
+        keys = [clip.raw_key, clip.thumbnail_key, *(k for r in rs for k in (r.output_key, r.thumbnail_key))]
+    for key in keys:
+        (data_dir / key).parent.mkdir(parents=True, exist_ok=True)
+        (data_dir / key).write_bytes(b"x")
+    return clip.id, [r.id for r in rs]
+
+
+def test_delete_clip_with_its_renders(client, data_dir):
+    """renders=true takes the renders along, on delete_render's terms (their cancelled posts go too); a post that
+    isn't cancelled keeps the clip. Every file goes."""
+    uid = new_user()
+    me = as_user(uid)
+    cid, rids = owned(uid, data_dir, renders=(("READY", "CANCELLED"), ("FAILED", None)))
+    assert client.delete(f"/api/clips/{cid}", headers=me).json()["detail"]["code"] == "HAS_RENDERS"
+    assert client.delete(f"/api/clips/{cid}?renders=true", headers=me).status_code == 204
+    assert not [p for p in (data_dir / f"u/{uid}").rglob("*") if p.is_file()]
+    with SyncSession() as s:
+        assert s.get(SourceClip, cid) is None and not s.scalars(select(Render).where(Render.id.in_(rids))).all()
+    for renders, why in [((("READY", "PUBLISHED"),), "HAS_POSTS"), ((("READY", "SCHEDULED"),), "HAS_POSTS"),
+                         ((("RENDERING", None),), "RENDERING")]:  # fmt: skip
+        cid, _ = owned(uid, data_dir, renders=renders)
+        r = client.delete(f"/api/clips/{cid}?renders=true", headers=me)
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, why)
+        assert (data_dir / f"u/{uid}/raw/{cid}.mp4").exists()  # nothing went
+    cid, _ = owned(uid, data_dir, clip_status="DOWNLOADING")
+    assert client.delete(f"/api/clips/{cid}?renders=true", headers=me).json()["detail"]["code"] == "PROCESSING"
+
+
+def test_free_published_renders(client, data_dir):
+    """Only the MP4s of renders whose posts all went out: the rows, thumbnails and Published history stay, the
+    user's usage drops. dry_run only counts. (Posting such a render again: test_scheduling_api, FILE_DELETED.)"""
+    uid = new_user()
+    me = as_user(uid)
+    _, [gone] = owned(uid, data_dir, renders=(("READY", "PUBLISHED"),))
+    for post in ("SCHEDULED", "FAILED", "CANCELLED", None):  # not out yet, or never posted: kept
+        owned(uid, data_dir, renders=(("READY", post),))
+    with SyncSession() as s:
+        s.execute(update(Render).where(Render.user_id == uid).values(size_bytes=1000))
+        s.commit()
+    used = client.get("/api/me", headers=me).json()["storage"]["used_bytes"]
+    assert client.post("/api/renders/free-published?dry_run=true", headers=me).json() == {"renders": 1, "bytes": 1000}
+    assert (data_dir / f"u/{uid}/renders/{gone}.mp4").exists()
+    assert client.post("/api/renders/free-published", headers=me).json() == {"renders": 1, "bytes": 1000}
+    assert not (data_dir / f"u/{uid}/renders/{gone}.mp4").exists() and (data_dir / f"u/{uid}/thumbs/render-{gone}.jpg").exists()
+    r = client.get(f"/api/renders/{gone}", headers=me).json()
+    assert (r["status"], r["output_url"], r["size_bytes"]) == ("READY", None, None) and r["thumbnail_url"]
+    assert client.get("/api/me", headers=me).json()["storage"]["used_bytes"] == used - 1000
+    assert client.post("/api/renders/free-published", headers=me).json() == {"renders": 0, "bytes": 0}
+
+
+def test_from_url_refuses_a_video_already_in_the_library(client):
+    """However it is linked (tracking query, www or not), a video is one clip per user: 409 naming it."""
+    uid = new_user()
+    url = "https://www.tiktok.com/@x/video/7000000000000000077"
+    first = client.post("/api/clips/from-url", json={"url": url + "?_r=1&_t=a"}, headers=as_user(uid)).json()
+    r = client.post("/api/clips/from-url", json={"url": "https://tiktok.com/@x/video/7000000000000000077?_t=b"}, headers=as_user(uid))
+    assert (r.status_code, r.json()["detail"]) == (409, {
+        "code": "ALREADY_IN_LIBRARY", "clip_id": first["id"],
+        "message": "Already in your Library: tiktok.com/@x/video/7000000000000000077 (still importing)"})  # fmt: skip
+    assert client.post("/api/clips/from-url", json={"url": url}, headers=as_user(new_user())).status_code == 201  # theirs

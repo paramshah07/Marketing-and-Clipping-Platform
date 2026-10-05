@@ -1,9 +1,10 @@
-import { CalendarPlus, Check, ChevronDown, Clapperboard, PanelRightClose, PanelRightOpen } from "lucide-react"
+import { CalendarPlus, ChevronDown, Clapperboard, PanelRightClose, PanelRightOpen } from "lucide-react"
 import { useState, type DragEvent } from "react"
 import { Link } from "react-router"
 
 import type { RenderOut } from "@/api"
 import { sk } from "@/components/CalendarBits"
+import { Box } from "@/components/bits"
 import { MAX_REEL_SECONDS, btn, cn, mmss } from "@/lib/utils"
 
 export type Group = { clipId: number; items: RenderOut[] }
@@ -245,25 +246,5 @@ export function ScheduleTray(props: Props) {
         </div>
       )}
     </aside>
-  )
-}
-
-/** A real checkbox (tri-state via .indeterminate, which screen readers announce as mixed), drawn to match. */
-function Box({ state, label, onChange }: { state: boolean | "mixed"; label: string; onChange: () => void }) {
-  return (
-    <span className="relative grid size-3.5 shrink-0 place-items-center">
-      <input
-        type="checkbox"
-        aria-label={label}
-        checked={state === true}
-        ref={(el) => {
-          if (el) el.indeterminate = state === "mixed"
-        }}
-        onChange={onChange}
-        className="peer absolute inset-0 m-0 cursor-pointer appearance-none rounded-[3px] border border-subtle checked:border-fg checked:bg-fg indeterminate:border-fg indeterminate:bg-fg"
-      />
-      <Check className="pointer-events-none relative size-2.5 text-bg opacity-0 peer-checked:opacity-100" strokeWidth={3} />
-      <span className="pointer-events-none absolute h-[1.5px] w-[7px] rounded-full bg-bg opacity-0 peer-indeterminate:opacity-100" />
-    </span>
   )
 }

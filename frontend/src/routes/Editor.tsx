@@ -827,7 +827,14 @@ function RenderCard(props: { r: RenderOut; now: number; name: string; thumb: str
             </div>
           </>
         )}
-        {r.status === "READY" && (
+        {r.status === "READY" && !r.output_url && (
+          // Library > Published > Free up space deleted its MP4: it's on Instagram, and can't be posted again
+          <div className="flex items-center gap-2">
+            <Chip tone="neutral">MP4 deleted</Chip>
+            <span className="truncate text-sm tabular-nums text-muted">{mmss(r.duration_s)} · published, freed to save space</span>
+          </div>
+        )}
+        {r.status === "READY" && r.output_url && (
           <>
             <div className="flex items-center gap-2">
               <Chip tone="ok" dot>

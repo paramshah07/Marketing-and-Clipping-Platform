@@ -313,11 +313,11 @@ def rgba_png(w: int, hh: int) -> bytes:
 
 
 def seed(tmp_path, auto_approve=False, width=1920, height=1080) -> dict:
-    """A READY clip, a brand with a 400x160 logo, a READY render of them and a connected account (UTC,
-    09:00 / 13:00 / 19:00)."""
+    """A READY clip (a video of its own: one link is one video), a brand with a 400x160 logo, a READY render of them
+    and a connected account (UTC, 09:00 / 13:00 / 19:00)."""
     (tmp_path / "logos").mkdir(exist_ok=True)
     with SyncSession() as s:
-        clip = SourceClip(origin="url", status="READY", source_url="https://www.tiktok.com/@maya/video/7421983301",
+        clip = SourceClip(origin="url", status="READY", source_url=f"https://www.tiktok.com/@maya/video/{uuid.uuid4().int % 10**18}",
                           source_creator_handle="@maya", duration_s=20.0, width=width, height=height, fps=30.0, has_audio=True,
                           size_bytes=5_000_000, raw_key="raw/x.mp4")  # fmt: skip
         brand = Brand(name="Northwind", caption_template="Coffee at {link} · clip by {creator}", link="nw.coffee", auto_approve=auto_approve)
@@ -561,6 +561,41 @@ def test_schedule_and_posts(env, monkeypatch):
         with SyncSession() as s:
             p3 = s.scalars(select(Post).where(Post.render_id == other["render"], Post.status != "CANCELLED")).one()
         assert p3.status == "SCHEDULED" and ("post", p3.id) in bot.watches
+
+    run(scenario)
+
+
+def test_a_video_already_on_the_account_asks_first(env, monkeypatch):
+    """The api's ALREADY_POSTED is a question, as in the web app: the schedule form and a render card's Post now
+    ask, and post it again only when told to."""
+    ids = seed(env)
+
+    async def scenario(phone, tg, bot):
+        bot.last_account = ids["account"]
+        for _ in range(2):  # the same render onto the same account twice: the second time asks first
+            await phone.say(f"/r{ids['render']}")
+            await phone.tap("Schedule…")
+            form = max(tg.messages)
+            toast = await phone.tap("Schedule for", form)
+        assert toast is None and "is already queued on @acct" in phone.text(form) and "Schedule it again?" in phone.text(form)
+        assert await phone.tap("Schedule it again", form) == "Saved as a draft"
+        monkeypatch.setattr(settings, "PUBLISHING_ENABLED", True)
+        zernio_key(1, "sk_test_never_sent")
+
+        async def no_quota(key, zernio_account_id):
+            return None
+
+        monkeypatch.setattr(zernio, "publishing_limit", no_quota)
+        monkeypatch.setattr(zernio, "client", lambda key, **kw: pytest.fail("Zernio called"))
+        await phone.say(f"/r{ids['render']}")
+        card = max(tg.messages)
+        await phone.tap("Post now", card)
+        toast = await phone.press(f"rn!:{ids['render']}:{ids['account']}", card)
+        assert toast.startswith("This video is already queued on @acct") and toast.endswith("Post it again?")
+        assert await phone.tap("Post it again now", card) == "Posting now"
+        with SyncSession() as s:
+            assert len(s.scalars(select(Post).where(Post.render_id == ids["render"], Post.status != "CANCELLED")).all()) == 3
+        zernio_key(1, None)
 
     run(scenario)
 

@@ -1,7 +1,10 @@
 """Accounts, posts and scheduling (Phase 4). The remedy route lives in app/api/recovery.py (Phase 5).
 
 Errors use HTTPException(detail={"code": ..., "message": ...}), e.g. 409 {"code": "STATE_CONFLICT"}, 422
-{"code": "RENDER_NOT_READY" | "TOO_LONG" | "ACCOUNT_UNAVAILABLE" | "TOO_SOON"}. Anything that picks or moves
+{"code": "RENDER_NOT_READY" | "FILE_DELETED" | "TOO_LONG" | "ACCOUNT_UNAVAILABLE" | "TOO_SOON"}. A video never
+goes to one account twice unasked: a new post of a clip (or of another clip of its link) on an account that already
+has one, a draft up to published, is 409 ALREADY_POSTED unless the request says repost, and auto-schedule leaves it
+unplaced. Anything that picks or moves
 a post's time holds the account's row lock (_lock_account) until commit, so parallel requests can't
 double-book a slot or exceed the cap. Manual placement (create, PATCH time) is refused only on an
 exact-instant collision (409 SLOT_TAKEN); the daily cap and min gap bind automatic placement, and the
@@ -36,7 +39,7 @@ from app.schemas import (
     PostStatus,
     Unplaced,
 )
-from app.services import slots, zernio
+from app.services import links, slots, zernio
 from app.services.errors import describe
 from app.services.storage import url_for
 from app.tasks import accounts as account_sync
@@ -254,11 +257,41 @@ def _unfit(r: Render) -> tuple[str, str] | None:
     """(code, reason) when a render can't be posted."""
     if r.status != "READY":
         return "RENDER_NOT_READY", f"render is {r.status.lower()}, not ready"
+    if r.output_key is None:  # POST /api/renders/free-published deleted it
+        return "FILE_DELETED", "its MP4 was deleted to free space: render the clip again to post it"
     if r.duration_s is not None and r.duration_s > settings.ZERNIO_MAX_REEL_SECONDS:
         return "TOO_LONG", f"render longer than {settings.ZERNIO_MAX_REEL_SECONDS} s"
     if r.duration_s is not None and r.duration_s < settings.ZERNIO_MIN_REEL_SECONDS:
         return "TOO_SHORT", f"render shorter than {settings.ZERNIO_MIN_REEL_SECONDS} s"
     return None
+
+
+QUEUED_OR_LIVE = ("DRAFT", "SCHEDULED", "PUBLISHING", "PUBLISHED")  # a post that went, or is to go, out
+
+
+async def _videos(s: AsyncSession) -> dict[int, str]:
+    """Clip id -> links.key of its link, for the user's link clips: two clips with one key are one video."""
+    rows = await s.execute(select(SourceClip.id, SourceClip.source_url).where(SourceClip.source_url.is_not(None)))
+    return {clip_id: links.key(url) for clip_id, url in rows}
+
+
+async def _twice(s: AsyncSession, videos: dict[int, str], r: Render, acc: Account) -> str | None:
+    """Why posting r on acc would post one video twice: acc has a post (a draft up to published) of r's clip, or of
+    another clip of the same link. None when it has none. Under the account lock, so a batch sees its own posts."""
+    key = videos.get(r.source_clip_id)
+    clips = {r.source_clip_id} | {c for c, k in videos.items() if key and k == key}
+    p = await s.scalar(
+        select(Post).join(Render, Render.id == Post.render_id)
+        .where(Post.account_id == acc.id, Post.status.in_(QUEUED_OR_LIVE), Render.source_clip_id.in_(clips))
+        .order_by(slots.post_time().desc()).limit(1)
+    )  # fmt: skip
+    if p is None:
+        return None
+    at = (p.published_at or p.scheduled_for).astimezone(ZoneInfo(acc.timezone))
+    when = f"{at:%a} {at.day} {at:%b}"
+    if p.status == "PUBLISHED":
+        return f"this video already went to @{acc.username} on {when} (post {p.id})"
+    return f"this video is already queued on @{acc.username} for {when} (post {p.id})"
 
 
 async def _new_post(
@@ -337,6 +370,9 @@ async def create_post(body: PostCreate, s: Db, response: Response) -> PostOut:
     if at < _now() + MIN_LEAD:
         raise _err(422, "TOO_SOON", "that time has passed: pick now or later")
     await _slot_taken(s, acc.id, at)
+    # last, so a "post it again?" is only asked when nothing else stands in the way
+    if not body.repost and (twice := await _twice(s, await _videos(s), r, acc)):
+        raise _err(409, "ALREADY_POSTED", f"{twice[0].upper()}{twice[1:]}.")
     post = await _new_post(s, r, auto_approve, acc.id, at, body.caption)
     s.add(post)
     await s.commit()
@@ -349,7 +385,7 @@ async def auto_schedule(body: AutoScheduleIn, s: Db) -> AutoScheduleOut:
     acc = await _lock_account(s, body.account_id)
     _usable(acc)
     rows = {row[0].id: row for row in (await s.execute(_RENDER_ROW.where(Render.id.in_(body.render_ids)))).all()}
-    after, placed, unplaced = _now() + AUTO_LEAD, [], []
+    after, placed, unplaced, videos = _now() + AUTO_LEAD, [], [], await _videos(s)
     for rid in dict.fromkeys(body.render_ids):  # a repeated id is placed once
         if rid not in rows:
             unplaced.append(Unplaced(render_id=rid, reason="render not found"))
@@ -357,6 +393,9 @@ async def auto_schedule(body: AutoScheduleIn, s: Db) -> AutoScheduleOut:
         r, auto_approve = rows[rid]
         if bad := _unfit(r):
             unplaced.append(Unplaced(render_id=rid, reason=bad[1]))
+            continue
+        if twice := await _twice(s, videos, r, acc):  # never posts a video twice; placing it by hand asks first
+            unplaced.append(Unplaced(render_id=rid, reason=twice))
             continue
         if (at := await slots.next_free_slot(s, acc, after)) is None:
             none = not (acc.posting_slots or {}).get("times")

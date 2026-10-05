@@ -672,6 +672,20 @@ export type FoundLink = {
 };
 
 /**
+ * FreedSpace
+ */
+export type FreedSpace = {
+    /**
+     * Renders
+     */
+    renders: number;
+    /**
+     * Bytes
+     */
+    bytes: number;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -833,6 +847,10 @@ export type PostCreate = {
      * Caption
      */
     caption?: string | null;
+    /**
+     * Repost
+     */
+    repost?: boolean;
 };
 
 /**
@@ -2078,7 +2096,12 @@ export type DeleteClipData = {
          */
         clip_id: number;
     };
-    query?: never;
+    query?: {
+        /**
+         * Renders
+         */
+        renders?: boolean;
+    };
     url: '/api/clips/{clip_id}';
 };
 
@@ -2461,6 +2484,36 @@ export type RetryRenderResponses = {
 };
 
 export type RetryRenderResponse = RetryRenderResponses[keyof RetryRenderResponses];
+
+export type FreePublishedRendersData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Dry Run
+         */
+        dry_run?: boolean;
+    };
+    url: '/api/renders/free-published';
+};
+
+export type FreePublishedRendersErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type FreePublishedRendersError = FreePublishedRendersErrors[keyof FreePublishedRendersErrors];
+
+export type FreePublishedRendersResponses = {
+    /**
+     * Successful Response
+     */
+    200: FreedSpace;
+};
+
+export type FreePublishedRendersResponse = FreePublishedRendersResponses[keyof FreePublishedRendersResponses];
 
 export type DeleteRenderCoverData = {
     body?: never;

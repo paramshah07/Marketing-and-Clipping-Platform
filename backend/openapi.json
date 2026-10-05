@@ -513,6 +513,7 @@
     "/api/clips/from-url": {
       "post": {
         "summary": "Create Clip From Url",
+        "description": "409 {\"code\": \"ALREADY_IN_LIBRARY\", \"clip_id\"} for a video the library has (Import links skips those too).",
         "operationId": "create_clip_from_url",
         "requestBody": {
           "content": {
@@ -713,7 +714,7 @@
       },
       "delete": {
         "summary": "Delete Clip",
-        "description": "Only READY/FAILED clips with no renders (delete the renders first). Files go too.",
+        "description": "Only READY/FAILED clips. Its renders go too with renders=true (else it must have none), on DELETE\n/api/renders/{id}'s terms: none RENDERING and no post but CANCELLED ones, which go with them. A post that went\nout (or may) keeps its clip, as the history the duplicate checks read. 409 {\"code\": \"PROCESSING\" | \"HAS_RENDERS\"\n| \"RENDERING\" | \"HAS_POSTS\"} otherwise. Files go after the commit. FOR UPDATE: no render or post joins mid-way.",
         "operationId": "delete_clip",
         "parameters": [
           {
@@ -723,6 +724,16 @@
             "schema": {
               "type": "integer",
               "title": "Clip Id"
+            }
+          },
+          {
+            "name": "renders",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Renders"
             }
           }
         ],
@@ -1167,6 +1178,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RenderOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/renders/free-published": {
+      "post": {
+        "summary": "Free Published Renders",
+        "description": "Delete the MP4s of renders whose posts have all gone out (one PUBLISHED at least, any others CANCELLED): they\nare on Instagram. The rows, thumbnails and covers stay, so Published keeps them; such a render can't be posted\nagain (scheduling says so), a new render of its clip can. dry_run: only count.",
+        "operationId": "free_published_renders",
+        "parameters": [
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreedSpace"
                 }
               }
             }
@@ -3351,6 +3403,24 @@
         ],
         "title": "FoundLink"
       },
+      "FreedSpace": {
+        "properties": {
+          "renders": {
+            "type": "integer",
+            "title": "Renders"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "renders",
+          "bytes"
+        ],
+        "title": "FreedSpace"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3604,6 +3674,11 @@
               }
             ],
             "title": "Caption"
+          },
+          "repost": {
+            "type": "boolean",
+            "title": "Repost",
+            "default": false
           }
         },
         "type": "object",

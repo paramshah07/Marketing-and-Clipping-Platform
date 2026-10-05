@@ -52,7 +52,7 @@ Use this for a list of videos: a Word document, a spreadsheet, a chat export, or
 Only links to a single video on YouTube, Instagram, TikTok, X or Facebook count. A hyperlink counts even when its text shows something else.
 
 > [!TIP]
-> The URL field in the drop zone does not check for repeats: importing the same link twice gives you two clips. **Import links** skips videos you already have, so use it when you are not sure.
+> Neither way imports a video twice. The URL field in the drop zone says **Already in your Library** and names the clip (another tracking query, or `youtu.be` against `youtube.com`, is still the same video); **Import links** skips videos you already have.
 
 ## Clip statuses
 
@@ -87,8 +87,9 @@ A file that can't be uploaded stops in its row before it reaches the server: "No
 ## Find and remove clips
 
 - Type in the search box (or press `/`) to filter by file name, creator handle or URL.
-- Hover a **Ready** row and click the bin icon to remove the clip and its file. A clip with renders can't be removed: delete its renders in the Editor first (the bin icon is greyed out until then).
-- A clip that is still uploading, downloading or probing can't be removed.
+- Hover a **Ready** row and click the bin icon to remove the clip, its renders and all their files.
+- To clean up many at once, tick their boxes (the box in the header ticks every clip the search shows) and click **Delete _n_** in the bar that replaces the drop zone. It asks first, with how many clips and renders go.
+- A clip stays if one of its renders has a post that isn't cancelled: a published Reel keeps its clip for good (it is the history Clipper checks to never post a video twice), and a draft, scheduled or failed post keeps it until you cancel or dismiss that post. A clip that is still uploading, downloading or probing, or has a render still rendering, stays too. After a bulk delete, the clips that stayed remain ticked, and a note says why.
 
 ## Published
 
@@ -105,6 +106,10 @@ The **Published** tab lists the Reels that went out, newest first. It shows the 
 | 5 | **Re-render for…** a brand: same clip and crop, that brand's default logo and caption. Opens the Editor. |
 
 On this tab the search box looks through captions and clip names.
+
+### Free up space
+
+**Free up space**, at the right of the filters, deletes the MP4s of renders that are on Instagram already: every post of theirs went out. It says how many and how much first. Their rows, thumbnails, captions and Instagram links stay, so this tab doesn't change, and **Re-render for…** still works (it renders the clip again). Such a render can't be posted again: in the Editor its card says **MP4 deleted**. Your storage in [Settings](09-settings.md) goes down by that much.
 
 ### Re-render a published clip for another brand
 
