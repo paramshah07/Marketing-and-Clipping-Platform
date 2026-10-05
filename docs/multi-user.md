@@ -266,7 +266,7 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 | Service | Queue | Runs | Concurrency |
 |---|---|---|---|
 | `worker` | `media` | `probe_clip`, `download_clip`, `render` (ffmpeg, yt-dlp) | 2 jobs, `FFMPEG_THREADS=2` each |
-| `publisher` | `default` | `dispatch`, `publish_post`, `sync_accounts`, `retry_stalled_jobs`, alerts | 8 jobs (async, network-bound) |
+| `publisher` | `default` | `dispatch`, `publish_post`, `sync_accounts`, `digest`, `retry_stalled_jobs`, alerts | 8 jobs (async, network-bound) |
 
 - **One media job per user at a time**: every media job gets the lock `media:u{uid}`, so the worker's second slot
   goes to another user. A lone user's render still gets both cores (2 ffmpeg threads), but waits behind their own

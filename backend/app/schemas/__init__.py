@@ -491,7 +491,7 @@ class BotOut(BaseModel):
     id: int
     username: str | None  # @name, from getMe
     chat_title: str | None  # the paired chat
-    alerts: bool  # it sends your failure alerts
+    alerts: bool  # it sends your alerts: failures, posts going out, the evening digest
     # running: seen in the last 90 s; waiting: for /start <code>; rejected: Telegram refused the token
     health: Literal["running", "waiting", "rejected", "not_responding"]
     pairing: bool  # a pairing code is out (new bot or Re-pair): false again once a chat used it

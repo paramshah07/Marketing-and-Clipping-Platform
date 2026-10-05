@@ -177,6 +177,9 @@ def test_notify_sends_and_never_raises(bots, monkeypatch):
     assert json.loads(sent[2].content)["reply_markup"] == {
         "inline_keyboard": [[{"text": "Reconnect", "url": "https://zernio.com"}, {"text": "Sync", "callback_data": "sync"}]]
     }
+    # silent: routine news (a post went out) shows without a sound
+    assert send(1, "live", None, None, True) is True
+    assert json.loads(sent[3].content) == {"chat_id": 42, "text": "live", "parse_mode": "HTML", "disable_notification": True}
 
     def down(request):
         raise httpx.ConnectError("network down")

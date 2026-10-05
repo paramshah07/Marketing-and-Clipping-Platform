@@ -216,8 +216,13 @@ async def _resolve(s: AsyncSession, post: Post, zpost: dict) -> None:
     p = publisher.instagram(zpost)
     ids = {"zernio_post_id": zpost.get("_id") or post.zernio_post_id}
     if code == "PUBLISHED":
-        await mark_published(s, post, zpost, ["PUBLISHING"])
+        live = await mark_published(s, post, zpost, ["PUBLISHING"])
         await s.commit()
+        if live:  # the quiet "it went out", with the Reel and the bot's post card
+            account, link = await s.get(Account, post.account_id), p.get("platformPostUrl") or ""
+            row = [("View on Instagram", link)] if link.startswith("https://") else []
+            await notify(post.user_id, f"<b>@{html.escape(account.username)}</b> post {post.id} is live on Instagram.",
+                         buttons=[row + [("Open post", f"p:{post.id}")]], silent=True)  # fmt: skip
     elif code == "PROCESSING":  # 207 scheduled: Zernio retries by itself; poll it
         await _set(s, post.id, ["PUBLISHING"], **ids)
         await s.commit()
