@@ -159,7 +159,8 @@ look offline for up to the render's length before Docker restarts it.
    track if the source has none), and `-movflags +faststart`.
 2. Publishing is: upload the render to Zernio (`POST /v1/media/presign`, PUT the bytes), persist
    `zernio_media_url` (the cover, if any, the same way as `zernio_cover_url`), then `POST /v1/posts`
-   with `publishNow: true` and an `Idempotency-Key` header, all with the post owner's Zernio key.
+   with `publishNow: true` and an `Idempotency-Key` header, all with the post owner's Zernio key. The post's Instagram
+   music (`posts.music`, Zernio `audioConfiguration`) goes with that first POST and is locked from then on.
 3. The `Idempotency-Key` is the post's `idempotency_key`, persisted before the first call. Every retry
    reuses the same key and the same media URL. Never re-POST without the key, and never re-POST more
    than 20 hours after the first attempt (Zernio's replay window is 24 h). Zernio replays a key per credential,

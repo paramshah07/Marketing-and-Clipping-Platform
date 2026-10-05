@@ -14,7 +14,7 @@ calendar warns about them for manual moves.
 import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -30,6 +30,7 @@ from app.schemas import (
     AccountPatch,
     AutoScheduleIn,
     AutoScheduleOut,
+    MusicOut,
     NextSlot,
     Placed,
     PostCreate,
@@ -122,7 +123,7 @@ def _post_out(row) -> PostOut:
     cause, remedy = describe(p.error_code)
     return PostOut(
         id=p.id, render_id=p.render_id, account_id=p.account_id, account_username=username, caption=p.caption,
-        scheduled_for=p.scheduled_for, status=p.status, error_code=p.error_code, error_detail=p.error_detail,
+        music=p.music, scheduled_for=p.scheduled_for, status=p.status, error_code=p.error_code, error_detail=p.error_detail,
         cause=cause, remedy=remedy, attempt_count=p.attempt_count, zernio_post_id=p.zernio_post_id, permalink=p.permalink,
         published_at=p.published_at, created_at=p.created_at, updated_at=p.updated_at,
         render=PostRender(
@@ -247,6 +248,45 @@ async def next_slot(account_id: int, s: Db) -> NextSlot:
     return NextSlot(scheduled_for=await slots.next_free_slot(s, acc, _now() + AUTO_LEAD))
 
 
+@router.get("/accounts/{account_id}/music")
+async def search_music(
+    account_id: int,
+    s: Db,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    kind: Literal["music", "original_sound"] = "music",
+) -> list[MusicOut]:
+    """Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,
+    the trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login."""
+    if (acc := await s.get(Account, account_id)) is None:
+        raise _err(404, "NOT_FOUND", f"account {account_id} not found")
+    if (key := await zernio_key(s)) is None:
+        raise _err(409, "ZERNIO_KEY_MISSING", "add your Zernio API key in Settings first")
+    try:
+        assets = await zernio.search_audio(key, acc.zernio_account_id, kind, q.strip() if q else None)
+    except zernio.ZernioError as e:
+        if e.status == 401:
+            await publish.key_refused(s, s.info["uid"], publish.refusal("ZERNIO_KEY_INVALID"))
+            raise _err(409, "ZERNIO_KEY_INVALID", "Zernio refused your key: update it in Settings") from e
+        if e.code == "instagram_audio_requires_facebook_login":
+            raise _err(409, "MUSIC_NEEDS_FACEBOOK_LOGIN", f"@{acc.username} is connected to Zernio with Instagram "
+                       "Login, and Instagram's music needs Facebook Login: reconnect it in Zernio choosing Facebook, "
+                       "then Sync on Accounts") from e  # fmt: skip
+        if e.status in (404, 409):  # account_not_found, ads_connection_required: gone or needs reconnecting
+            raise _err(409, "ACCOUNT_UNAVAILABLE", f"Zernio can't reach @{acc.username}: reconnect it in Zernio, "
+                       "then Sync on Accounts") from e  # fmt: skip
+        raise _err(502, "ZERNIO_ERROR", str(e)) from e
+    return [
+        MusicOut(
+            id=a["audioId"], title=a.get("title"), kind=a.get("audioType") or kind,
+            artist=a.get("displayArtist") or (a.get("igUsername") and f"@{a['igUsername']}"),
+            duration_s=a["durationInMs"] / 1000 if a.get("durationInMs") else None,
+            preview_url=a.get("downloadUrl"), artwork_url=a.get("coverArtworkThumbnailUrl") or a.get("profilePictureUrl"),
+        )  # fmt: skip
+        for a in assets
+        if a.get("audioId")
+    ]
+
+
 # ---------------------------------------------------------------- posts
 
 _RENDER_ROW = select(Render, func.coalesce(Brand.auto_approve, False)).outerjoin(Brand, Brand.id == Render.brand_id)
@@ -295,12 +335,14 @@ async def _twice(s: AsyncSession, videos: dict[int, str], r: Render, acc: Accoun
 
 
 async def _new_post(
-    s: AsyncSession, r: Render, auto_approve: bool, account_id: int, at: datetime, caption: str | None
+    s: AsyncSession, r: Render, auto_approve: bool, account_id: int, at: datetime, caption: str | None,
+    music: dict | None = None,
 ) -> Post:
     return Post(
         render_id=r.id,
         account_id=account_id,
         caption=caption if caption is not None else (r.caption or ""),
+        music=music,
         scheduled_for=at,
         status="SCHEDULED" if auto_approve else "DRAFT",
         idempotency_key=await _free_key(s, r.id, account_id, at),  # set once, never recomputed
@@ -373,7 +415,7 @@ async def create_post(body: PostCreate, s: Db, response: Response) -> PostOut:
     # last, so a "post it again?" is only asked when nothing else stands in the way
     if not body.repost and (twice := await _twice(s, await _videos(s), r, acc)):
         raise _err(409, "ALREADY_POSTED", f"{twice[0].upper()}{twice[1:]}.")
-    post = await _new_post(s, r, auto_approve, acc.id, at, body.caption)
+    post = await _new_post(s, r, auto_approve, acc.id, at, body.caption, body.music and body.music.model_dump())
     s.add(post)
     await s.commit()
     return await load_post_out(s, post.id)
@@ -416,6 +458,10 @@ async def update_post(post_id: int, body: PostPatch, s: Db) -> PostOut:
     post, values = await _post(s, post_id), {}
     if body.caption is not None:
         values["caption"] = body.caption
+    if "music" in body.model_fields_set:
+        if post.first_post_at is not None:  # Zernio has (or may have) the post with its first body, track included
+            raise _err(409, "MUSIC_LOCKED", "the music can't change once publishing was attempted")
+        values["music"] = body.music and body.music.model_dump()
     if body.scheduled_for is not None:
         at = _aware(body.scheduled_for)
         if at < _now() + MIN_LEAD:

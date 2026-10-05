@@ -269,6 +269,7 @@ class Post(Owned, Base):
     render_id: Mapped[int]
     account_id: Mapped[int]
     caption: Mapped[str]
+    music: Mapped[dict[str, Any] | None]  # Instagram's catalog track (schemas.PostMusic); null = the clip's own sound
     scheduled_for: Mapped[datetime]
     status: Mapped[str] = mapped_column(server_default="DRAFT")
     # sha256(render_id, account_id, scheduled_for), set once at creation, sent as Zernio's Idempotency-Key

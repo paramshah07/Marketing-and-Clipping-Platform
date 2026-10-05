@@ -327,12 +327,33 @@ class Remedy(BaseModel):
     label: str  # e.g. "Reconnect account", "Re-render and retry", "Retry now", "Moved to next free slot"
 
 
+class PostMusic(BaseModel):
+    """Instagram's catalog track a Reel goes out with (Zernio audioConfiguration); title and artist are for show."""
+
+    id: str = Field(pattern=r"^\d{1,30}$")  # Zernio's audioId (GET /api/accounts/{id}/music)
+    title: str | None = Field(None, max_length=300)
+    artist: str | None = Field(None, max_length=300)  # the artist, or the @creator of an original sound
+    volume: int = Field(100, ge=0, le=100)  # audioVolume: the track
+    video_volume: int = Field(100, ge=0, le=100)  # videoVolume: the clip's own sound; 0 mutes it
+
+
+class MusicOut(BaseModel):  # GET /api/accounts/{id}/music: one asset of Instagram's audio catalog
+    id: str
+    title: str | None
+    artist: str | None  # the artist, or the @creator of an original sound
+    kind: Literal["music", "original_sound"]
+    duration_s: float | None
+    preview_url: str | None  # Meta's, expires after about 1.5 days
+    artwork_url: str | None
+
+
 class PostOut(BaseModel):
     id: int
     render_id: int
     account_id: int
     account_username: str
     caption: str
+    music: PostMusic | None
     scheduled_for: datetime
     status: PostStatus
     error_code: str | None
@@ -353,12 +374,14 @@ class PostCreate(BaseModel):
     account_id: int
     scheduled_for: datetime  # must be tz-aware
     caption: str | None = Field(None, max_length=2200)  # None: the render's caption
+    music: PostMusic | None = None  # None: the clip's own sound
     repost: bool = False  # post it even if this video already went (or is queued) to the account: else 409 ALREADY_POSTED
 
 
 class PostPatch(BaseModel):  # DRAFT or SCHEDULED only; omit a field to leave it unchanged
     scheduled_for: datetime = None
     caption: str = Field(None, max_length=2200)
+    music: PostMusic | None = None  # null takes it off; not once a publish was attempted (409 MUSIC_LOCKED)
 
 
 class AutoScheduleIn(BaseModel):

@@ -79,6 +79,8 @@ async def _call(c: httpx.AsyncClient, method: str, url: str, **kw) -> dict:
         raise Rejected("ZERNIO_PAYMENT_REQUIRED" if r.status_code == 402 else "ZERNIO_KEY_INVALID", r.status_code, body)
     if r.status_code == 403 and body.get("code") in ("ACCOUNT_DISCONNECTED", "PROFILE_OVER_LIMIT"):
         raise Rejected(body["code"], 403, body)
+    if r.status_code == 400 and body.get("code") == "instagram_audio_requires_facebook_login":
+        raise Rejected("MUSIC_NEEDS_FACEBOOK_LOGIN", 400, body)
     if r.status_code >= 400:
         raise Rejected("UNKNOWN", r.status_code, body)
     return body
@@ -111,11 +113,17 @@ async def upload(c: httpx.AsyncClient, path: Path, content_type: str = "video/mp
 
 
 async def create_post(
-    c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str, cover_url: str | None = None
+    c: httpx.AsyncClient, key: str, caption: str, media_url: str, zernio_account_id: str, cover_url: str | None = None,
+    music: dict | None = None,
 ) -> dict:
     """POST /v1/posts with publishNow and the post's Idempotency-Key. A 409 duplicate resolves to the
-    existing post (GET details.existingPostId). cover_url: the Reel cover (instagramThumbnail), sent only when set."""
+    existing post (GET details.existingPostId). cover_url: the Reel cover (instagramThumbnail), sent only when set.
+    music: posts.music, Instagram's catalog track (audioConfiguration), sent only when set."""
     ig = {"shareToFeed": True} | ({"instagramThumbnail": cover_url} if cover_url else {})
+    if music:
+        ig["audioConfiguration"] = {
+            "audioId": music["id"], "audioVolume": music["volume"], "videoVolume": music["video_volume"]
+        }
     body = {
         "content": caption,
         "mediaItems": [{"type": "video", "url": media_url}],

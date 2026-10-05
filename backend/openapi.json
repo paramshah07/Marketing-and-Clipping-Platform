@@ -1758,6 +1758,81 @@
         }
       }
     },
+    "/api/accounts/{account_id}/music": {
+      "get": {
+        "summary": "Search Music",
+        "description": "Instagram's audio catalog through this account (Zernio instagram/search-instagram-audio): up to ~30 assets,\nthe trending ones without q. 409 MUSIC_NEEDS_FACEBOOK_LOGIN when the account is connected with Instagram Login.",
+        "operationId": "search_music",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Account Id"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "music",
+                "original_sound"
+              ],
+              "type": "string",
+              "default": "music",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MusicOut"
+                  },
+                  "title": "Response Search Music"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/posts": {
       "get": {
         "summary": "List Posts",
@@ -3653,6 +3728,88 @@
         ],
         "title": "Me"
       },
+      "MusicOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "music",
+              "original_sound"
+            ],
+            "title": "Kind"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          },
+          "artwork_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artwork Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "artist",
+          "kind",
+          "duration_s",
+          "preview_url",
+          "artwork_url"
+        ],
+        "title": "MusicOut"
+      },
       "NextSlot": {
         "properties": {
           "scheduled_for": {
@@ -3773,6 +3930,16 @@
             ],
             "title": "Caption"
           },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "repost": {
             "type": "boolean",
             "title": "Repost",
@@ -3786,6 +3953,59 @@
           "scheduled_for"
         ],
         "title": "PostCreate"
+      },
+      "PostMusic": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^\\d{1,30}$",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "volume": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Volume",
+            "default": 100
+          },
+          "video_volume": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Video Volume",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "PostMusic",
+        "description": "Instagram's catalog track a Reel goes out with (Zernio audioConfiguration); title and artist are for show."
       },
       "PostOut": {
         "properties": {
@@ -3808,6 +4028,16 @@
           "caption": {
             "type": "string",
             "title": "Caption"
+          },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scheduled_for": {
             "type": "string",
@@ -3930,6 +4160,7 @@
           "account_id",
           "account_username",
           "caption",
+          "music",
           "scheduled_for",
           "status",
           "error_code",
@@ -3957,6 +4188,16 @@
             "type": "string",
             "maxLength": 2200,
             "title": "Caption"
+          },
+          "music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostMusic"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

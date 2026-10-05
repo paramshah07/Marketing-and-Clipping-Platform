@@ -112,6 +112,7 @@ Each failure has at most one remedy, and the button's label tells you which.
 | `ZERNIO_PAYMENT_REQUIRED` | Zernio payment failed | Zernio reports a failed payment on your Zernio account. Your publishing is paused. | Fix billing in Zernio, **Re-check** in **Settings**, then **Retry now** |
 | `ZERNIO_KEY_MISSING` | No Zernio key | There was no working key when the post was due. | Add your key in **Settings**, then **Retry now** |
 | `PROFILE_OVER_LIMIT` | Beyond your Zernio plan's limit | The Instagram account is beyond your Zernio plan's account limit. | Upgrade the plan (or remove an account) in Zernio, then **Retry now** |
+| `MUSIC_NEEDS_FACEBOOK_LOGIN` | Music needs Facebook Login | The post has Instagram music, and its account is connected to Zernio with Instagram Login. Nothing was posted. | Reconnect the account in Zernio choosing Facebook, then **Retry now**; or cancel it and schedule it again without music |
 | `UNKNOWN` | Zernio reported a failure | A failure Clipper could not classify. **Technical details** has the message. | **Retry now** |
 | `TOO_LONG` | Video too long for a Reel | The render is longer than 15 minutes. | None: dismiss it |
 | `RATE_LIMITED` | Instagram rate limit reached | Instagram's rate limit or the account's Meta quota was reached. The post moved to the next free slot. | Automatic |

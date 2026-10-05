@@ -1,0 +1,9 @@
+{
+  "status": 400,
+  "headers": {
+    "Retry-After": null
+  },
+  "body": {
+    "code": "instagram_audio_requires_facebook_login"
+  }
+}
