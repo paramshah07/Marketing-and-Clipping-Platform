@@ -3,7 +3,7 @@ import { Popover } from "radix-ui"
 import { useState, type ReactNode } from "react"
 import { Link } from "react-router"
 
-import type { PostOut, RenderOut } from "@/api"
+import type { PostMusic, PostOut, RenderOut } from "@/api"
 import {
   approvePostMutation,
   listAccountsOptions,
@@ -14,6 +14,7 @@ import {
   nextSlotQueryKey,
   statusOptions,
 } from "@/api/@tanstack/react-query.gen"
+import { MusicPicker } from "@/components/MusicPicker"
 import { apiError, createPostAsking, localParts, nowIso, postNowConfirm, shortWhen, utcOffset, zonedToUtc } from "@/lib/schedule"
 import { CAPTION_MAX, MAX_REEL_SECONDS, PUBLISHING_OFF, btn, cn, field, label } from "@/lib/utils"
 
@@ -42,6 +43,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
   const [when, setWhen] = useState<{ date: string; time: string } | null>(null) // null: follow the suggestion
   const { date, time } = when ?? suggested
   const [caption, setCaption] = useState(r.caption ?? "")
+  const [music, setMusic] = useState<PostMusic | null>(null)
   const [error, setError] = useState("")
   const [done, setDone] = useState<PostOut | null>(null)
   const [now, setNow] = useState(false) // done came from Post now
@@ -56,7 +58,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
     setError("")
     try {
       const scheduled_for = now ? nowIso() : zonedToUtc(date, time, a.timezone).toISOString()
-      let post = await create.mutateAsync({ render_id: r.id, account_id: a.id, scheduled_for, caption })
+      let post = await create.mutateAsync({ render_id: r.id, account_id: a.id, scheduled_for, caption, music })
       if (!post) return // the video is on the account already, and the answer was: don't post it again
       if (now && post.status === "DRAFT") post = await approve.mutateAsync({ path: { post_id: post.id } }) // Post now is the approval
       setNow(now)
@@ -139,6 +141,7 @@ function ScheduleForm({ r }: { r: RenderOut }) {
           </span>
           <textarea rows={4} maxLength={CAPTION_MAX} className={cn(field, "h-auto w-full resize-none py-1.5")} value={caption} onChange={(e) => setCaption(e.target.value)} />
         </label>
+        <MusicPicker accountId={a?.id} value={music} onChange={setMusic} />
         {error && <p className="text-sm text-bad">{error}</p>}
         <div className="flex gap-1.5">
           <button className={cn(btn.primary, "flex-1")} disabled={!date || !time} onClick={() => submit()}>

@@ -45,7 +45,7 @@ TITLES = {  # Recover.tsx: a failure's short title; PostOut.cause has the senten
     "NO_FREE_SLOT": "No free slot to move to", "WINDOW_EXPIRED": "Outcome unknown", "UNKNOWN": "Zernio reported a failure",
     "KEY_CHANGED": "Sent with your previous Zernio key", "ZERNIO_KEY_INVALID": "Zernio refused your key",
     "ZERNIO_PAYMENT_REQUIRED": "Zernio payment failed", "ZERNIO_KEY_MISSING": "No Zernio key",
-    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit",
+    "PROFILE_OVER_LIMIT": "Beyond your Zernio plan's limit", "MUSIC_NEEDS_FACEBOOK_LOGIN": "Music needs Facebook Login",
 }  # fmt: skip
 KEY_CODES = {"ZERNIO_KEY_INVALID", "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING"}  # Recover.tsx: fixed in Settings
 MAYBE_LIVE = {"NETWORK_ERROR", "WORKER_CRASHED", "WINDOW_EXPIRED", "KEY_CHANGED"}  # Recover.tsx: the Reel may be live already
@@ -901,6 +901,8 @@ async def post_card(bot, pid):
     lines = [f"<b>{HEADLINE[s]}</b> · post {pid}",
              f"@{h(p['account_username'])} · {fmt.when(post_time(p), tz)} ({fmt.rel(post_time(p), now())})",
              f"{h(r['brand_name'] or 'No logo')} · {h(clip)} · {fmt.mmss(r['duration_s'])} /r{r['id']}"]  # fmt: skip
+    if m := p["music"]:
+        lines.append(f"♫ {h(m['title'] or 'Instagram audio')}" + (f" · {h(m['artist'])}" if m["artist"] else ""))
     if s in FAILED:
         lines.append(f"<b>{h(TITLES.get(p['error_code'], p['error_code'] or 'Failed'))}.</b> {h(p['cause'] or '')}")
         said = (p["error_detail"] or {}).get("errorMessage")

@@ -37,6 +37,7 @@ const TITLES: Record<string, string> = {
   ZERNIO_PAYMENT_REQUIRED: "Zernio payment failed",
   ZERNIO_KEY_MISSING: "No Zernio key",
   PROFILE_OVER_LIMIT: "Beyond your Zernio plan's limit",
+  MUSIC_NEEDS_FACEBOOK_LOGIN: "Music needs Facebook Login",
   UNKNOWN: "Zernio reported a failure",
 }
 // Fixed in Settings (your Zernio key), then Retry

@@ -804,6 +804,40 @@ export type Me = {
 };
 
 /**
+ * MusicOut
+ */
+export type MusicOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title: string | null;
+    /**
+     * Artist
+     */
+    artist: string | null;
+    /**
+     * Kind
+     */
+    kind: 'music' | 'original_sound';
+    /**
+     * Duration S
+     */
+    duration_s: number | null;
+    /**
+     * Preview Url
+     */
+    preview_url: string | null;
+    /**
+     * Artwork Url
+     */
+    artwork_url: string | null;
+};
+
+/**
  * NextSlot
  */
 export type NextSlot = {
@@ -883,10 +917,39 @@ export type PostCreate = {
      * Caption
      */
     caption?: string | null;
+    music?: PostMusic | null;
     /**
      * Repost
      */
     repost?: boolean;
+};
+
+/**
+ * PostMusic
+ *
+ * Instagram's catalog track a Reel goes out with (Zernio audioConfiguration); title and artist are for show.
+ */
+export type PostMusic = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Artist
+     */
+    artist?: string | null;
+    /**
+     * Volume
+     */
+    volume?: number;
+    /**
+     * Video Volume
+     */
+    video_volume?: number;
 };
 
 /**
@@ -913,6 +976,7 @@ export type PostOut = {
      * Caption
      */
     caption: string;
+    music: PostMusic | null;
     /**
      * Scheduled For
      */
@@ -975,6 +1039,7 @@ export type PostPatch = {
      * Caption
      */
     caption?: string;
+    music?: PostMusic | null;
 };
 
 /**
@@ -2950,6 +3015,47 @@ export type NextSlotResponses = {
 };
 
 export type NextSlotResponse = NextSlotResponses[keyof NextSlotResponses];
+
+export type SearchMusicData = {
+    body?: never;
+    path: {
+        /**
+         * Account Id
+         */
+        account_id: number;
+    };
+    query?: {
+        /**
+         * Q
+         */
+        q?: string | null;
+        /**
+         * Kind
+         */
+        kind?: 'music' | 'original_sound';
+    };
+    url: '/api/accounts/{account_id}/music';
+};
+
+export type SearchMusicErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SearchMusicError = SearchMusicErrors[keyof SearchMusicErrors];
+
+export type SearchMusicResponses = {
+    /**
+     * Response Search Music
+     *
+     * Successful Response
+     */
+    200: Array<MusicOut>;
+};
+
+export type SearchMusicResponse = SearchMusicResponses[keyof SearchMusicResponses];
 
 export type ListPostsData = {
     body?: never;

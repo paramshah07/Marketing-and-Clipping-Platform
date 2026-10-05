@@ -104,13 +104,14 @@ Click any tile that has not failed to open its drawer.
 | 2 | The render. Click to play it with sound; the strip under it seeks, mutes and goes full screen. |
 | 3 | Account, clip and brand. A published post adds **View on Instagram**; a failed one adds **Open recovery**. |
 | 4 | Date and time, in the account's zone. Type the time as 24-hour `HH:MM`. |
-| 5 | The caption, with its length out of 2,200. |
+| 5 | The caption, with its length out of 2,200. Under it, the post's Instagram music: add, change or remove it (see the [Editor](03-editor.md#add-instagram-music)). |
 | 6 | **Save** your changes. |
 | 7 | **Approve**: the draft becomes **Scheduled**. Save changes first. |
 | 8 | **Post now**: publishes within about a minute. Off while publishing is off. |
 | 9 | **Cancel post**: it will not publish, and its render goes back to the tray. |
 
-Only drafts and scheduled posts can be edited. For the others the drawer shows the time and caption read-only.
+Only drafts and scheduled posts can be edited. For the others the drawer shows the time, caption and music read-only.
+The music can't change once Clipper has tried to publish the post.
 
 **Post now** asks first, because a Reel cannot be deleted from Clipper once it is live. It sets the post's time to now and approves it if it was a draft. The worker picks it up within a minute.
 

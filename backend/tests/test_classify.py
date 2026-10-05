@@ -38,7 +38,7 @@ def test_describe():
     assert actions["RATE_LIMITED"] == actions["MISSED"] == "auto"
     assert {c for c, a in actions.items() if a == "retry"} == {
         "NETWORK_ERROR", "UNKNOWN", "TOO_LONG", "TOO_SHORT", "WORKER_CRASHED", "NO_FREE_SLOT", "ZERNIO_KEY_INVALID",
-        "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING", "PROFILE_OVER_LIMIT"
+        "ZERNIO_PAYMENT_REQUIRED", "ZERNIO_KEY_MISSING", "PROFILE_OVER_LIMIT", "MUSIC_NEEDS_FACEBOOK_LOGIN"
     }  # fmt: skip
     cause, remedy = describe("SOMETHING_ELSE")
     assert "SOMETHING_ELSE" in cause and remedy.label == "Retry now"

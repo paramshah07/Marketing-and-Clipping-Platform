@@ -996,6 +996,58 @@ def test_publish_with_a_cover(db, env, monkeypatch):
     assert ig == {"shareToFeed": True, "instagramThumbnail": COVER_URL}
 
 
+MUSIC = {"id": "482851939985510", "title": "Summer Nights", "artist": "The Example Band", "volume": 80,
+         "video_volume": 0}  # docs_audio_search's track
+
+
+def test_publish_with_music(db, env, monkeypatch):
+    pid = make_post(db, env, music=MUSIC)
+    z = use(monkeypatch, Zernio(routes()))
+    go(pid)
+    assert row(db, pid).status == "PUBLISHED"
+    ig = json.loads(z.sent(POST_)[0].content)["platforms"][0]["platformSpecificData"]
+    assert ig == {"shareToFeed": True,
+                  "audioConfiguration": {"audioId": MUSIC["id"], "audioVolume": 80, "videoVolume": 0}}  # fmt: skip
+
+
+def test_music_on_an_instagram_login_account_fails_the_post(db, env, monkeypatch):
+    pid = make_post(db, env, music=MUSIC)
+    use(monkeypatch, Zernio(routes("docs_400_audio_requires_facebook_login")))
+    go(pid)
+    p = row(db, pid)
+    assert (p.status, p.error_code) == ("FAILED", "MUSIC_NEEDS_FACEBOOK_LOGIN")  # nothing was posted: Retry is safe
+    assert p.error_detail == {"code": "instagram_audio_requires_facebook_login"}
+    assert len(env.alerts) == 1 and "Facebook Login" in env.alerts[0][0]
+
+
+def test_music_search(db, env, monkeypatch):
+    aid = row(db, make_post(db, env, status="CANCELLED")).account_id
+    with Session(db) as s:
+        search = f"GET /accounts/{s.get(Account, aid).zernio_account_id}/instagram/audio"
+    z = use(monkeypatch, Zernio({search: ["docs_audio_search", "docs_400_audio_requires_facebook_login",
+                                          "docs_401_unauthorized"]}))  # fmt: skip
+    with TestClient(api_app, headers=as_user()) as c:
+        r = c.get(f"/api/accounts/{aid}/music", params={"q": " summer "})
+        assert r.status_code == 200, r.text
+        assert r.json() == [{
+            "id": "482851939985510", "title": "Summer Nights", "artist": "The Example Band", "kind": "music",
+            "duration_s": 182.0, "preview_url": "https://scontent.cdninstagram.com/o1/v/t2/f2/m86/482851939985510.mp4",
+            "artwork_url": None,
+        }]  # fmt: skip
+        r = c.get(f"/api/accounts/{aid}/music", params={"kind": "original_sound"})
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "MUSIC_NEEDS_FACEBOOK_LOGIN")
+        r = c.get(f"/api/accounts/{aid}/music")
+        assert (r.status_code, r.json()["detail"]["code"]) == (409, "ZERNIO_KEY_INVALID")
+        assert c.get(f"/api/accounts/{aid}/music", params={"kind": "sfx"}).status_code == 422
+        c.portal.call(engine.dispose)
+    assert [dict(r.url.params) for r in z.sent(search)] == [
+        {"audioType": "music", "q": "summer"}, {"audioType": "original_sound"}, {"audioType": "music"}
+    ]
+    assert [r.headers["Authorization"] for r in z.sent(search)] == ["Bearer sk_test"] * 3
+    with Session(db) as s:
+        assert s.get(User, 1).zernio_key_status == "invalid"  # a refused key pauses the user, as everywhere
+
+
 def test_crash_after_cover_upload_before_its_commit(db, env, monkeypatch):
     pid = make_post(db, env)
     add_cover(db, env, pid)
