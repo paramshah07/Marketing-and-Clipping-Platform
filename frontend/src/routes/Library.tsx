@@ -3,7 +3,7 @@ import { AtSign, CalendarDays, ChevronDown, CloudUpload, ExternalLink, FileVideo
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type ReactNode } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router"
 
-import { createRender, deleteClip, freePublishedRenders, type AccountOut, type BrandOut, type ClipOut, type PostOut } from "@/api"
+import { createRender, deleteClip, freePublishedRenders, type AccountOut, type BrandOut, type ClipOut, type FilterOut, type PostOut } from "@/api"
 import {
   createClipFromUrlMutation,
   deleteClipMutation,
@@ -733,7 +733,7 @@ function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; accou
   const navigate = useNavigate()
   const clipId = p.render.clip_id
   const iso = p.published_at ?? p.scheduled_for
-  // Same clip and crop as the original, the new brand's default overlay (overlay_config omitted) and caption.
+  // Same clip, crop and filter as the original, the new brand's default overlay (overlay_config omitted) and caption.
   const rerender = useMutation({
     mutationFn: async (b: BrandOut) => {
       const [orig, clip] = await Promise.all([
@@ -741,7 +741,8 @@ function PublishedRow({ p, account, brands, logo, onError }: { p: PostOut; accou
         qc.fetchQuery(getClipOptions({ path: { clip_id: clipId } })),
       ])
       const caption = fillCaption(b.caption_template, b.link, clip.source_creator_handle).trim() || null
-      return (await createRender({ body: { clip_id: clipId, brand_id: b.id, crop_config: orig.crop_config, caption }, throwOnError: true })).data
+      const filter = orig.filter as FilterOut["name"] | null // one of GET /api/filters when it was made
+      return (await createRender({ body: { clip_id: clipId, brand_id: b.id, crop_config: orig.crop_config, filter, caption }, throwOnError: true })).data
     },
     onSuccess: (_, b) => (qc.invalidateQueries({ queryKey: listRendersQueryKey({ query: { clip_id: clipId } }) }), navigate(`/editor/${clipId}?brand=${b.id}`)),
     onError: (e) => onError(`Re-render failed: ${errorText(e)}`),

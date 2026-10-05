@@ -136,6 +136,11 @@ Geometry lives in `frontend/src/lib/geometry.ts` and must keep matching `backend
 (overlay = fractions of the 1080x1920 output, crop = fractions of the source, cover-fit). Change both or
 neither, and keep `geometry.test.ts` and `e2e/accept.mjs` passing.
 
+Filters (Instagram-style looks; Instagram's API applies none) live only in `FILTERS` in `render.py`: the Editor
+previews them by `GET /api/filters` (CSS `filter` over `mix-blend-mode` colour layers) and `filter_chain` replays that
+CSS maths in ffmpeg. A new recipe needs solid-colour layers in a `BLEND` mode and a Chrome-measured row in
+`test_render.py`'s `CHROME`.
+
 Procrastinate tasks live in `app/tasks/`; add each new task module to `import_paths` in
 `app/tasks/queue.py` (the workers only import that module, so a task defined elsewhere fails with
 TaskNotFound). Always pass an explicit `name=`. `probe_clip`, `download_clip` and `render` run on queue `media`

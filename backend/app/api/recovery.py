@@ -99,7 +99,7 @@ async def _rerender(s: AsyncSession, post: Post) -> None:
         raise _err(409, "NO_FREE_SLOT", f"@{acc.username} has no free slot in the next 30 days")
     new = Render(
         source_clip_id=old.source_clip_id, brand_id=old.brand_id, overlay_config=old.overlay_config,
-        crop_config=old.crop_config, caption=old.caption,
+        crop_config=old.crop_config, filter=old.filter, caption=old.caption,
     )  # fmt: skip
     s.add(new)
     old.superseded_at = datetime.now(UTC)  # with no post left it would be 'Ready to schedule' again: a duplicate Reel

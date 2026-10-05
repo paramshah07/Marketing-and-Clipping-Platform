@@ -172,7 +172,7 @@ def _render(render_id: int) -> dict:
     out.parent.mkdir(parents=True, exist_ok=True)
     meta = {"width": clip.width, "height": clip.height, "has_audio": clip.has_audio, "color_transfer": clip.color_transfer}
     args = build_ffmpeg_args(
-        meta, r.overlay_config, r.crop_config, logo, storage.path_for(clip.raw_key), part, settings.FFMPEG_THREADS
+        meta, r.overlay_config, r.crop_config, logo, storage.path_for(clip.raw_key), part, settings.FFMPEG_THREADS, r.filter
     )
     try:
         p = subprocess.run(args, capture_output=True, text=True, errors="replace", timeout=RENDER_TIMEOUT_S)

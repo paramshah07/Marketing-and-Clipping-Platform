@@ -7,6 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, computed_field, model_validator
 
 from app.services import storage
+from app.services.render import BLEND, FILTERS
+
+FilterName = Literal[tuple(FILTERS)]
 
 
 def _url(key: str | None) -> str | None:
@@ -201,6 +204,7 @@ class RenderCreate(BaseModel):
     brand_id: int | None = None  # None: no logo
     overlay_config: OverlayConfig | None = None  # None: the brand's default
     crop_config: CropConfig | None = None  # None: fill + centre crop of the whole frame
+    filter: FilterName | None = None  # GET /api/filters; None: no filter
     caption: str | None = Field(None, max_length=2200)  # Instagram's caption limit; a render's caption is fixed
 
 
@@ -212,6 +216,7 @@ class RenderOut(BaseModel):
     brand_id: int | None
     overlay_config: OverlayConfig | None
     crop_config: CropConfig | None
+    filter: str | None
     caption: str | None
     status: str
     error_code: str | None
@@ -239,6 +244,18 @@ class RenderOut(BaseModel):
 
 class RenderDetail(RenderOut):
     ffmpeg_log: str | None
+
+
+class FilterLayer(BaseModel):
+    mode: Literal[tuple(BLEND)]  # CSS mix-blend-mode
+    color: str  # CSS rgb()
+    opacity: float
+
+
+class FilterOut(BaseModel):  # an Instagram-style filter (services.render.FILTERS), as the Editor previews it
+    name: FilterName
+    layers: list[FilterLayer]  # solid colours blended over the frame, bottom first
+    css: str  # CSS filter functions, over the frame and its layers
 
 
 class FreedSpace(BaseModel):  # POST /api/renders/free-published

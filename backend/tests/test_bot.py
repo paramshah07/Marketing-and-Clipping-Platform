@@ -86,6 +86,7 @@ def test_captions_and_names_match_the_web_app():
     assert fmt.mmss(None) == "—" and fmt.mmss(125.9) == "02:05"
     assert fmt.placement({"brand_id": 1, "overlay_config": {"x": 0.68, "y": 0.1625, "w": 0.22}, "crop_config": None}) == "Top right · 22% · full frame"
     assert fmt.placement({"brand_id": None, "overlay_config": None, "crop_config": {"x": 0, "y": 0, "w": 0.3, "h": 1}}) == "9:16 crop"
+    assert fmt.placement({"brand_id": None, "overlay_config": None, "crop_config": None, "filter": "Juno"}) == "Full frame · Juno"
     card = "<b>x</b>\n<blockquote>" + "y" * 2000 + "</blockquote>"
     assert fmt.shorten(card, 1024) == "<b>x</b>" and fmt.visible("a &amp; <b>b</b>") == 5
     assert set(errors.CAUSES) <= set(screens.TITLES)  # a failed post's card has a title, never the raw code

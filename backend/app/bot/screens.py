@@ -1085,7 +1085,7 @@ async def post_rerender_pick(bot, msg, pid):
         raise Alert("No brand has a logo yet: /brands.")
     rows = [[(b["name"] + (" (original)" if b["id"] == p["render"]["brand_id"] else ""), f"pr!:{pid}:{b['id']}")] for b in brands]
     await bot.buttons(msg, rows + [[("Back", f"re:p:{pid}")]])
-    return "Same clip and crop, with the brand's default logo placement and caption, and your default cover if you have one"
+    return "Same clip, crop and filter, with the brand's default logo placement and caption, and your default cover if you have one"
 
 
 @button("pr!")
@@ -1098,7 +1098,8 @@ async def post_rerender(bot, msg, pid, bid):
     caps, covers = await bot.api.get("/api/captions"), await bot.api.get("/api/covers")
     text = b["caption_template"] or (default_of(caps) or {}).get("text")  # as the render editor's template()
     caption = fmt.fill_caption(text, b["link"], clip["source_creator_handle"]).strip() or None
-    r = await bot.api.post("/api/renders", json={"clip_id": clip["id"], "brand_id": b["id"], "crop_config": orig["crop_config"], "caption": caption})
+    r = await bot.api.post("/api/renders", json={"clip_id": clip["id"], "brand_id": b["id"], "crop_config": orig["crop_config"],
+                                                  "filter": orig["filter"], "caption": caption})  # fmt: skip
     bot.watch("render", r["id"])
     if cover := default_of(covers):
         bot.spawn(attach_cover(bot, r["id"], cover))
