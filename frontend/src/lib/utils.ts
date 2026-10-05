@@ -45,6 +45,7 @@ export const HASHTAG_MAX = 30
 const pad = (n: number) => String(Math.floor(n)).padStart(2, "0")
 export const mmss = (s?: number | null) => (s == null ? "—" : `${pad(s / 60)}:${pad(s % 60)}`)
 export const mb = (bytes: number) => `${(bytes / 1e6).toFixed(1)} MB`
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`
 
 export function ago(iso: string, now = Date.now()) {
   const s = (now - Date.parse(iso)) / 1000

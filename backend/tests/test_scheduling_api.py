@@ -62,7 +62,7 @@ def render(auto_approve=False, brand=True, **kw) -> int:
         s.add_all([clip] + ([b] if b else []))
         s.flush()
         r = Render(**{"source_clip_id": clip.id, "brand_id": b.id if b else None, "status": "READY", "duration_s": 20.0,
-                      "caption": "hello", "thumbnail_key": "renders/1.jpg"} | kw)  # fmt: skip
+                      "caption": "hello", "thumbnail_key": "renders/1.jpg", "output_key": "renders/1.mp4"} | kw)  # fmt: skip
         s.add(r)
         s.commit()
         return r.id
@@ -93,7 +93,7 @@ def test_create_draft_and_defaults(client):
     p = r.json()
     assert (p["status"], p["caption"], p["account_username"]) == ("DRAFT", "hello", "acct")
     assert p["render"]["clip_name"] == "c.mp4" and p["render"]["brand_name"] == "Acme"
-    assert p["render"]["thumbnail_url"] == "/media/renders/1.jpg" and p["render"]["output_url"] is None
+    assert p["render"]["thumbnail_url"] == "/media/renders/1.jpg" and p["render"]["output_url"] == "/media/renders/1.mp4"
     assert (p["cause"], p["remedy"]) == (None, None)
     assert datetime.fromisoformat(p["scheduled_for"]) == at
     with SyncSession() as s:
@@ -124,6 +124,7 @@ def test_create_guards(client):
     aid, rid = account(), render()
     ok = NOW + D
     assert code(create(client, render(status="RENDERING"), aid, ok)) == "RENDER_NOT_READY"
+    assert code(create(client, render(output_key=None), aid, ok)) == "FILE_DELETED"  # free-published took its MP4
     limit = settings.ZERNIO_MAX_REEL_SECONDS
     r = create(client, render(duration_s=limit + 0.5), aid, ok)
     assert (r.status_code, code(r)) == (422, "TOO_LONG")
@@ -134,7 +135,7 @@ def test_create_guards(client):
     r = create(client, rid, aid, NOW - 2 * M)
     assert (r.status_code, code(r)) == (422, "TOO_SOON")
     assert create(client, rid, aid, NOW - M).status_code == 201  # "now" on a minute-precise picker
-    assert create(client, rid, aid, NOW + 5 * M).status_code == 201
+    assert create(client, render(), aid, NOW + 5 * M).status_code == 201
     assert code(create(client, rid, aid, datetime(2030, 1, 9, 9))) == "BAD_TIME"  # noqa: DTZ001 (naive on purpose)
     assert create(client, 10**6, aid, ok).status_code == 404
     assert create(client, rid, 10**6, ok).status_code == 404
@@ -143,6 +144,44 @@ def test_create_guards(client):
 def test_create_ignores_an_old_clients_rights_override(client):
     aid = account()
     assert create(client, render(), aid, NOW + D, rights_override=False).status_code == 201
+
+
+def link_clip(url: str) -> int:
+    with SyncSession() as s:
+        c = SourceClip(origin="url", status="READY", source_url=url)
+        s.add(c)
+        s.commit()
+        return c.id
+
+
+def clip_of(render_id: int) -> int:
+    with SyncSession() as s:
+        return s.get(Render, render_id).source_clip_id
+
+
+def test_a_video_goes_to_an_account_once_unless_reposted(client):
+    """A post of a clip (or of another clip of its link) on an account that has one, a draft up to published: 409
+    ALREADY_POSTED unless repost, and auto-schedule leaves it unplaced. Other accounts and cancelled posts don't count."""
+    aid, other, rid = account(), account(), render()
+    first = create(client, rid, aid, NOW + D).json()
+    twin = render(source_clip_id=clip_of(rid))  # the same clip, rendered again
+    r = create(client, twin, aid, NOW + 2 * D)
+    assert (r.status_code, code(r)) == (409, "ALREADY_POSTED")
+    assert r.json()["detail"]["message"] == f"This video is already queued on @acct for Tue 8 Jan (post {first['id']})."
+    assert [u["reason"] for u in auto(client, aid, [twin]).json()["unplaced"]] == [
+        f"this video is already queued on @acct for Tue 8 Jan (post {first['id']})"]  # fmt: skip
+    assert create(client, twin, other, NOW + 2 * D).status_code == 201  # another account
+    set_post(first["id"], status="PUBLISHED", published_at=NOW + D)
+    r = create(client, twin, aid, NOW + 2 * D)
+    assert r.json()["detail"]["message"] == f"This video already went to @acct on Tue 8 Jan (post {first['id']})."
+    assert create(client, twin, aid, NOW + 2 * D, repost=True).status_code == 201  # asked, and meant
+    # another clip of the same link is the same video, whatever its tracking query
+    a = render(source_clip_id=link_clip("https://www.tiktok.com/@x/video/7000000000000000042?_r=1&_t=a"))
+    b = render(source_clip_id=link_clip("https://www.tiktok.com/@x/video/7000000000000000042"))
+    p = create(client, a, aid, NOW + 3 * D).json()
+    assert code(create(client, b, aid, NOW + 4 * D)) == "ALREADY_POSTED"
+    client.post(f"/api/posts/{p['id']}/cancel")
+    assert create(client, b, aid, NOW + 4 * D).status_code == 201
 
 
 # ---------------------------------------------------------------- patch / approve / cancel
@@ -383,15 +422,13 @@ def test_render_placed_again_on_the_slot_it_was_moved_from(client):
     aid, rid = account(posting_slots={"times": ["09:00"]}), render()
     moved = create(client, rid, aid, NOW + H).json()  # 09:00, the first slot
     client.patch(f"/api/posts/{moved['id']}", json={"scheduled_for": iso(NOW + 3 * D)})
-    r = auto(client, aid, [rid])  # the vacated 09:00 slot; the moved post still holds that slot's key
-    assert r.status_code == 200, r.text
-    assert placed_times(r) == {rid: NOW + H}
-    again = r.json()["placed"][0]["post"]["id"]
-    assert key_of(again) != key_of(moved["id"]) == scheduling.idempotency_key(rid, aid, NOW + H)
+    r = create(client, rid, aid, NOW + H, repost=True)  # the vacated 09:00 slot; the moved post still holds that slot's key
+    assert r.status_code == 201, r.text
+    assert key_of(r.json()["id"]) != key_of(moved["id"]) == scheduling.idempotency_key(rid, aid, NOW + H)
     other = account()
     first = create(client, rid, other, NOW + D).json()
     client.patch(f"/api/posts/{first['id']}", json={"scheduled_for": iso(NOW + 2 * D)})
-    r = create(client, rid, other, NOW + D)  # not the moved post back at another time: a new post
+    r = create(client, rid, other, NOW + D, repost=True)  # not the moved post back at another time: a new post
     assert (r.status_code, datetime.fromisoformat(r.json()["scheduled_for"])) == (201, NOW + D)
     assert r.json()["id"] != first["id"] and key_of(r.json()["id"]) != key_of(first["id"])
 
@@ -399,7 +436,8 @@ def test_render_placed_again_on_the_slot_it_was_moved_from(client):
 def test_auto_schedule_places_a_repeated_render_once(client):
     aid, rid = account(), render()
     assert list(placed_times(auto(client, aid, [rid, rid, rid]))) == [rid]
-    assert len(auto(client, aid, [rid, rid]).json()["placed"]) == 1
+    again = auto(client, aid, [rid, rid]).json()  # it is queued there now: never placed twice
+    assert again["placed"] == [] and [u["render_id"] for u in again["unplaced"]] == [rid]
 
 
 def test_past_draft_is_not_the_next_post(client, env):

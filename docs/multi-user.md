@@ -326,7 +326,8 @@ Production is one Always Free Arm VM: 2 OCPU, about 11 GB of memory visible to t
 
 - **Disk runs out first.** The boot volume holds the OS, the Docker images, both sites' Postgres and both sites'
   `./data`: the dev site keeps a full copy of production's files (`~/clipper-dev/data`), so every file is on the disk
-  about twice. Nothing deletes old clips or renders. Quotas are overcommitted: 14 users at 5 GiB would need 70 GiB,
+  about twice. Nothing deletes old clips or renders by itself: each user does, from the Library (bulk delete, and
+  Published › Free up space for the MP4s of renders that went out). Quotas are overcommitted: 14 users at 5 GiB would need 70 GiB,
   140 GiB with the copy. `MIN_FREE_BYTES` (3 GiB) keeps the disk from filling up, but then nobody on either site can
   upload, import or render (`DISK_FULL`) until space is freed. Watch `df -h /` and `du -sh ~/clipper/data/u/*` on the
   VM. Grow the boot volume (Always Free includes 200 GB of block storage) before more than a handful of users fill
