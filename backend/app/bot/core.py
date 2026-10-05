@@ -185,7 +185,7 @@ class Bot:
             self.prompt = None
             name, _, arg = text[1:].partition(" ")
             name = name.split("@")[0].lower()
-            if card := re.fullmatch(r"([crpba])(\d+)", name):
+            if card := re.fullmatch(r"([crpbati])(\d+)", name):  # screens.NAMES
                 return await screens.open_card(self, card[1], int(card[2]))
             fn = screens.COMMANDS.get(name)
             return await (fn(self, arg.strip()) if fn else self.send("I don't know that command. /help lists them."))
