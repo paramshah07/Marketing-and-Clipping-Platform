@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from functools import cache
 from typing import Annotated
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import bcrypt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -36,6 +37,7 @@ from app.schemas import (
     Credentials,
     KeyCheck,
     Me,
+    MePatch,
     PasswordChange,
     Setup,
     SignupStatus,
@@ -311,12 +313,23 @@ async def me(user: CurrentUser, s: Db) -> Me:
     usable = exists().where(Account.user_id == user.id, Account.connection_status == "connected", Account.disabled_at.is_(None))
     quota, used = (await s.execute(storage.USAGE, {"u": user.id})).one()
     return Me(
-        id=user.id, username=user.username,
+        id=user.id, username=user.username, timezone=user.timezone,
         setup=Setup(zernio=user.zernio_key_status == "valid", instagram=await s.scalar(select(usable)),
                     telegram=any(b.chat_id is not None and not b.error for b in bots)),
         zernio=_zernio_out(user), bots=[bot_out(b, now) for b in bots],
         storage=Storage(used_bytes=used, quota_bytes=quota),
     )  # fmt: skip
+
+
+@router.patch("/me", status_code=204)
+async def update_me(body: MePatch, user: CurrentUser, s: Db) -> None:
+    # the user's time zone: the web app sends its browser's (App.tsx), and the evening digest goes out at 20:00 there
+    try:
+        ZoneInfo(body.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise _err(422, "BAD_TIMEZONE", f"unknown timezone {body.timezone!r}") from None
+    await s.execute(update(User).where(User.id == user.id).values(timezone=body.timezone))
+    await s.commit()
 
 
 @router.post("/me/password", status_code=204)

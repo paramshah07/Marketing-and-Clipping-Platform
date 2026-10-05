@@ -189,8 +189,9 @@ Bot:  @afro.yahu post 235 is live on Instagram.
       [View on Instagram] [Open post]
 ```
 
-At 20:00 in the time zone of your first account it sends the evening digest: how full tomorrow is on each account, and
-what is waiting for you. Tap a command in it to open that list.
+At 20:00 in your time zone it sends the evening digest: how full tomorrow is on each account, and what is waiting for
+you. Tap a command in it to open that list. Your time zone is your browser's, which the web app saves whenever you use
+it; until you have opened the web app, it is your first account's.
 
 ```text
 Bot:  Evening digest · Mon 5 Oct
@@ -201,7 +202,8 @@ Bot:  Evening digest · Mon 5 Oct
       [Open in Clipper]
 ```
 
-Tomorrow is each account's own tomorrow. _9 of 12_ is tomorrow's posts out of those plus the slots
+Tomorrow is your tomorrow, on each account's own clock: from New York at 20:00, a London account's Tuesday is the
+Tuesday you are queueing for, though it is already 01:00 there. _9 of 12_ is that day's posts out of those plus the slots
 [Auto-schedule](05-calendar.md) could still fill, within the account's daily cap and minimum gap. A disconnected
 account says so, and a missing or refused Zernio key adds **Publishing is paused**. A disabled account is left out.
 Turn a bot's **Alerts** off to stop all three in its chat: failure alerts, these messages and the digest.

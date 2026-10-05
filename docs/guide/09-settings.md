@@ -246,7 +246,7 @@ Each bot has a row: its status, "Paired with" its chat, an **Alerts** switch, **
 | **Not responding** · last seen … | Paired, but not heard from for 90 seconds: Clipper's bot service is down, or another program uses the same token. | If it lasts, make sure nothing else runs this bot (not the other Clipper site either), or tell the operator. |
 
 - **Alerts** (on for a new bot): your failure alerts go to this bot's chat, with a quiet message when a post goes out
-  and the evening digest at 20:00 ([Telegram bot](08-telegram-bot.md#posts-going-out-and-the-evening-digest)). Turn it
+  and the evening digest at 20:00 your time ([Telegram bot](08-telegram-bot.md#posts-going-out-and-the-evening-digest)). Turn it
   off for a bot you only use to run Clipper. With no bot's **Alerts** on, the red badge in the app is your only sign of
   a failure.
 - **Test** sends the test message straight from Clipper, and shows Telegram's reason if it fails ("Telegram didn't take

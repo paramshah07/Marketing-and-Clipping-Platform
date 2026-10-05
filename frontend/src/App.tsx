@@ -3,8 +3,10 @@ import { useEffect, useRef } from "react"
 import { AtSign, CalendarDays, Film, Settings as Gear, SlidersHorizontal } from "lucide-react"
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router"
 
-import { listPostsOptions, meOptions, statusOptions } from "@/api/@tanstack/react-query.gen"
+import { updateMe } from "@/api"
+import { listPostsOptions, meOptions, meQueryKey, statusOptions } from "@/api/@tanstack/react-query.gen"
 import { Empty, Header } from "@/components/bits"
+import { BROWSER_TZ } from "@/lib/schedule"
 import { PUBLISHING_OFF, cn } from "@/lib/utils"
 import { Accounts } from "@/routes/Accounts"
 import { Calendar } from "@/routes/Calendar"
@@ -82,6 +84,13 @@ function Shell() {
                 ? { ...(off === "key_invalid" ? bad : { dot: "bg-warn", text: "text-warn" }), label: PUBLISHING_OFF[off].label, hint: `Workers online, renders run. ${PUBLISHING_OFF[off].why}`, to: off === "switch" ? undefined : "/settings" }
                 : { dot: "bg-ok", text: "", label: "Publishing live", hint: "Workers online. Scheduled posts go out to Instagram at their time." }
   const me = useQuery(meOptions())
+  // the browser's zone is the user's: the evening digest goes out at 20:00 there. Once per change, never in a loop:
+  // only a stored zone refetches me (undefined: still loading; null: none stored yet)
+  const zone = me.data ? me.data.timezone : undefined
+  useEffect(() => {
+    if (zone !== undefined && zone !== BROWSER_TZ)
+      updateMe({ body: { timezone: BROWSER_TZ } }).then(({ error }) => void (error || qc.invalidateQueries({ queryKey: meQueryKey() })))
+  }, [zone, qc])
   const steps = me.data ? Object.values(me.data.setup).filter(Boolean).length : 3
   const setUp = !me.data || (me.data.setup.zernio && me.data.setup.instagram) // Telegram is optional (Setup's rule)
   const { pathname } = useLocation()

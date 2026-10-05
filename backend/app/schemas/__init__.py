@@ -462,6 +462,10 @@ class PasswordChange(BaseModel):
     new: str
 
 
+class MePatch(BaseModel):
+    timezone: str = Field(max_length=64)  # IANA name, validated with zoneinfo: the web app sends its browser's
+
+
 class ZernioKeyOut(BaseModel):  # the key itself never leaves the server
     status: Literal["none", "valid", "invalid"]
     last4: str | None
@@ -528,6 +532,7 @@ class Setup(BaseModel):  # the setup checklist: a valid key, a usable account, a
 class Me(BaseModel):
     id: int
     username: str
+    timezone: str | None  # the evening digest goes out at 20:00 here; null: in the user's first account's zone
     setup: Setup
     zernio: ZernioKeyOut
     bots: list[BotOut]
