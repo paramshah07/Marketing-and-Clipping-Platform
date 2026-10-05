@@ -1,8 +1,8 @@
 # Editor
 
-The Editor turns one **Ready** clip into a 1080x1920 Reel: pick the brand, place its logo, crop, choose a cover and caption, then **Render**.
+The Editor turns one **Ready** clip into a 1080x1920 Reel: pick the brand, place its logo, crop, pick a filter and a song, choose a cover and caption, then **Render**.
 
-![The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, cover, caption, Render) and the renders for this clip](../images/editor.png)
+![The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, filter, music, Render) and the renders for this clip](../images/editor.png)
 
 | # | What it is |
 |---|---|
@@ -12,11 +12,12 @@ The Editor turns one **Ready** clip into a 1080x1920 Reel: pick the brand, place
 | 4 | **IG overlay**: Instagram's buttons and caption drawn over the frame, and the safe zone (dashed). |
 | 5 | Brand (or **No logo**). **Save as brand default** keeps this logo placement for the brand. |
 | 6 | Logo **Scale**, **Opacity**, snap **Position** and **Margin**. |
-| 7 | Caption: **Saved captions**, **Reset to template**, and the length and hashtag limits. |
-| 8 | **Render** (⌘↵): queues the 1080x1920 MP4. |
-| 9 | **Renders for this clip**, newest first. |
+| 7 | **Filter**: Instagram-style looks, baked into the render ([Pick a filter](#pick-a-filter)). |
+| 8 | **Music**: a song mixed into the render, with its volume and the clip's ([Add music](#add-music)). **Cover** and **Caption** follow below it: scroll the controls. |
+| 9 | **Render** (⌘↵): queues the 1080x1920 MP4. |
+| 10 | **Renders for this clip**, newest first. |
 
-The stage shows exactly what the render will look like. The Instagram overlay is a guide only: it is never part of the video.
+The stage shows exactly what the render will look like, and plays the song with the video. The Instagram overlay is a guide only: it is never part of the video.
 
 ## Open a clip
 
@@ -60,12 +61,28 @@ With **Crop** off, the source fills the 9:16 frame and is centred, so a landscap
 
 Instagram's own filters can't be applied when a Reel is posted through its API, so Clipper bakes a look-alike into the render. Under **Filter**, each tile shows this clip with one filter: Normal (no filter), then Clarendon, Gingham, Moon, Lark, Reyes, Juno, Slumber, Crema, Ludwig, Aden, Valencia, Nashville, Inkwell and 1977. Point at a tile for its name; the chosen one's name shows beside **Filter**.
 
+![The Editor with the Moon filter picked: the stage shows the clip in black and white under the logo, which keeps its own colours; the controls show the Filter tiles and the Music section with the default song and its volumes; a render card names its filter and song](../images/editor-filter.png)
+
+| # | What it is |
+|---|---|
+| 1 | The stage, with the filter. The logo sits on top of it, in its own colours. |
+| 2 | **Filter**: one tile per look, each on this clip's own frame. **Normal** is none. |
+| 3 | The chosen filter. Its name also shows beside **Filter**. |
+| 4 | The song: your default song is preselected, **None** keeps the clip's own sound, **Upload…** adds one ([Add music](#add-music)). |
+| 5 | **Song** and **Clip's sound** volumes. Play the stage to hear the mix. |
+| 6 | A render card names its filter and its song (after ♫; a long line is cut short). |
+
 Click a tile and the stage shows the result; the render matches it. The filter goes under the logo, so the advertiser's colours stay true. The render card names the filter, and **Re-render for…** and **Re-render and retry** keep it.
+
+![A recording of the Editor: clicking Filter tiles one after another changes the clip's look on the stage, while the logo keeps its own colours](../images/editor-filters.gif)
+
+*Clicking through the tiles: the stage changes at once, the logo doesn't.*
 
 ## Add music
 
-Under **Music**, pick a song from your [Customizations](04-customizations.md#music) (the default one is preselected), or
-click **Upload…** to add one from your computer. **None** keeps the clip's own sound.
+Under **Music** (callouts 4 and 5 [above](#pick-a-filter)), pick a song from your
+[Customizations](04-customizations.md#music) (the default one is preselected), or click **Upload…** to add one from your
+computer (**All songs** opens the list). **None** keeps the clip's own sound.
 
 - **Song** and **Clip's sound** set the two volumes (the clip's only when it has sound; 0% leaves the song alone).
 - Play the stage to hear the mix with the video.
@@ -113,7 +130,7 @@ The caption travels with the render. You can still change it when you schedule t
 1. Click **Render**, or press ⌘↵ (Ctrl+Enter on other systems).
 2. A card appears at the top of **Renders for this clip** as **Queued**, then **Rendering** with the elapsed time, then **Ready**.
 
-Every render is a 1080x1920 H.264 MP4 at 30 fps with stereo AAC audio (a silent track if the source has none). A render over 300 MB fails with `OUTPUT_TOO_LARGE`.
+Every render is a 1080x1920 H.264 MP4 at 30 fps with stereo AAC audio: the clip's sound, mixed with your song if you picked one (a silent track if there is neither). A render over 300 MB fails with `OUTPUT_TOO_LARGE`, and one whose song was deleted before it ran fails with `MUSIC_MISSING` (**Its song was deleted**): pick another song and render again.
 
 ## Work with renders
 
@@ -128,12 +145,13 @@ Every render is a 1080x1920 H.264 MP4 at 30 fps with stereo AAC audio (a silent 
 | 5 | The post's caption, taken from the render. |
 | 6 | **Schedule**, or **Post now** (live within about a minute). |
 
-Each card shows the brand, the render number, how long ago it was made and a summary such as "Top right · 22% · full frame" (plus "cover" when it has one).
+Each card shows the brand, the render number, how long ago it was made and a summary such as "Top right · 22% · full frame", with the filter and "♫" and the song when it has them (and "cover" when it has one).
 
 | Card | Actions |
 |---|---|
 | **Queued**, **Rendering** | None yet. The card updates by itself. |
 | **Ready** | **Preview** shows the finished MP4 on the stage (**Back to editing** returns). **Schedule…**, Download (arrow icon), Delete (bin icon). |
+| **MP4 deleted** | **Free up space** in the [Library](02-library.md#free-up-space) deleted its MP4, because it is on Instagram already. It can't be posted again: render the clip again for a new post. |
 | **Failed** | **View log** shows ffmpeg's output. **Retry** renders it again. Delete (bin icon). |
 
 ### Schedule a render

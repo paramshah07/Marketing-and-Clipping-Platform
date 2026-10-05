@@ -6,10 +6,9 @@ fair, what can still go wrong, and the operator's commands. Part of the [documen
 code must keep are in [CLAUDE.md](../CLAUDE.md) (hard constraints 3, 4, 9 to 11 and the "Do not" list); the
 production runbook is [deploy.md](deploy.md).
 
-> [!IMPORTANT]
-> The `dev` branch and the dev site (https://dev.145-241-239-46.sslip.io) run everything described here. Production
-> runs it once the release pull request #20 (`dev` -> `prod`) is merged; until then it is the single-operator version
-> behind one shared browser password ([deploy.md](deploy.md#environments-and-branches)).
+Production runs everything described here since the multi-user release of 2026-10-05 (pull request #20,
+[deploy.md](deploy.md#the-multi-user-release-2026-10-05)); the dev site (https://dev.145-241-239-46.sslip.io) ran it
+first. Before that release, production was the single-operator version behind one shared browser password.
 
 ## At a glance
 
@@ -246,11 +245,17 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 - **Serving**: `/media/<key>` needs a signed-in user and serves the file only to its owner (`storage.owner` on
   StaticFiles' normalised path, so `u/1/../2/x` is `u/2/x`); anyone else gets 404, as for a missing file. Range and
   ETag work as before; responses carry `Cache-Control: private`.
-- **Quota**: a user's usage is the `size_bytes` of their clips plus their renders (logos and covers are small and not
-  counted). An upload, a link import (single or bulk) or a new render that would pass the user's `quota_bytes` gets
-  507 `QUOTA_EXCEEDED` ("your storage is full … delete clips or renders to make room"); one that would leave the disk
-  under `MIN_FREE_BYTES` gets 507 `DISK_FULL`, for everyone. A queued download or render checks again before it runs
-  and fails with the same code. Settings shows used of quota.
+- **Quota**: a user's usage is the `size_bytes` of their clips plus their renders (logos, covers and songs are not
+  counted, though a song upload is refused like the rest when it would pass the quota). An upload, a link import (single
+  or bulk) or a new render that would pass the user's `quota_bytes` gets 507 `QUOTA_EXCEEDED` ("your storage is full …
+  delete clips or renders to make room"); one that would leave the disk under `MIN_FREE_BYTES` gets 507 `DISK_FULL`, for
+  everyone. A queued download or render checks again before it runs and fails with the same code. Settings shows used of
+  quota.
+- **Making room**: deleting clips (one, or a ticked set in the Library: `DELETE /api/clips/{id}?renders=true` takes
+  the renders with them; a clip with a post that isn't cancelled stays, 409 `HAS_POSTS`) or renders frees their
+  `size_bytes`. **Free up space** (`POST /api/renders/free-published`, `dry_run` counts first) deletes the MP4s of the
+  user's renders whose posts all went out (one published at least, the rest cancelled): `output_key` and `size_bytes`
+  become null, the rows, thumbnails and covers stay, and such a render can't be posted again (422 `FILE_DELETED`).
 - **Link imports**: users other than the operator may only import links that `links.video()` recognises (one video
   on YouTube, Instagram, TikTok, X or Facebook), else 422: yt-dlp runs inside the server's network, and a link to the
   api, a private address or cloud metadata would make it fetch that for them. The operator's imports take any link.
@@ -277,7 +282,8 @@ The design reference is [telegram-bot.md](telegram-bot.md); the user's side is t
 
 ## 8. The operator's one-shot `.env` import
 
-`python -m app.cli bootstrap` runs in every `migrate`, as the superuser, and never fails the migrate:
+`python -m app.cli bootstrap` runs in every `migrate`, as the superuser, and never fails the migrate (in production
+the one-shot import below ran at the release, on 2026-10-05: the operator's key and all three bots):
 
 1. User 1 (created by migration 0007 as `clipper`, key generation 1, owning every existing row) is renamed to
    `CLIPPER_USER` if that is set, valid and free.
@@ -409,7 +415,7 @@ users, keys and bots:
 - **Users.** Production's users arrive with the copy, with their usernames and passwords (bcrypt hashes), quotas and
   data as of the refresh; every session is deleted, so everyone signs in again. Accounts made on the dev site get ids
   above 10,000,000 and survive every refresh with their password, key, quota and bots, and nothing else: their clips,
-  renders, posts, files, brands, captions, covers and Instagram accounts go (the accounts come back, with the
+  renders, posts, files, brands, captions, covers, songs and Instagram accounts go (the accounts come back, with the
   defaults, at the next key check or account sync). `MAX_USERS` counts both kinds.
 - **Secrets.** The dev site has its own `SECRETS_KEY` and `BOT_SERVICE_SECRET` (its `deploy.sh` made them). The refresh
   clears every copied Zernio key and deletes every copied bot, then `cli bootstrap` seals the dev site's `.env`

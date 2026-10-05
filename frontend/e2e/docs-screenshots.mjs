@@ -1,19 +1,22 @@
 // Documentation screenshots: drives the real UI in Google Chrome and writes docs/images/*.png with numbered
 // callouts, plus docs/images/manifest.json (file, page, title, alt, callouts [{n, selector, label}]) that the
-// legend tables in docs/guide/* follow.
+// legend tables in docs/guide/* follow, and a few short screen recordings as docs/images/*.gif.
 //   ./review.sh && (cd frontend && npm run dev)    then, from frontend/:
 //   CLIPPER_E2E_USER=clipper CLIPPER_E2E_PASSWORD=… node e2e/docs-screenshots.mjs    (the operator's account on the copy;
 //   the password comes from the environment, never from this file)
 //   ONLY=calendar,accounts node e2e/docs-screenshots.mjs    retake some;  PREP=0 reuses the last run's data step
 // Review stack only (a copy of production, publishing off). Before shooting, prep() shapes that copy so every screen
-// has something to show: test brands archived; "Late-night pick" and "Deep dive" made the default caption and cover;
-// the account on 3 slots a day (cap 3, 60 min gap); a dozen branded renders; a week of posts from tomorrow (the
-// account's other drafts and scheduled posts cancelled); one failed post and one failed render; brand captions on the
-// kept renders; every other render hidden from the Ready tray. Writes go through the api on :8000 and, where the api
-// has no way (the failures, captions, the tray), psql in the clipper-review project. It refuses to run when the api
-// says publishing is on, and never calls Zernio or Telegram. ./review.sh gets a fresh copy back.
+// has something to show: test brands archived; the saved captions, covers and songs replaced by three of each (covers
+// from clip thumbnails, songs plucked tones), "Late-night pick", "Deep dive" and "Late night drive" the defaults; the
+// account on 3 slots a day (cap 3, 60 min gap); a dozen branded renders and one with a filter and a song; a week of
+// posts from tomorrow (the account's other drafts and scheduled posts cancelled); one failed post and one failed
+// render; brand captions on the kept renders; every other render hidden from the Ready tray. Writes go through the api
+// on :8000 and, where the api has no way (the failures, captions, the tray), psql in the clipper-review project. It
+// refuses to run when the api says publishing is on, and never calls Zernio or Telegram. ./review.sh gets a fresh copy
+// back. The GIFs are the page's own frames (Chrome's screencast) with a drawn pointer, encoded by ffmpeg in the review
+// stack's worker, as are the songs.
 import { execFileSync } from "node:child_process"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { chromium } from "playwright-core"
 
 const ROOT = new URL("../..", import.meta.url).pathname
@@ -45,9 +48,19 @@ async function api(method, path, body) {
   if (!r.ok) throw new Error(`${method} ${path}: HTTP ${r.status} ${JSON.stringify(data)}`)
   return data
 }
+// a file upload (covers, songs): name and file as the api's multipart forms take them
+async function upload(path, name, bytes, filename, type) {
+  const form = new FormData()
+  form.append("file", new Blob([bytes], { type }), filename)
+  form.append("name", name)
+  const r = await fetch(`${API}/api${path}`, { method: "POST", headers: { ...SITE, cookie: `clipper_session=${SESSION}` }, body: form })
+  if (!r.ok) throw new Error(`POST ${path} ${name}: HTTP ${r.status} ${await r.text()}`)
+  return r.json()
+}
 // the review project by name: this can never reach the Mac's own stack or the VM
+const REVIEW = ["compose", "-p", "clipper-review", "-f", "compose.yml", "-f", "compose.review.yml", "exec", "-T"]
 const psql = (q) =>
-  execFileSync("docker", ["compose", "-p", "clipper-review", "-f", "compose.yml", "-f", "compose.review.yml", "exec", "-T", "postgres", "psql", "-U", "clipper", "-v", "ON_ERROR_STOP=1", "-qAtc", q], { cwd: ROOT })
+  execFileSync("docker", [...REVIEW, "postgres", "psql", "-U", "clipper", "-v", "ON_ERROR_STOP=1", "-qAtc", q], { cwd: ROOT })
     .toString()
     .trim()
 const lit = (s) => (s == null ? "NULL" : `'${String(s).replaceAll("'", "''")}'`)
@@ -83,7 +96,7 @@ const RENDERS = [
   ["I", 157, "Northwind Coffee"],
   ["J", 142, "Kite VPN"],
   ["K", 149, "Northwind Coffee"], // the failed post
-  ["L", 148, "Flux Energy"], // stays in the Ready tray
+  ["L", 121, "Flux Energy"], // stays in the Ready tray: a clip never posted, so Auto-schedule can place it
 ]
 const KEEP = [28, 29, 30, 23, 5] // existing READY renders left in the tray (clip 10 in three brands, two Acme)
 // [render key, day from the first board day, slot, state]
@@ -102,6 +115,20 @@ const PLAN = [
 const FAILED_KEY = "docs-screenshots-failed"
 const EDITOR_CLIP = 10 // the editor shots: a 1080x1920 clip with three branded renders
 const CROP_CLIP = 29 // a landscape clip, for the crop box
+// the editor's filter shot: this filter (black and white, so the logo's own colours stand out), on a render of
+// EDITOR_CLIP for this brand
+const LOOK = ["Moon", "Acme"]
+// the docs' saved captions and covers (prep deletes the copy's others); a cover is a clip's thumbnail, which the api
+// turns into a 1080x1920 JPEG
+const CAPTIONS = [
+  ["Late-night pick", "Clip by {creator}. A new one every night → {link}\n#reels #latenight #clips"],
+  ["Credit only", "via {creator}"],
+  ["Link first", "Watch the full thing → {link}\nCredit: {creator} · #fyp #viral #funny"],
+]
+const COVERS = [["Deep dive", 136], ["Dragon warrior", 81], ["Live chat", 146]] // [name, clip id]
+// songs for Music and the Editor: plucked tones that ffmpeg makes in the review worker (nobody's music), the first the
+// default; [name, Hz, notes a second]
+const SONGS = [["Late night drive", 220, 2], ["Sunday reset", 262, 1.5], ["Gym hype", 330, 3]]
 
 async function prep() {
   const st = await api("GET", "/status")
@@ -111,25 +138,51 @@ async function prep() {
   const brands = await api("GET", "/brands")
   for (const b of brands) if (/^Phase3 Test Co/.test(b.name)) await api("PATCH", `/brands/${b.id}`, { archived: true })
   const brand = Object.fromEntries(brands.map((b) => [b.name, b]))
-  const late = (await api("GET", "/captions")).find((c) => c.name === "Late-night pick")
-  if (late && !late.is_default) await api("PATCH", `/captions/${late.id}`, { is_default: true })
-  const cover = (await api("GET", "/covers")).find((c) => c.name === "Deep dive")
-  if (cover && !cover.is_default) await api("PATCH", `/covers/${cover.id}`, { is_default: true })
+  const clips = Object.fromEntries((await api("GET", "/clips")).map((c) => [c.id, c]))
+  // only the docs' own saved captions, covers and songs on the copy (a render keeps its own cover and song)
+  const captions = []
+  for (const c of await api("GET", "/captions")) CAPTIONS.some(([n]) => n === c.name) ? captions.push(c) : await api("DELETE", `/captions/${c.id}`)
+  for (const [name, text] of CAPTIONS) if (!captions.some((c) => c.name === name)) captions.push(await api("POST", "/captions", { name, text }))
+  const late = captions.find((c) => c.name === "Late-night pick")
+  if (!late.is_default) await api("PATCH", `/captions/${late.id}`, { is_default: true })
+  const covers = []
+  for (const c of await api("GET", "/covers")) COVERS.some(([n]) => n === c.name) ? covers.push(c) : await api("DELETE", `/covers/${c.id}`)
+  for (const [name, clipId] of COVERS) {
+    if (covers.some((c) => c.name === name) || !clips[clipId]?.thumbnail_url) continue
+    const jpeg = await (await fetch(`${API}${clips[clipId].thumbnail_url}`, { headers: { cookie: `clipper_session=${SESSION}` } })).arrayBuffer()
+    covers.push(await upload("/covers", name, jpeg, `${name}.jpg`, "image/jpeg"))
+  }
+  const cover = covers.find((c) => c.name === "Deep dive")
+  if (!cover.is_default) await api("PATCH", `/covers/${cover.id}`, { is_default: true })
+  const tracks = []
+  for (const t of await api("GET", "/tracks")) SONGS.some(([n]) => n === t.name) ? tracks.push(t) : await api("DELETE", `/tracks/${t.id}`)
+  for (const [name, hz, bps] of SONGS) {
+    if (tracks.some((t) => t.name === name)) continue
+    const tone = `aevalsrc=0.3*sin(2*PI*${hz}*(1+0.25*floor(mod(t*${bps}\\,4)))*t)*exp(-4*mod(t\\,1/${bps})):d=24:s=44100`
+    execFileSync("docker", [...REVIEW, "worker", "ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", tone, "-ac", "2", "-b:a", "96k", "/data/docs-song.mp3"], { cwd: ROOT })
+    tracks.push(await upload("/tracks", name, readFileSync(`${ROOT}data/docs-song.mp3`), `${name}.mp3`, "audio/mpeg"))
+    rmSync(`${ROOT}data/docs-song.mp3`)
+  }
+  const song = tracks.find((t) => t.name === SONGS[0][0])
+  if (!song.is_default) await api("PATCH", `/tracks/${song.id}`, { is_default: true })
 
   const acc = (await api("GET", "/accounts")).find((a) => a.connection_status === "connected" && !a.disabled_at)
   if (!acc) throw new Error("no connected account in the review copy")
   await api("PATCH", `/accounts/${acc.id}`, { posting_slots: { times: SLOTS }, daily_cap: 3, min_gap_minutes: 60 })
 
   // renders: reuse a READY one of the same clip and brand, else render it (the review worker runs ffmpeg)
-  const clips = Object.fromEntries((await api("GET", "/clips")).map((c) => [c.id, c]))
   const rid = {}
   for (const [key, clipId, name] of RENDERS) {
     const c = clips[clipId]
     const b = brand[name]
     if (c?.status !== "READY" || !b) continue
-    const have = (await api("GET", `/renders?clip_id=${clipId}`)).find((r) => r.brand_id === b.id && r.status !== "FAILED")
+    const have = (await api("GET", `/renders?clip_id=${clipId}`)).find((r) => r.brand_id === b.id && r.status !== "FAILED" && !r.filter)
     rid[key] = (have ?? (await api("POST", "/renders", { clip_id: clipId, brand_id: b.id, caption: fill(b, c) }))).id
   }
+  const [look, lookBrand] = [LOOK[0], brand[LOOK[1]]]
+  const filtered = (await api("GET", `/renders?clip_id=${EDITOR_CLIP}`)).find((r) => r.filter === look && r.music && r.status !== "FAILED")
+  const music = { track_id: song.id, volume: 100, clip_volume: 60 }
+  rid.look = (filtered ?? (await api("POST", "/renders", { clip_id: EDITOR_CLIP, brand_id: lookBrand.id, filter: look, music, caption: fill(lookBrand, clips[EDITOR_CLIP]) }))).id
   // the kept renders carry test captions ("test caption #ad"): give them their brand's
   for (const id of KEEP) {
     const r = await api("GET", `/renders/${id}`).catch(() => null)
@@ -154,7 +207,8 @@ async function prep() {
     if (!plan.some((x) => x.render_id === p.render_id && Date.parse(x.at) === Date.parse(p.scheduled_for)))
       await api("POST", `/posts/${p.id}/cancel`)
   for (const x of plan) {
-    const p = await api("POST", "/posts", { render_id: x.render_id, account_id: acc.id, scheduled_for: x.at })
+    // repost: most of these clips went out on the copied account already, and the board shows them all the same
+    const p = await api("POST", "/posts", { render_id: x.render_id, account_id: acc.id, scheduled_for: x.at, repost: true })
     if (x.state === "scheduled" && p.status === "DRAFT") await api("POST", `/posts/${p.id}/approve`)
   }
 
@@ -243,19 +297,86 @@ async function settle(page) {
   await page.waitForTimeout(400)
 }
 
-// ---- 3. the shots, in guide order; callouts are numbered in reading order (columns left to right)
+// ---- 3. recordings: a drawn pointer (screenshots have none), Chrome's own frames while act() runs, then ffmpeg in the
+// review worker (the only place ffmpeg runs) turns them into a GIF of the clip region, through ./data (its /data)
+async function pointer(page) {
+  await page.evaluate(() => {
+    const p = document.createElement("div")
+    p.popover = "manual" // the top layer, like the callouts
+    p.style.cssText = "position:fixed;inset:auto;left:0;top:0;width:auto;height:auto;margin:0;padding:0;border:0;background:transparent;overflow:visible;pointer-events:none"
+    p.innerHTML = `<svg width="20" height="22" viewBox="0 0 20 22" style="display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))"><path d="M2 1.5v16.2l4.4-4.2 2.8 6.6 3-1.3-2.8-6.5h6.1z" fill="#fff" stroke="#0a0a0a" stroke-width="1.4" stroke-linejoin="round"/></svg>`
+    document.body.append(p)
+    p.showPopover()
+    addEventListener("mousemove", (e) => (p.style.translate = `${e.clientX - 2}px ${e.clientY - 1}px`), true)
+    addEventListener("mousedown", () => (p.style.scale = "0.85"), true)
+    addEventListener("mouseup", () => (p.style.scale = ""), true)
+  })
+}
+// move to the middle of sel and click it, then let the page answer
+async function glide(page, sel, pause = 700) {
+  const b = await page.locator(sel).first().boundingBox()
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 20 })
+  await page.mouse.down()
+  await page.mouse.up()
+  await page.waitForTimeout(pause)
+}
+async function film(page, s) {
+  const cdp = await page.context().newCDPSession(page)
+  const frames = []
+  cdp.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
+    frames.push({ data, t: metadata.timestamp, height: metadata.deviceHeight })
+    cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {})
+  })
+  await pointer(page)
+  // headless Chrome's screencast sends the window's content area: the window less a toolbar nobody sees. One frame
+  // measures it, then the window grows by that much, so that a frame is the whole viewport
+  await cdp.send("Page.startScreencast", { format: "png" })
+  const [x0, y0] = s.start ?? [700, 450]
+  for (let i = 0; !frames.length && i < 100; i++) await page.mouse.move(x0, y0 + (i % 2)).then(() => page.waitForTimeout(20)) // a repaint
+  await cdp.send("Page.stopScreencast")
+  const { targetInfo } = await cdp.send("Target.getTargetInfo")
+  const win = await page.context().browser().newBrowserCDPSession()
+  const { windowId, bounds } = await win.send("Browser.getWindowForTarget", { targetId: targetInfo.targetId })
+  const viewH = page.viewportSize().height
+  await win.send("Browser.setWindowBounds", { windowId, bounds: { height: bounds.height + viewH - frames[0].height } })
+  frames.length = 0
+  await cdp.send("Page.startScreencast", { format: "png", everyNthFrame: 2 })
+  await page.waitForTimeout(600)
+  await s.act(page)
+  await page.waitForTimeout(1500)
+  await cdp.send("Page.stopScreencast")
+  frames.splice(0, frames.length, ...frames.filter((f) => f.height === viewH)) // a late frame from before the resize
+  const dir = `${ROOT}data/docs-gif/`
+  rmSync(dir, { recursive: true, force: true })
+  mkdirSync(dir, { recursive: true })
+  // the concat demuxer's own timing: each frame lasts until the next one (the last, a second); fps= evens it out
+  const list = frames.flatMap((f, i) => {
+    writeFileSync(`${dir}${i}.png`, Buffer.from(f.data, "base64"))
+    return [`file ${i}.png`, `duration ${((frames[i + 1]?.t ?? f.t + 1) - f.t).toFixed(3)}`]
+  })
+  writeFileSync(`${dir}list.txt`, [...list, `file ${frames.length - 1}.png`, ""].join("\n"))
+  const { x, y, width, height } = s.clip
+  const vf = `crop=${width}:${height}:${x}:${y},fps=10,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle`
+  execFileSync("docker", [...REVIEW, "worker", "ffmpeg", "-v", "error", "-y", "-f", "concat", "-i", "/data/docs-gif/list.txt", "-vf", vf, "-loop", "0", "/data/docs-gif/out.gif"], { cwd: ROOT })
+  copyFileSync(`${dir}out.gif`, OUT + s.file)
+  rmSync(dir, { recursive: true, force: true })
+}
+
+// ---- 4. the shots, in guide order; callouts are numbered in reading order (columns left to right). A shot with act()
+// is a recording: no callouts, act() runs while it films the clip region
 const shots = (d) => [
   {
     file: "overview.png",
     page: "docs/guide/01-getting-started.md",
     title: "The Clipper layout",
-    alt: "Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, and the status footer",
+    alt: "Clipper's Library page with the sidebar on the left: page links, a red failed-post badge on Calendar, the status footer and the username",
     go: async (p) => p.goto(`${BASE}/library`),
     callouts: [
       { sel: "aside nav", at: "tl", outline: true, label: "Pages: Library, Calendar, Accounts, Customizations" },
       { sel: 'aside a[title*="failed post"]', at: "r", label: "Failed posts badge: opens the oldest failure's Recover page" },
       { sel: "aside div[title]:has-text('Publishing')", at: "r", dx: -28, label: "Status: API, database, worker and the publishing switch, worst first" },
       { sel: "aside div.tabular-nums", at: "r", dx: -28, label: "Renders running now and posts waiting to go out" },
+      { sel: "aside a[title=Settings]", at: "r", dx: -60, label: "Your username: opens Settings" },
       { sel: "main header", at: "c", outline: true, label: "Page header: title, tabs and the page's main actions" },
     ],
   },
@@ -311,24 +432,43 @@ const shots = (d) => [
     ],
   },
   {
+    file: "library-select.png",
+    page: "docs/guide/02-library.md",
+    title: "Library: select clips",
+    alt: "The Library with three clips ticked: in place of the drop zone, a bar reads 3 selected, with Clear and Delete 3",
+    go: async (p) => {
+      await p.goto(`${BASE}/library`)
+      for (const n of [1, 2, 4]) await p.locator(`tr[data-clip] >> nth=${n} >> input[type=checkbox]`).check()
+      await p.locator("[data-selection]").waitFor()
+      await p.mouse.move(600, 24) // off the rows: a hovered row shows its actions
+    },
+    callouts: [
+      { sel: "input[aria-label='Select every clip shown']", at: "r", dx: 2, label: "Tick every clip the search shows (again: none)" },
+      { sel: "tr[data-clip] >> nth=1 >> input[type=checkbox]", at: "r", dx: 2, label: "A ticked clip" },
+      { sel: ["[data-selection] span.tabular-nums", "[data-selection] button:text-is('Clear')"], at: "l", label: "How many are ticked; Clear unticks them" },
+      { sel: "[data-selection] button:has-text('Delete')", at: "l", label: "Delete them with their renders and files (it asks first; a clip with a post stays)" },
+    ],
+  },
+  {
     file: "library-published.png",
     page: "docs/guide/02-library.md",
     title: "Published",
-    alt: "The Library's Published tab: filters for account, brand and date range, and a table of published posts with Instagram links and a Re-render for… menu",
+    alt: "The Library's Published tab: filters for account, brand and date range, Free up space, and a table of published posts with Instagram links and a Re-render for… menu",
     go: async (p) => p.goto(`${BASE}/library?tab=published`),
     callouts: [
       { sel: ["main label:has-text('Account')", "main label:has(svg + select)"], at: "r", outline: true, label: "Filter by account, brand and date range" },
       { sel: "main span.tabular-nums:has-text('posts')", at: "l", label: "How many posts; times are in your browser's zone" },
+      { sel: "main button:has-text('Free up space')", at: "b", label: "Free up space: delete the MP4s of Reels already on Instagram" },
       { sel: "tr[data-post] >> nth=0 >> td:nth-child(2) div.font-medium", at: "r", dx: -8, label: "When it went out (and in the account's zone, if different)" },
       { sel: "tr[data-post] >> nth=0 >> a:has-text('View on Instagram')", at: "l", label: "Open the Reel on Instagram" },
-      { sel: "tr[data-post] >> nth=0 >> td:last-child label", at: "l", label: "Re-render for… a brand: same clip and crop, that brand's default logo and caption; opens the editor" },
+      { sel: "tr[data-post] >> nth=0 >> td:last-child label", at: "l", label: "Re-render for… a brand: same clip, crop and filter, that brand's default logo and caption; opens the editor" },
     ],
   },
   {
     file: "editor.png",
     page: "docs/guide/03-editor.md",
     title: "Editor",
-    alt: "The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, cover, caption, Render) and the renders for this clip",
+    alt: "The Editor: a 9:16 stage with the brand logo and the Instagram Reels overlay, the controls panel (brand, logo, crop, filter, music, Render) and the renders for this clip",
     go: async (p) => {
       await p.goto(`${BASE}/editor/${EDITOR_CLIP}?brand=5`)
       await p.waitForFunction(() => document.querySelector("[data-fracbox=logo] img")?.naturalWidth > 0)
@@ -340,7 +480,8 @@ const shots = (d) => [
       { sel: "button:has-text('IG overlay')", at: "b", dx: 60, label: "IG overlay: Instagram's buttons and caption over the frame, and the safe zone" },
       { sel: "aside div.space-y-2:has(select[aria-label=Brand])", at: "tl", label: "Brand (or No logo); Save as brand default keeps this placement" },
       { sel: "aside fieldset", at: "tl", label: "Logo scale, opacity, snap position and margin" },
-      { sel: "aside div.space-y-2:has(> textarea[aria-label=Caption])", at: "tl", label: "Caption: saved captions, reset to the brand template, limits" },
+      { sel: "aside div.space-y-2:has(> div > span:text-is('Filter'))", at: "tl", label: "Filter: Instagram-style looks, baked into the render" },
+      { sel: "aside div.space-y-2:has(> div > span:text-is('Music'))", at: "tl", label: "Music: a song mixed into the render, its volume and the clip's (Cover and Caption follow below)" },
       { sel: "aside button:has-text('Render')", at: "l", label: "Render (⌘↵): queues the 1080x1920 MP4" },
       { sel: "aside:has(span:text-is('Renders for this clip'))", at: "tl", label: "Renders for this clip, newest first" },
     ],
@@ -371,6 +512,26 @@ const shots = (d) => [
     ],
   },
   {
+    file: "editor-filter.png",
+    page: "docs/guide/03-editor.md",
+    title: "Editor: filter and music",
+    alt: `The Editor with the ${LOOK[0]} filter picked: the stage shows the clip with that look under the logo; the controls are scrolled to the Filter tiles and the Music section with the default song and its volumes; a render card names its filter and song`,
+    go: async (p) => {
+      await p.goto(`${BASE}/editor/${EDITOR_CLIP}?brand=5`)
+      await p.locator(`aside button[aria-label='${LOOK[0]}']`).click()
+      // the Filter section at the top of the controls, the Music section under it
+      await p.locator("aside div.space-y-2:has(> div > span:text-is('Filter'))").evaluate((el) => (el.parentElement.scrollTop = el.offsetTop - el.parentElement.offsetTop))
+    },
+    callouts: [
+      { sel: "[data-fracbox=logo] >> xpath=..", at: "tl", outline: true, label: "The stage shows the filter; the logo sits on top, untouched" },
+      { sel: "aside div.space-y-2:has(> div > span:text-is('Filter'))", at: "tl", label: "Filter: one tile per look, on this clip's own frame; Normal is none" },
+      { sel: `aside button[aria-label='${LOOK[0]}']`, at: "t", label: "The chosen filter, also named beside Filter" },
+      { sel: "aside label:has(select[aria-label=Song])", at: "l", label: "The song (the default one is preselected), or None; Upload… adds one" },
+      { sel: ["aside div.space-y-1\\.5:has(> div > span:text-is('Song'))", "aside div.space-y-1\\.5:has(> div > span:text-is(\"Clip's sound\"))"], at: "l", label: "Song and Clip's sound volumes; play the stage to hear the mix" },
+      { sel: `li[data-render="${d.rid.look}"]`, at: "tl", label: "A render names its filter and its song (♫)" },
+    ],
+  },
+  {
     file: "editor-cover.png",
     page: "docs/guide/03-editor.md",
     title: "Editor: cover",
@@ -379,6 +540,7 @@ const shots = (d) => [
       await p.goto(`${BASE}/editor/${EDITOR_CLIP}?brand=5`)
       await p.locator("button:text-is('cover')").click()
       await p.getByText("Profile grid 3:4").waitFor()
+      await p.locator("aside div.space-y-2:has(> div > span:text-is('Cover'))").evaluate((el) => (el.parentElement.scrollTop = el.offsetTop - el.parentElement.offsetTop))
     },
     callouts: [
       { sel: "span:text-is('Profile grid 3:4') >> xpath=..", at: "tr", outline: true, label: "The middle 3:4: what the profile grid shows" },
@@ -418,7 +580,7 @@ const shots = (d) => [
       await p.getByText("Default placement").waitFor()
     },
     callouts: [
-      { sel: "header nav", at: "b", label: "Brands, Captions and Covers tabs" },
+      { sel: "header nav", at: "b", label: "Brands, Captions, Covers and Music tabs" },
       { sel: "tr[data-brand]:has-text('Flux Energy') td:nth-child(2) button", at: "r", label: "A brand: click its row to edit it" },
       { sel: "[role=dialog] div:has(> div:text-is('Logo'))", at: "l", label: "Logo: a PNG with a transparent background" },
       { sel: "[role=dialog] div.grid:has(input[aria-label=Name])", at: "l", label: "Name and link (the link fills {link})" },
@@ -440,7 +602,7 @@ const shots = (d) => [
       await p.getByText("Default caption").waitFor()
     },
     callouts: [
-      { sel: "header nav", at: "b", label: "Brands, Captions and Covers tabs" },
+      { sel: "header nav", at: "b", label: "Brands, Captions, Covers and Music tabs" },
       { sel: "tr[data-caption]:has-text('Late-night pick') button", at: "r", label: "A saved caption: click its row to edit it" },
       { sel: "[role=dialog] label:has(input[aria-label=Name])", at: "l", label: "Name, as the Editor lists it" },
       { sel: "[role=dialog] div:has(> textarea[aria-label=Caption])", at: "l", label: "The text, with its length and hashtag count" },
@@ -461,6 +623,21 @@ const shots = (d) => [
       { sel: "li[data-cover] >> nth=0 >> span:text-is('Default')", at: "r", label: "The default cover: preselected in the Editor" },
       { sel: "li[data-cover] >> nth=1 >> button:has-text('Make default')", at: "b", label: "Make default (or Clear default)" },
       { sel: "li[data-cover] >> nth=1 >> button[title=Rename]", at: "b", label: "Rename or delete (renders keep their own copy)" },
+    ],
+  },
+  {
+    file: "customizations-music.png",
+    page: "docs/guide/04-customizations.md",
+    title: "Customizations: music",
+    alt: "The Music tab: three songs, one marked Default, each with a player, the day it was added, Make default, rename and delete",
+    go: async (p) => p.goto(`${BASE}/customizations/music`),
+    callouts: [
+      { sel: "header button:has-text('Upload song')", at: "l", label: "Upload song: MP3, M4A, AAC, WAV, Ogg or FLAC, up to 20 MB, several at once" },
+      { sel: "li[data-track] >> nth=0 >> span[title]", at: "l", label: "A song; its name is also the Reel's audio on Instagram" },
+      { sel: "li[data-track] >> nth=0 >> span:text-is('Default')", at: "l", label: "The default song: preselected in the Editor" },
+      { sel: "li[data-track] >> nth=0 >> audio", at: "t", label: "Play it" },
+      { sel: "li[data-track] >> nth=1 >> button:has-text('Make default')", at: "b", label: "Make default (or Clear default)" },
+      { sel: "li[data-track] >> nth=1 >> button[title=Rename]", at: "b", label: "Rename or delete (a finished render keeps the song mixed in)" },
     ],
   },
   {
@@ -489,7 +666,8 @@ const shots = (d) => [
     title: "Calendar: auto-schedule",
     alt: "Three renders selected in the Ready to schedule tray; dashed Fill previews show where Auto-schedule will place them on the board",
     go: async (p) => {
-      await p.goto(`${BASE}/calendar?account=${d.account}&week=${d.day0}`)
+      // from today: Auto-schedule fills today's slots still ahead first
+      await p.goto(`${BASE}/calendar?account=${d.account}&week=${addDays(d.day0, -1)}`)
       await p.locator("[data-post]").first().waitFor()
       for (const id of [d.rid.L, 23, 5]) await p.locator(`aside[data-queue] label[data-render="${id}"] input`).check()
       await p.locator("[data-preview]").first().waitFor()
@@ -572,9 +750,45 @@ const shots = (d) => [
     },
     callouts: [],
   },
+  {
+    file: "editor-filters.gif",
+    page: "docs/guide/03-editor.md",
+    title: "Editor: trying filters",
+    alt: "A recording of the Editor: clicking Filter tiles one after another changes the clip's look on the stage, while the logo keeps its own colours",
+    go: async (p) => {
+      await p.goto(`${BASE}/editor/${EDITOR_CLIP}?brand=5`)
+      await p.waitForFunction(() => document.querySelector("[data-fracbox=logo] img")?.naturalWidth > 0)
+    },
+    clip: { x: 200, y: 0, width: 960, height: 900 },
+    start: [930, 700],
+    act: async (p) => {
+      for (const f of ["Clarendon", "Moon", "Valencia", "1977", "Juno", "Normal"]) await glide(p, `aside button[aria-label='${f}']`, 1100)
+    },
+  },
+  {
+    file: "calendar-auto-schedule.gif",
+    page: "docs/guide/05-calendar.md",
+    title: "Calendar: Auto-schedule",
+    alt: "A recording of the Calendar: ticking renders in Ready to schedule shows a dashed Fill preview where each will land, then Auto-schedule places them in the next free slots",
+    go: async (p) => {
+      await p.goto(`${BASE}/calendar?account=${d.account}&week=${addDays(d.day0, -1)}`)
+      await p.locator("[data-post]").first().waitFor()
+    },
+    clip: { x: 200, y: 0, width: 1240, height: 900 },
+    start: [1300, 560],
+    act: async (p) => {
+      for (const id of [d.rid.L, 23, 5]) await glide(p, `aside[data-queue] label[data-render="${id}"]`, 900)
+      await glide(p, "aside[data-queue] button:has-text('Auto-schedule')", 2500)
+    },
+    // what it placed goes back to the tray, so a later run with PREP=0 finds the same board
+    after: async () => {
+      for (const x of await api("GET", `/posts?account_id=${d.account}&status=DRAFT&status=SCHEDULED`))
+        if ([d.rid.L, 23, 5].includes(x.render_id)) await api("POST", `/posts/${x.id}/cancel`)
+    },
+  },
 ]
 
-// ---- 4. run
+// ---- 5. run
 const data = process.env.PREP === "0" ? JSON.parse(readFileSync("/tmp/clipper-docs-prep.json")) : await prep()
 writeFileSync("/tmp/clipper-docs-prep.json", JSON.stringify(data))
 log("data", data)
@@ -588,7 +802,7 @@ try {
   // first run
 }
 for (const s of shots(data)) {
-  if (ONLY && !ONLY.includes(s.file.replace(".png", ""))) continue
+  if (ONLY && !ONLY.includes(s.file.replace(/\.\w+$/, ""))) continue
   const ctx = await browser.newContext({ viewport: s.viewport ?? { width: 1440, height: 900 }, colorScheme: "dark", timezoneId: "Europe/London", locale: "en-GB" })
   await ctx.addCookies([{ name: "clipper_session", value: SESSION, url: BASE }])
   const page = await ctx.newPage()
@@ -596,15 +810,20 @@ for (const s of shots(data)) {
   page.on("dialog", (dlg) => dlg.dismiss()) // nothing here should confirm anything
   await s.go(page)
   await settle(page)
-  await annotate(page, s.callouts)
-  await page.screenshot({ path: OUT + s.file })
+  if (s.act) await film(page, s)
+  else {
+    await annotate(page, s.callouts)
+    await page.screenshot({ path: OUT + s.file })
+  }
   await ctx.close()
-  const entry = { file: s.file, page: s.page, title: s.title, alt: s.alt, callouts: s.callouts.map((c, i) => ({ n: i + 1, selector: [c.sel].flat().join(" + "), label: c.label })) }
+  await s.after?.()
+  const entry = { file: s.file, page: s.page, title: s.title, alt: s.alt, callouts: (s.callouts ?? []).map((c, i) => ({ n: i + 1, selector: [c.sel].flat().join(" + "), label: c.label })) }
   manifest = [...manifest.filter((m) => m.file !== s.file), entry]
   log("wrote", s.file)
 }
 await browser.close()
 const order = shots(data).map((s) => s.file)
-manifest.sort((a, b) => order.indexOf(a.file) - order.indexOf(b.file))
+const rank = (file) => (order.includes(file) ? order.indexOf(file) : order.length) // the hand-made ones last, as they were
+manifest.sort((a, b) => rank(a.file) - rank(b.file))
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n")
 log("manifest", manifestPath)
